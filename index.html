@@ -93,6 +93,24 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
 .doc .card2{border:1px solid var(--line);border-radius:14px;padding:12px 14px}
 .doc .lbl{font-size:13px;font-weight:700;color:var(--blue-text);text-transform:uppercase;letter-spacing:.03em;margin-top:8px}
 .doc .disc{font-size:14px;font-style:italic;color:var(--muted);white-space:pre-line}
+.doc .wl{border-bottom:1.5px solid #9fb0c3;height:34px}.doc .fi{margin:12px 0 4px}.doc .wbox{border:1.5px solid #9fb0c3;border-radius:10px;min-height:130px;margin-top:8px}
+.doc .scale{display:flex;gap:10px;margin:10px 0 4px}.doc .sc{flex:1;max-width:56px;height:44px;border:2px solid var(--navy);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--navy)}
+.doc .scl{display:flex;justify-content:space-between;font-size:14px;color:var(--muted)}.doc .ck{display:flex;align-items:center;gap:10px;margin:8px 0}.doc .bx{flex:none;width:22px;height:22px;border:2px solid var(--navy);border-radius:50%}.doc .bx.sq2{border-radius:5px}.doc .sq{break-inside:avoid}
+.pv .sl{margin:12px 0}.pv .nt{display:block;position:absolute;left:0;right:0;bottom:0;background:rgba(17,48,76,.88);color:#fff;font-size:1.7cqw;padding:1cqw 3cqw;z-index:2}
+.deck,.pv{counter-reset:sl}
+.sl{counter-increment:sl;container-type:inline-size;position:relative;width:100%;aspect-ratio:16/9;background:#fff;color:#1b2a3a;display:flex;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.2);border-radius:6px;text-align:left}
+.sl .bar2{position:absolute;left:0;top:0;bottom:0;width:1.6cqw;background:var(--blue)}
+.sl .si{flex:1;min-width:0;padding:5cqw 7cqw 7cqw 8cqw;display:flex;flex-direction:column;justify-content:center}
+.sl h1{color:#fff;font-size:6.2cqw;line-height:1.12;margin:2cqw 0 2cqw}.sl h2{color:var(--navy);font-size:4.6cqw;line-height:1.15;margin:0 0 3cqw}
+.sl ul,.sl ol{font-size:3.1cqw;line-height:1.3;margin:0;padding-left:4.2cqw}.sl li{margin:0 0 1.5cqw}
+.sl p{margin:0}.sl p.big{font-size:3.5cqw;line-height:1.45}.sl p.snote{font-size:2.4cqw;line-height:1.4;color:#4a5a6b;margin-top:2cqw}
+.sl .tag{align-self:flex-start;background:var(--light);color:var(--navy);border-radius:999px;padding:.5cqw 2cqw;font-size:2cqw;font-weight:700;margin-bottom:2cqw}
+.sl .pbox{background:var(--light);border-left:1cqw solid var(--blue);border-radius:1cqw;padding:2.4cqw 3cqw;font-size:3.1cqw;line-height:1.4;white-space:pre-wrap}.sl .pbox.sm{font-size:2.3cqw}
+.sl table{border-collapse:collapse;width:100%;font-size:2.4cqw}.sl th{background:var(--navy);color:#fff;text-align:left;padding:1.2cqw 1.6cqw}.sl td{border-bottom:1px solid #d9e2ee;padding:1.2cqw 1.6cqw}
+.sl.tipS{background:var(--light)}.sl.tipS.safe .tag{background:#fff3cd}
+.sl .sf{position:absolute;left:8cqw;right:3cqw;bottom:1.8cqw;display:flex;justify-content:space-between;font-size:1.5cqw;color:#6b7a89}.sl .sf::after{content:counter(sl)}
+.sl .nt{display:none}
+.sl.tl,.sl.cl{background:var(--navy);color:#fff}.sl.tl .si,.sl.cl .si{padding-left:8cqw}.sl.tl p,.sl.cl p{font-size:2.8cqw;line-height:1.4;opacity:.92;white-space:pre-line}.sl .slogo{width:11cqw;height:11cqw;border-radius:2cqw;object-fit:contain}.sl.tl .sf,.sl.cl .sf{color:#b9c9da}
 @media print{header.top,.seg,.card,.note,.btn,footer,.muted{display:none!important}.doc{border:0}.doc .hero,.doc th,.doc ol.st li::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}.doc .blk{break-inside:avoid}}
 .doc .foot div+div{margin-top:2px;color:var(--navy);font-weight:600}
 .doc .foot{border-top:1px solid var(--line);padding:10px 16px;font-size:12px;color:var(--muted);text-align:center}
@@ -153,7 +171,11 @@ const BLOCK_TYPES = {
   tip:             { fields: 'style ("tip" or "safety"), body (text)' },
   cheat_sheet:     { fields: 'heading (text), items (list of text)' },
   next_steps:      { fields: 'items (list of text)' },
-  disclaimer:      { fields: 'body (text)' }
+  disclaimer:      { fields: 'body (text)' },
+  fill_in:         { fields: 'heading (text), instructions (text, optional), items (list of short prompts the participant completes by hand, e.g. "My main goal is ____")' },
+  write_box:       { fields: 'heading (text), prompt (text: a question or reflection to answer in a writing box)' },
+  survey_question: { fields: 'kind ("scale" = rating 1 to 5, "choice" = pick one, "multi" = pick any, or "text" = open answer), question (text), options (list of text: for "choice" and "multi" the answer choices, at least 2; for "scale" optionally 2 labels [lowest, highest]; omit for "text")' },
+  slide:           { fields: 'heading (text, max 8 words), points (list of 3-5 short bullet texts, max 12 words each), notes (text, optional speaker notes for the facilitator)' }
 };
 
 /* Machine-readable field rules used by the validator and the editor.
@@ -167,14 +189,20 @@ const BLOCK_SPECS = {
   tip:              { style: ['tip', 'safety'], body: 's' },
   cheat_sheet:      { heading: 's', items: 'a' },
   next_steps:       { items: 'a' },
-  disclaimer:       { body: 's' }
+  disclaimer:       { body: 's' },
+  fill_in:          { heading: 's', instructions: 's?', items: 'a' },
+  write_box:        { heading: 's', prompt: 's' },
+  survey_question:  { kind: ['scale', 'choice', 'multi', 'text'], question: 's', options: 'a?' },
+  slide:            { heading: 's', points: 'a', notes: 's?' }
 };
 const BLOCK_LABELS = {
   section: { en: "Section", fr: "Section" }, steps: { en: "Steps", fr: "Étapes" },
   comparison_table: { en: "Comparison table", fr: "Tableau comparatif" }, practice_prompt: { en: "Try it now", fr: "À vous d'essayer" },
   workflow: { en: "Workflow", fr: "Flux de travail" }, tip: { en: "Tip / safety box", fr: "Encadré astuce / sécurité" },
   cheat_sheet: { en: "Cheat sheet", fr: "Aide-mémoire" }, next_steps: { en: "Next steps", fr: "Prochaines étapes" },
-  disclaimer: { en: "Disclaimer", fr: "Avis" }
+  disclaimer: { en: "Disclaimer", fr: "Avis" },
+  fill_in: { en: "Fill-in prompts", fr: "Phrases \u00E0 compl\u00E9ter" }, write_box: { en: "Writing box", fr: "Zone d'\u00E9criture" },
+  survey_question: { en: "Survey question", fr: "Question de sondage" }, slide: { en: "Slide", fr: "Diapositive" }
 };
 const LIMITS = { backup: 5000000, sessions: 200, bytes: 300000, blocks: 100, str: 8000, items: 100, rows: 100, cols: 8 };
 
@@ -285,6 +313,85 @@ const OUTPUT_TYPES = {
   }
 };
 
+/* ---- Artifacts: one shared intake per brand, one deliverable type per artifact ---- */
+const BASE = { seniors: "seniors_handout", business: "business_pack" };
+const ARTIFACT_ORDER = ["handout", "workbook", "deck", "survey"];
+const artId = (brand, a) => a === "handout" ? BASE[brand] : brand + "_" + a;
+const HANDOUT_BLOCKS = ["section", "steps", "comparison_table", "practice_prompt", "workflow", "tip", "cheat_sheet", "next_steps", "disclaimer"];
+const ARTIFACTS = {
+  workbook: {
+    label: { en: "In-session workbook", fr: "Cahier de séance" },
+    desc: { en: "Fill-in pages to follow along during the session", fr: "Pages à remplir pour suivre la séance en direct" },
+    allowed: ["section", "steps", "practice_prompt", "fill_in", "write_box", "tip", "cheat_sheet", "next_steps", "disclaimer"],
+    required: ["section", "fill_in", "practice_prompt"],
+    title: { seniors: "Your AI Workbook: Follow Along Today", business: "Your AI Session Workbook: Client Follow-Ups" },
+    rules: {
+      seniors: [
+        "Write for adults who are new to AI. Warm, patient, plain language. Short sentences. No jargon. Keep every text short so it is easy to read in large print.",
+        "This is an IN-SESSION follow-along workbook: the participant fills it in by hand with the facilitator during the live session. It is not a take-home summary.",
+        "Match the comfort level and the device given in the intake (mention device-specific tips only for that device).",
+        "Aim for: a short 'section' welcoming them and saying what we will do today; 2-4 'steps' blocks guiding live exercises, one action per step; several 'fill_in' blocks with 3-6 short prompts each that the person completes by hand (for example 'The one thing I want AI to help me with is ____'); 2-3 'practice_prompt' blocks to try live, using [placeholders] in square brackets; 1-2 'write_box' blocks for notes and reflection; one 'tip' with style 'safety' (never share passwords, bank details or health numbers with an AI); a closing 'next_steps' block with things to try this week."
+      ],
+      business: [
+        "Write for owners and teams of small businesses and professional practices. Professional, practical, concise. Organize everything around the client's own tasks.",
+        "This is an IN-SESSION follow-along workbook completed with the facilitator during a live working session. It is not a take-home summary.",
+        "Use ONLY the business type, team size, tasks, experience and tools given in the intake. Do not invent clients, results, prices or tools they did not mention.",
+        "Aim for: a short 'section' stating the session objective; 'fill_in' blocks where the team writes down their real tasks, current process and desired outcome; 'steps' blocks for guided exercises on their key tasks; 3-5 'practice_prompt' blocks to try live on THEIR tasks, with [placeholders] in square brackets; 'write_box' blocks for decisions and action owners; a closing 'next_steps' block."
+      ]
+    }
+  },
+  deck: {
+    label: { en: "Slide deck", fr: "Présentation" },
+    desc: { en: "Full-screen slides to present on a big screen", fr: "Diapositives plein écran à présenter sur grand écran" },
+    allowed: ["slide", "section", "steps", "comparison_table", "practice_prompt", "workflow", "tip", "cheat_sheet", "next_steps", "disclaimer"],
+    required: ["slide", "practice_prompt"],
+    title: { seniors: "Getting Started with AI", business: "AI for Your Business: Session Presentation" },
+    rules: {
+      seniors: [
+        "This is a SLIDE DECK the facilitator presents on a large screen during the live session. Each block becomes one or more slides. Plain language, no jargon, one big simple idea per slide.",
+        "Keep slides sparse: a 'slide' block has a short heading (max 8 words) and 3-5 'points', each max 12 words. Put what the speaker says aloud in 'notes' (1-3 sentences).",
+        "Match the comfort level and the device given in the intake (mention device-specific tips only for that device).",
+        "Aim for 12-20 blocks: an opening 'slide' on what we will do today; one or more 'slide', 'section' or 'steps' blocks per requested topic; 'practice_prompt' blocks for live demonstrations, with [placeholders]; one 'tip' with style 'safety'; a closing 'cheat_sheet' or 'next_steps'."
+      ],
+      business: [
+        "This is a SLIDE DECK the facilitator presents on a large screen during the live session. Each block becomes one or more slides. Professional, confident, organized around the client's own tasks.",
+        "Keep slides sparse: a 'slide' block has a short heading (max 8 words) and 3-5 'points', each max 12 words. Put what the speaker says aloud in 'notes' (1-3 sentences).",
+        "Use ONLY the business type, team size, tasks, experience and tools given in the intake. Do not invent clients, results, prices or tools they did not mention.",
+        "Aim for 12-20 blocks: an opening 'slide' on the session objective; blocks per key task ('slide', 'workflow', 'steps'); 'practice_prompt' blocks for live demonstrations on THEIR tasks, with [placeholders]; a 'tip' on data safety; a closing 'next_steps'."
+      ]
+    }
+  },
+  survey: {
+    label: { en: "Feedback and interest survey", fr: "Sondage de rétroaction et d'intérêt" },
+    desc: { en: "Short survey on how it went and what they want next", fr: "Court sondage sur la séance et les suites souhaitées" },
+    allowed: ["section", "survey_question", "disclaimer"],
+    required: ["survey_question"],
+    title: { seniors: "Tell Us What You Thought", business: "Session Feedback and Next Steps" },
+    rules: {
+      seniors: [
+        "This is a short FEEDBACK AND INTEREST SURVEY given to participants after the session. Warm, plain language, short questions.",
+        "Use one 'section' as a 1-2 sentence introduction, then 6-10 'survey_question' blocks, then optionally a 'disclaimer' saying answers are only used to improve future sessions.",
+        "Mix the kinds: 'scale' (1 to 5; options = [lowest label, highest label]) for how it went, how clear it was and how confident they now feel; 'choice' (pick one) and 'multi' (pick any) with options for which topics they want next (base them on the intake topics) and the preferred format; 'text' for open comments.",
+        "Never ask for names, contact details or any personal information."
+      ],
+      business: [
+        "This is a short FEEDBACK AND INTEREST SURVEY given to participants after the session. Professional, concise questions.",
+        "Use one 'section' as a 1-2 sentence introduction, then 6-10 'survey_question' blocks, then optionally a 'disclaimer' saying answers are only used to improve future sessions.",
+        "Mix the kinds: 'scale' (1 to 5; options = [lowest label, highest label]) for value, clarity and confidence to apply it; 'choice' (pick one) and 'multi' (pick any) with options for which of THEIR tasks or workflows they want help with next and the preferred follow-up format (for example a team workshop or a working session); 'text' for open comments. Do not invent services or prices.",
+        "Never ask for names, contact details or any personal information."
+      ]
+    }
+  }
+};
+Object.keys(BASE).forEach(br => {
+  const base = OUTPUT_TYPES[BASE[br]];
+  base.art = "handout"; base.allowed = HANDOUT_BLOCKS;
+  for (const [a, def] of Object.entries(ARTIFACTS)) {
+    const id = artId(br, a);
+    OUTPUT_TYPES[id] = { id, enabled: true, sessionType: br, outputType: a, art: a, label: def.label, desc: def.desc, requiredBlocks: def.required, allowed: def.allowed, questions: base.questions, audienceRules: def.rules[br], exampleTitle: def.title[br] };
+  }
+});
+
 /* ==========================================================================
    UI strings (interface language, EN / FR Quebec)
    ========================================================================== */
@@ -294,6 +401,11 @@ const UI = {
     homeTitle: "Client session toolkit",
     homeSub: "Intake, prompt, deliverable - all on this device.",
     startNew: "Start a new session",
+    pickBrand: "Which brand is this session for?", pickArts: "What do you want to build? Pick one or more.", pickNone: "Pick at least one.",
+    hubTitle: "Your session materials", hubSub: "One shared intake, one prompt per item. Do them in any order.", hubTodo: "Not started", hubDone: "Ready",
+    hubPrompt: "Get the prompt", hubOpen: "Open, edit and export", hubPromptAgain: "See the prompt again", hubBack: "Back to my materials", hubEditAns: "Edit the shared answers", hubHome: "Back to home", toHub: "Continue",
+    presentBtn: "Present on screen", presentTip: "Opens full screen. Tap the right or left side, swipe, or use the arrow keys to move. Press N for speaker notes and F for full screen.", thanks: "Thank you", sessItems: "items",
+    e_notallowed: "is not allowed in this kind of material:", e_opts: "needs at least 2 options for this kind of question.",
     outputType: "Output type",
     sessionLang: "Session language (the deliverable's language)",
     start: "Start intake",
@@ -350,6 +462,11 @@ const UI = {
     homeTitle: "Boîte à outils de séance",
     homeSub: "Collecte, requête, livrable - tout sur cet appareil.",
     startNew: "Commencer une nouvelle séance",
+    pickBrand: "Pour quelle marque est cette séance?", pickArts: "Que voulez-vous créer? Choisissez-en un ou plusieurs.", pickNone: "Choisissez-en au moins un.",
+    hubTitle: "Le matériel de la séance", hubSub: "Un seul questionnaire, une requête par document. Dans l'ordre que vous voulez.", hubTodo: "Non commencé", hubDone: "Prêt",
+    hubPrompt: "Obtenir la requête", hubOpen: "Ouvrir, modifier et exporter", hubPromptAgain: "Revoir la requête", hubBack: "Retour au matériel", hubEditAns: "Modifier les réponses communes", hubHome: "Retour à l'accueil", toHub: "Continuer",
+    presentBtn: "Présenter à l'écran", presentTip: "S'ouvre en plein écran. Touchez la droite ou la gauche, balayez ou utilisez les flèches pour avancer. Touche N pour les notes, F pour le plein écran.", thanks: "Merci", sessItems: "documents",
+    e_notallowed: "n'est pas permis dans ce type de document :", e_opts: "doit avoir au moins 2 choix pour ce type de question.",
     outputType: "Type de livrable",
     sessionLang: "Langue de la séance (langue du livrable)",
     start: "Démarrer la collecte",
@@ -409,7 +526,8 @@ const UI = {
 const S = {
   ui: (navigator.language || "en").toLowerCase().startsWith("fr") ? "fr" : "en",
   screen: "home",
-  typeId: Object.keys(OUTPUT_TYPES).find(k => OUTPUT_TYPES[k].enabled),
+  brand: "seniors", sel: ["seniors_handout"], results: {}, pastes: {},
+  typeId: "seniors_handout",
   lang: null,
   step: 0,
   answers: {},
@@ -443,26 +561,44 @@ function applyBranding(brand) {
 }
 
 function currentType() { return OUTPUT_TYPES[S.typeId]; }
+function baseType() { return OUTPUT_TYPES[BASE[S.brand]]; }
+/* The current artifact lives in S.result / S.paste; these keep the per-artifact maps in step. */
+function syncCur() {
+  if (!S.sel.includes(S.typeId)) return;
+  if (S.result) S.results[S.typeId] = S.result; else delete S.results[S.typeId];
+  if (S.paste) S.pastes[S.typeId] = S.paste; else delete S.pastes[S.typeId];
+}
+function switchTo(id) { syncCur(); S.typeId = id; S.result = S.results[id] || null; S.paste = S.pastes[id] || ""; S.errors = []; S.tab = "edit"; }
 
 /* ---- Prompt composer ---------------------------------------------------- */
 function optLabel(q, id) { const o = (q.options || []).find(x => x.id === id); return o ? o.en : ""; }
 
+const EX = {
+  section: [{ type: "section", heading: "What we covered", body: "Plain-language explanation, 2-6 sentences." }],
+  steps: [{ type: "steps", heading: "How to do it", items: ["First step", "Second step"] }],
+  comparison_table: [{ type: "comparison_table", heading: "Side by side", columns: ["Doing it yourself", "With AI"], rows: [["Staring at a blank page", "A draft in seconds"]] }],
+  practice_prompt: [{ type: "practice_prompt", heading: "Try it now", prompt: "Explain [topic] like I'm new to it.", note: "Swap [topic] for anything." }],
+  workflow: [{ type: "workflow", heading: "Reusable workflow", purpose: "What this workflow is for", steps: ["Step 1", "Step 2"], reuse: "How and when to reuse it" }],
+  tip: [{ type: "tip", style: "tip", body: "A pro tip or safety note." }],
+  cheat_sheet: [{ type: "cheat_sheet", heading: "Take-home cheat sheet", items: ["Short prompt or key point"] }],
+  next_steps: [{ type: "next_steps", items: ["Suggested follow-up"] }],
+  disclaimer: [{ type: "disclaimer", body: "Only for health, legal, financial or safety topics." }],
+  fill_in: [{ type: "fill_in", heading: "Complete these sentences", instructions: "Fill these in during the session.", items: ["The one thing I want AI to help me with is ____"] }],
+  write_box: [{ type: "write_box", heading: "My notes", prompt: "What will I try first this week?" }],
+  survey_question: [
+    { type: "survey_question", kind: "scale", question: "How clear was the session?", options: ["Not clear", "Very clear"] },
+    { type: "survey_question", kind: "choice", question: "Which format do you prefer?", options: ["In person", "Online"] },
+    { type: "survey_question", kind: "multi", question: "Which topics interest you next?", options: ["Topic A", "Topic B"] },
+    { type: "survey_question", kind: "text", question: "What would you change?" }],
+  slide: [{ type: "slide", heading: "Short slide title", points: ["Key point", "Another key point"], notes: "What the speaker says aloud." }]
+};
 function exampleJson(type, lang) {
+  const blocks = []; type.allowed.forEach(k => blocks.push(...EX[k]));
   return JSON.stringify({
     schema_version: 1, session_type: type.sessionType, output_type: type.outputType, language: lang,
     title: type.exampleTitle || "Your First AI Conversation",
     intro: "2-3 sentence welcome or summary",
-    blocks: [
-      { type: "section", heading: "What we covered", body: "Plain-language explanation, 2-6 sentences." },
-      { type: "steps", heading: "How to do it", items: ["First step", "Second step"] },
-      { type: "comparison_table", heading: "Side by side", columns: ["Doing it yourself", "With AI"], rows: [["Staring at a blank page", "A draft in seconds"]] },
-      { type: "practice_prompt", heading: "Try it now", prompt: "Explain [topic] like I'm new to it.", note: "Swap [topic] for anything." },
-      { type: "workflow", heading: "Reusable workflow", purpose: "What this workflow is for", steps: ["Step 1", "Step 2"], reuse: "How and when to reuse it" },
-      { type: "tip", style: "tip", body: "A pro tip or safety note." },
-      { type: "cheat_sheet", heading: "Take-home cheat sheet", items: ["Short prompt or key point"] },
-      { type: "next_steps", items: ["Suggested follow-up"] },
-      { type: "disclaimer", body: "Only for health, legal, financial or safety topics." }
-    ]
+    blocks
   }, null, 2);
 }
 
@@ -475,7 +611,7 @@ function buildPrompt(type, lang, answers) {
     v = (v == null ? "" : String(v)).trim();
     return v ? "- " + q.promptLabel + ": " + v : null;
   }).filter(Boolean).join("\n");
-  const blockList = Object.entries(BLOCK_TYPES).map(([k, b]) => '- "' + k + '": ' + b.fields).join("\n");
+  const blockList = type.allowed.map(k => [k, BLOCK_TYPES[k]]).map(([k, b]) => '- "' + k + '": ' + b.fields).join("\n");
   const req = type.requiredBlocks.map(b => '"' + b + '"').join(", ");
   return [
     "You are helping " + BRANDING.owner + " (" + brandFor(type.sessionType).name + ") prepare a client deliverable for an AI training session.",
@@ -606,38 +742,58 @@ const Store = {
 let lastSaved = "";
 const newId = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 function persist() {
-  if (!S.sid || S.auth.status !== "in" || !["intake", "composer", "import", "edit"].includes(S.screen)) return;
-  if (!Object.keys(S.answers).length && !S.result && !S.paste) return;
-  const rec = { id: S.sid, typeId: S.typeId, lang: S.lang, created: S.created || Date.now(), updated: Date.now(), step: S.step, answers: S.answers, paste: S.paste, result: S.result };
+  if (!S.sid || S.auth.status !== "in" || !["intake", "hub", "composer", "import", "edit"].includes(S.screen)) return;
+  syncCur();
+  if (!Object.keys(S.answers).length && !Object.keys(S.results).length && !Object.keys(S.pastes).length) return;
+  const rec = { id: S.sid, brand: S.brand, sel: S.sel.slice(), typeId: S.typeId, lang: S.lang, created: S.created || Date.now(), updated: Date.now(), step: S.step, answers: S.answers, pastes: S.pastes, results: S.results };
   const sig = JSON.stringify(Object.assign({}, rec, { updated: 0 }));
   if (sig === lastSaved) return;
   if (Store.upsert(rec)) lastSaved = sig;
 }
-/* Rebuild a clean session from untrusted data (a backup file or storage). */
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+/* Rebuild a clean session from untrusted data (a backup file or storage). Accepts the old
+   single-artifact shape (typeId/paste/result) and the current multi-artifact shape. */
 function cleanSession(raw) {
   const bad = m => ({ error: m });
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return bad(t("b_obj"));
   if (!isStr(raw.id) || !/^[A-Za-z0-9_-]{1,64}$/.test(raw.id)) return bad("id");
-  if (!isStr(raw.typeId) || !Object.prototype.hasOwnProperty.call(OUTPUT_TYPES, raw.typeId) || !OUTPUT_TYPES[raw.typeId].enabled) return bad("typeId");
-  const type = OUTPUT_TYPES[raw.typeId];
   if (raw.lang !== "en" && raw.lang !== "fr") return bad("lang");
+  let brand, sel, typeId, rr = {}, rp = {};
+  if (raw.sel === undefined && raw.brand === undefined) {
+    if (!isStr(raw.typeId) || !has(OUTPUT_TYPES, raw.typeId) || !OUTPUT_TYPES[raw.typeId].enabled) return bad("typeId");
+    typeId = raw.typeId; brand = OUTPUT_TYPES[typeId].sessionType; sel = [typeId];
+    if (raw.result != null) rr[typeId] = raw.result;
+    if (isStr(raw.paste)) rp[typeId] = raw.paste;
+  } else {
+    if (!isStr(raw.brand) || !has(BASE, raw.brand)) return bad("brand");
+    brand = raw.brand;
+    sel = Array.isArray(raw.sel) ? raw.sel.filter((x, i, a) => isStr(x) && has(OUTPUT_TYPES, x) && OUTPUT_TYPES[x].enabled && OUTPUT_TYPES[x].sessionType === brand && a.indexOf(x) === i) : [];
+    if (!sel.length) return bad("sel");
+    typeId = isStr(raw.typeId) && sel.includes(raw.typeId) ? raw.typeId : sel[0];
+    if (raw.results && typeof raw.results === "object" && !Array.isArray(raw.results)) rr = raw.results;
+    if (raw.pastes && typeof raw.pastes === "object" && !Array.isArray(raw.pastes)) rp = raw.pastes;
+  }
+  const base = OUTPUT_TYPES[BASE[brand]];
   const ra = raw.answers && typeof raw.answers === "object" && !Array.isArray(raw.answers) ? raw.answers : {}, answers = {};
-  for (const q of type.questions) {
+  for (const q of base.questions) {
     const v = ra[q.id];
     if (q.type === "multi") { if (Array.isArray(v)) answers[q.id] = v.filter(x => isStr(x) && q.options.some(o => o.id === x)); }
     else if (q.type === "choice") { if (isStr(v) && q.options.some(o => o.id === v)) answers[q.id] = v; }
     else if (isStr(v)) answers[q.id] = v.slice(0, LIMITS.str);
   }
-  let result = null;
-  if (raw.result != null) { const r = validateText(JSON.stringify(raw.result), type, raw.lang); if (r.errors.length) return bad("result - " + r.errors[0]); result = r.data; }
-  const step = Number.isInteger(raw.step) ? Math.min(Math.max(raw.step, 0), type.questions.length - 1) : 0, num = v => Number.isFinite(v) ? v : Date.now();
-  return { rec: { id: raw.id, typeId: raw.typeId, lang: raw.lang, created: num(raw.created), updated: num(raw.updated), step, answers, paste: isStr(raw.paste) ? raw.paste.slice(0, LIMITS.bytes) : "", result } };
+  const results = {}, pastes = {};
+  for (const id of sel) {
+    if (has(rr, id) && rr[id] != null) { const r = validateText(JSON.stringify(rr[id]), OUTPUT_TYPES[id], raw.lang); if (r.errors.length) return bad(id + " - " + r.errors[0]); results[id] = r.data; }
+    if (isStr(rp[id]) && rp[id]) pastes[id] = rp[id].slice(0, LIMITS.bytes);
+  }
+  const step = Number.isInteger(raw.step) ? Math.min(Math.max(raw.step, 0), base.questions.length - 1) : 0, num = v => Number.isFinite(v) ? v : Date.now();
+  return { rec: { id: raw.id, brand, sel, typeId, lang: raw.lang, created: num(raw.created), updated: num(raw.updated), step, answers, pastes, results } };
 }
-function backupText(list) { return JSON.stringify({ app: "awr-toolkit", backup_version: 1, exported_at: new Date().toISOString(), sessions: list }, null, 1); }
+function backupText(list) { return JSON.stringify({ app: "awr-toolkit", backup_version: 2, exported_at: new Date().toISOString(), sessions: list }, null, 1); }
 function importBackup(text) {
   if (!text || text.length > LIMITS.backup) return { errors: [t("b_big")] };
   let o; try { o = JSON.parse(text); } catch (e) { return { errors: [t("e_parse") + " " + shorten(e && e.message, 120)] }; }
-  if (!o || o.app !== "awr-toolkit" || o.backup_version !== 1 || !Array.isArray(o.sessions)) return { errors: [t("b_format")] };
+  if (!o || o.app !== "awr-toolkit" || (o.backup_version !== 1 && o.backup_version !== 2) || !Array.isArray(o.sessions)) return { errors: [t("b_format")] };
   if (o.sessions.length > LIMITS.sessions) return { errors: [fmt(t("b_many"), LIMITS.sessions)] };
   const errs = [], recs = [];
   o.sessions.forEach((x, i) => { const r = cleanSession(x); if (r.error) errs.push(fmt(t("b_sess"), i + 1) + " " + r.error); else recs.push(r.rec); });
@@ -659,14 +815,19 @@ async function shareOrDownload(name, text, mime, say) {
 }
 const dstr = () => new Date().toISOString().slice(0, 10);
 const when = ms => { try { return new Date(ms).toLocaleString(S.ui === "fr" ? "fr-CA" : "en-CA", { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return ""; } };
-function sessionTitle(r) { return r.result ? r.result.title : ((r.answers.goals || "").trim().slice(0, 60) || L(OUTPUT_TYPES[r.typeId].label)); }
+function sessionTitle(r) {
+  for (const id of r.sel) if (r.results[id]) return r.results[id].title;
+  const q = OUTPUT_TYPES[BASE[r.brand]].questions[0];
+  return (r.answers[q.id] || "").trim().slice(0, 60) || brandFor(r.brand).name;
+}
 function openSession(rec) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
-  const r = c.rec, type = OUTPUT_TYPES[r.typeId];
-  S.typeId = r.typeId; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.paste = r.paste; S.result = r.result; S.errors = []; S.sid = r.id; S.created = r.created; S.tab = "edit";
+  const r = c.rec, base = OUTPUT_TYPES[BASE[r.brand]];
+  S.brand = r.brand; S.sel = r.sel; S.results = r.results; S.pastes = r.pastes; S.typeId = r.typeId; S.result = r.results[r.typeId] || null; S.paste = r.pastes[r.typeId] || "";
+  S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.created = r.created; S.tab = "edit";
   lastSaved = "";
-  const done = type.questions.every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
-  S.screen = r.result ? "edit" : done ? "composer" : "intake";
+  const done = base.questions.every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
+  S.screen = done ? "hub" : "intake";
   render(); window.scrollTo(0, 0);
 }
 function pickBackup(afterImport) {
@@ -684,7 +845,7 @@ function sessionsScreen() {
   const list = Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).sort((a, b) => b.updated - a.updated);
   const say = m => { S.sMsg = m; render(); };
   const cards = list.map(r => el("div", { class: "card" },
-    el("span", { class: "pill" }, L(OUTPUT_TYPES[r.typeId].label) + " \u00B7 " + r.lang.toUpperCase()),
+    el("span", { class: "pill" }, brandFor(r.brand).name + " \u00B7 " + r.sel.length + " " + t("sessItems") + " \u00B7 " + r.lang.toUpperCase()),
     el("p", { style: "margin:8px 0 2px;font-weight:700;color:var(--navy)" }, sessionTitle(r)),
     el("p", { class: "muted", style: "margin:0 0 6px" }, when(r.updated)),
     el("button", { class: "btn sm primary", onclick: () => openSession(r) }, t("open")),
@@ -704,7 +865,7 @@ function sessionsScreen() {
 
 /* ---- Screens ------------------------------------------------------------ */
 function shell(...content) {
-  const brand = brandFor(currentType().sessionType);
+  const brand = brandFor(S.brand);
   const lang = el("div", { class: "seg", role: "group", "aria-label": t("langLabel") },
     ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.ui === code), onclick: () => { S.ui = code; render(); } }, code.toUpperCase())));
   return el("div", null,
@@ -713,9 +874,16 @@ function shell(...content) {
 }
 
 function homeScreen() {
-  const types = Object.values(OUTPUT_TYPES).filter(o => o.enabled);
-  const typeBtns = types.map(o => el("button", { class: "opt", "aria-pressed": String(S.typeId === o.id), onclick: () => { S.typeId = o.id; render(); } },
-    el("span", { class: "dot" }), el("span", null, L(o.label), el("small", null, L(o.desc)))));
+  const brandBtns = Object.entries(BRANDING.brands).map(([key, b]) => el("button", { class: "opt", "aria-pressed": String(S.brand === key), onclick: () => { S.brand = key; S.sel = [BASE[key]]; S.typeId = BASE[key]; render(); } },
+    el("span", { class: "dot" }), el("span", null, b.name)));
+  const artBtns = ARTIFACT_ORDER.map(a => {
+    const o = OUTPUT_TYPES[artId(S.brand, a)];
+    return el("button", { class: "opt multi", "aria-pressed": String(S.sel.includes(o.id)), onclick: () => {
+      S.sel = S.sel.includes(o.id) ? S.sel.filter(x => x !== o.id) : S.sel.concat(o.id);
+      S.sel.sort((x, y) => ARTIFACT_ORDER.indexOf(OUTPUT_TYPES[x].art) - ARTIFACT_ORDER.indexOf(OUTPUT_TYPES[y].art));
+      render();
+    } }, el("span", { class: "dot" }), el("span", null, L(o.label), el("small", null, L(o.desc))));
+  });
   const langSeg = el("div", { class: "seg dark", role: "group" },
     ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.lang === code), onclick: () => { S.lang = code; render(); } }, code === "en" ? "English" : "Français")));
   return shell(
@@ -723,9 +891,15 @@ function homeScreen() {
     el("p", { class: "muted" }, t("homeSub")),
     el("div", { class: "card" },
       el("h2", { style: "margin-top:0" }, t("startNew")),
-      el("p", { class: "muted" }, t("outputType")), typeBtns,
+      el("p", { class: "muted" }, t("pickBrand")), brandBtns,
+      el("p", { class: "muted" }, t("pickArts")), artBtns,
+      S.sel.length ? null : el("p", { class: "muted", role: "alert" }, t("pickNone")),
       el("p", { class: "muted" }, t("sessionLang")), langSeg,
-      el("button", { class: "btn primary", onclick: () => { S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.screen = "intake"; render(); } }, t("start"))),
+      el("button", { class: "btn primary", disabled: !S.sel.length, onclick: () => {
+        if (!S.sel.length) return;
+        S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; S.typeId = S.sel[0];
+        S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.screen = "intake"; render();
+      } }, t("start"))),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, t("resume") + " (" + Store.all().length + ")"),
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
     el("div", { class: "note" }, t("standing")),
@@ -740,11 +914,11 @@ function isAnswered(q) {
 }
 
 function intakeScreen() {
-  const type = currentType(), q = type.questions[S.step], total = type.questions.length;
+  const type = baseType(), q = type.questions[S.step], total = type.questions.length;
   const nextBtn = el("button", { class: "btn primary", onclick: () => {
-    if (S.step < total - 1) S.step++; else S.screen = "composer";
+    if (S.step < total - 1) S.step++; else S.screen = "hub";
     render(); window.scrollTo(0, 0);
-  } }, S.step < total - 1 ? t("next") : t("seePrompt"));
+  } }, S.step < total - 1 ? t("next") : t("toHub"));
   const refresh = () => { nextBtn.disabled = q.required && !isAnswered(q); };
 
   let input;
@@ -777,6 +951,23 @@ function intakeScreen() {
     el("button", { class: "btn", onclick: () => { if (S.step > 0) S.step--; else S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back")));
 }
 
+function hubScreen() {
+  syncCur();
+  const go = (id, screen) => () => { switchTo(id); S.screen = screen; render(); window.scrollTo(0, 0); };
+  const cards = S.sel.map(id => {
+    const ty = OUTPUT_TYPES[id], done = !!S.results[id];
+    return el("div", { class: "card" },
+      el("span", { class: "pill" }, done ? t("hubDone") : t("hubTodo")),
+      el("p", { style: "margin:8px 0 2px;font-weight:700;color:var(--navy)" }, L(ty.label)),
+      el("p", { class: "muted", style: "margin:0 0 6px" }, L(ty.desc)),
+      el("button", { class: "btn sm primary", onclick: go(id, done ? "edit" : "composer") }, done ? t("hubOpen") : t("hubPrompt")),
+      done ? el("button", { class: "btn sm", onclick: go(id, "composer") }, t("hubPromptAgain")) : null);
+  });
+  return shell(el("h1", null, t("hubTitle")), el("p", { class: "muted" }, t("hubSub")), cards,
+    el("button", { class: "btn", onclick: () => { S.step = baseType().questions.length - 1; S.screen = "intake"; render(); window.scrollTo(0, 0); } }, t("hubEditAns")),
+    el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("hubHome")));
+}
+
 function composerScreen() {
   const type = currentType();
   const prompt = buildPrompt(type, S.lang, S.answers);
@@ -787,8 +978,9 @@ function composerScreen() {
     if (ok) { copyBtn.textContent = t("copied"); msg.textContent = ""; setTimeout(() => { copyBtn.textContent = t("copy"); }, 2000); }
     else msg.textContent = t("copyFail");
   });
-  const blockLines = Object.entries(BLOCK_TYPES).map(([k, b]) => el("p", { class: "muted" }, el("b", null, k), ": " + b.fields));
+  const blockLines = type.allowed.map(k => [k, BLOCK_TYPES[k]]).map(([k, b]) => el("p", { class: "muted" }, el("b", null, k), ": " + b.fields));
   return shell(
+    el("span", { class: "pill" }, L(type.label)),
     el("h1", null, t("promptTitle")),
     el("ol", { class: "how" }, el("li", null, t("how1")), el("li", null, t("how2")), el("li", null, t("how3"))),
     copyBtn, msg,
@@ -799,8 +991,9 @@ function composerScreen() {
       blockLines,
       el("pre", { class: "fmt" }, exampleJson(type, S.lang))),
     el("button", { class: "btn primary", onclick: () => { S.screen = "import"; render(); window.scrollTo(0, 0); } }, t("pasteReply")),
+    el("button", { class: "btn", onclick: () => { S.screen = "hub"; render(); window.scrollTo(0, 0); } }, t("hubBack")),
     el("button", { class: "btn", onclick: () => { S.step = type.questions.length - 1; S.screen = "intake"; render(); window.scrollTo(0, 0); } }, t("editAnswers")),
-    el("button", { class: "btn link", onclick: () => { if (confirm(t("confirmOver"))) { if (S.sid) Store.remove(S.sid); S.sid = null; lastSaved = ""; S.screen = "home"; S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; render(); } } }, t("startOver")));
+    el("button", { class: "btn link", onclick: () => { if (confirm(t("confirmOver"))) { if (S.sid) Store.remove(S.sid); S.sid = null; lastSaved = ""; S.screen = "home"; S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; render(); } } }, t("startOver")));
 }
 
 /* ---- Validation (AI output is untrusted: parse, check, rebuild clean) ---- */
@@ -844,6 +1037,7 @@ function validateText(text, type, lang) {
     const at = "blocks[" + (i + 1) + "]";
     if (!b || typeof b !== "object" || Array.isArray(b)) return add(at + " " + t("e_bobj"));
     const spec = isStr(b.type) && Object.prototype.hasOwnProperty.call(BLOCK_SPECS, b.type) ? BLOCK_SPECS[b.type] : null;
+    if (spec && !type.allowed.includes(b.type)) return add(at + " (" + b.type + ") " + t("e_notallowed") + " " + type.outputType);
     if (!spec) return add(at + " " + t("e_btype") + ' "' + shorten(b.type === undefined ? "" : (isStr(b.type) ? b.type : JSON.stringify(b.type)), 40) + '"');
     const nb = { type: b.type }, p = at + " (" + b.type + ")", before = E.length;
     for (const [k, rule] of Object.entries(spec)) {
@@ -859,6 +1053,10 @@ function validateText(text, type, lang) {
       } else if (rule === "a") {
         if (!Array.isArray(v) || !v.length || v.length > LIMITS.items || v.some(x => !isStr(x) || !x.trim() || x.length > LIMITS.str)) add(f + " " + t("e_list"));
         else nb[k] = v.slice();
+      } else if (rule === "a?") {
+        if (v === undefined || v === null) nb[k] = [];
+        else if (!Array.isArray(v) || v.length > LIMITS.items || v.some(x => !isStr(x) || !x.trim() || x.length > LIMITS.str)) add(f + " " + t("e_list"));
+        else nb[k] = v.slice();
       } else if (rule === "m") {
         const cols = Array.isArray(b.columns) ? b.columns.length : 0;
         if (!Array.isArray(v) || !v.length || v.length > LIMITS.rows || v.some(r => !Array.isArray(r) || r.some(c => !isStr(c) || c.length > LIMITS.str))) add(f + " " + t("e_matrix"));
@@ -868,6 +1066,7 @@ function validateText(text, type, lang) {
         }
       }
     }
+    if (b.type === "survey_question" && E.length === before && (nb.kind === "choice" || nb.kind === "multi") && nb.options.length < 2) add(p + " " + t("e_opts"));
     if (E.length === before) clean.push(nb);
   });
   for (const r of type.requiredBlocks) if (Array.isArray(o.blocks) && !o.blocks.some(b => b && b.type === r)) add(fmt(t("e_need"), r));
@@ -880,7 +1079,11 @@ const DOC_L_BIZ = {
   en: { tryIt: "Ready-to-use prompt", tip: "Tip", safety: "Data safety", workflow: "Reusable workflow", purpose: "What it is for", reuse: "How to reuse it", next: "Suggested next steps" },
   fr: { tryIt: "Requ\u00EAte pr\u00EAte \u00E0 l'emploi", tip: "Astuce", safety: "S\u00E9curit\u00E9 des donn\u00E9es", workflow: "Flux de travail r\u00E9utilisable", purpose: "\u00C0 quoi \u00E7a sert", reuse: "Comment le r\u00E9utiliser", next: "Prochaines \u00E9tapes sugg\u00E9r\u00E9es" }
 };
-const docL = d => (d.session_type === "business" ? DOC_L_BIZ : DOC_L)[d.language] || DOC_L.en;
+const DOC_X = {
+  en: { yourNotes: "Your notes", scaleLo: "Not at all", scaleHi: "Very much", pickOne: "Choose one", pickAny: "Choose all that apply", thanks: "Thank you" },
+  fr: { yourNotes: "Vos notes", scaleLo: "Pas du tout", scaleHi: "Beaucoup", pickOne: "Choisissez-en un", pickAny: "Choisissez tout ce qui s'applique", thanks: "Merci" }
+};
+const docL = d => Object.assign({}, DOC_L[d.language] || DOC_L.en, (d.session_type === "business" ? DOC_L_BIZ : {})[d.language] || {}, DOC_X[d.language] || DOC_X.en);
 const DOC_L = {
   en: { tryIt: "Try it now", tip: "Pro tip", safety: "Safety note", workflow: "Workflow", purpose: "What it is for", reuse: "How to reuse it", next: "Next steps" },
   fr: { tryIt: "À vous d'essayer", tip: "Astuce", safety: "Sécurité", workflow: "Flux de travail", purpose: "À quoi ça sert", reuse: "Comment le réutiliser", next: "Prochaines étapes" }
@@ -888,8 +1091,23 @@ const DOC_L = {
 function renderDeliverable(d) {
   const l = docL(d), brand = brandFor(d.session_type);
   const ul = items => el("ul", null, items.map(x => el("li", null, x)));
+  const lines = n => Array.from({ length: n }, () => el("div", { class: "wl" }));
+  let qn = 0;
   const blocks = d.blocks.map(b => {
     switch (b.type) {
+      case "fill_in": return el("div", { class: "blk" }, el("h3", null, b.heading), b.instructions ? el("div", { class: "muted" }, b.instructions) : null,
+        b.items.map(x => el("div", { class: "fi" }, el("div", { class: "txt" }, x), el("div", { class: "wl" }))));
+      case "write_box": return el("div", { class: "blk" }, el("h3", null, b.heading), el("div", { class: "txt" }, b.prompt), el("div", { class: "wbox", "aria-label": l.yourNotes }));
+      case "slide": return el("div", { class: "blk" }, el("h3", null, b.heading), ul(b.points), b.notes ? el("div", { class: "muted" }, b.notes) : null);
+      case "survey_question": {
+        qn++;
+        const q = el("div", { class: "blk sq" }, el("div", { class: "txt" }, el("b", null, qn + ". "), b.question));
+        if (b.kind === "scale") q.append(el("div", { class: "scale" }, [1, 2, 3, 4, 5].map(n => el("span", { class: "sc" }, String(n)))),
+          el("div", { class: "scl" }, el("span", null, "1 = " + (b.options[0] || l.scaleLo)), el("span", null, "5 = " + (b.options[1] || l.scaleHi))));
+        else if (b.kind === "text") q.append(...lines(3));
+        else q.append(el("div", { class: "muted" }, b.kind === "multi" ? l.pickAny : l.pickOne), ...b.options.map(o => el("div", { class: "ck" }, el("span", { class: "bx" + (b.kind === "multi" ? " sq2" : "") }), el("span", null, o))));
+        return q;
+      }
       case "section": return el("div", { class: "blk" }, el("h3", null, b.heading), el("div", { class: "txt" }, b.body));
       case "steps": return el("div", { class: "blk" }, el("h3", null, b.heading), el("ol", { class: "st" }, b.items.map(x => el("li", null, el("span", null, x)))));
       case "comparison_table": return el("div", { class: "blk" }, el("h3", null, b.heading), el("div", { class: "tw" }, el("table", null,
@@ -912,10 +1130,69 @@ function renderDeliverable(d) {
     el("div", { class: "dbody" }, blocks), el("div", { class: "foot" }, el("div", null, brand.line1), el("div", null, brand.line2)));
 }
 
+/* ---- Slide deck (deterministic: every AI block becomes one or more full-screen slides) ---- */
+const chunkArr = (a, n) => { const r = []; for (let i = 0; i < a.length; i += n) r.push(a.slice(i, i + n)); return r; };
+function sentenceGroups(txt, max) {
+  const parts = txt.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) || [txt], out = [];
+  let cur = "";
+  parts.forEach(p => { if (cur && (cur + p).length > max) { out.push(cur.trim()); cur = ""; } cur += p; });
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+function deckSlides(d) {
+  const l = docL(d), br = brandFor(d.session_type), out = [];
+  const foot = () => el("div", { class: "sf" }, el("span", null, br.name));
+  const add = (cls, kids, notes) => out.push(el("section", { class: "sl " + cls }, el("div", { class: "bar2" }), el("div", { class: "si" }, kids), notes ? el("aside", { class: "nt" }, notes) : null, foot()));
+  const pg = (h, i, n) => n > 1 ? h + " (" + (i + 1) + "/" + n + ")" : h;
+  out.push(el("section", { class: "sl tl" }, el("div", { class: "si" }, el("img", { class: "slogo", src: br.logo, alt: "" }), el("h1", null, d.title), el("p", null, d.intro)), foot()));
+  d.blocks.forEach(b => {
+    switch (b.type) {
+      case "slide": { const g = chunkArr(b.points, 6); g.forEach((pts, i) => add("", [el("h2", null, pg(b.heading, i, g.length)), el("ul", null, pts.map(x => el("li", null, x)))], i === 0 ? b.notes : "")); break; }
+      case "section": { const g = sentenceGroups(b.body, 260); g.forEach((txt, i) => add("", [el("h2", null, pg(b.heading, i, g.length)), el("p", { class: "big" }, txt)])); break; }
+      case "steps": { const g = chunkArr(b.items, 5); g.forEach((it, i) => add("", [el("h2", null, pg(b.heading, i, g.length)), el("ol", { start: i * 5 + 1 }, it.map(x => el("li", null, x)))])); break; }
+      case "comparison_table": { const g = chunkArr(b.rows, 6); g.forEach((rows, i) => add("tbl", [el("h2", null, pg(b.heading, i, g.length)), el("table", null, el("thead", null, el("tr", null, b.columns.map(c => el("th", null, c)))), el("tbody", null, rows.map(r => el("tr", null, r.map(c => el("td", null, c))))))])); break; }
+      case "practice_prompt": add("", [el("span", { class: "tag" }, l.tryIt), el("h2", null, b.heading), el("div", { class: "pbox" + (b.prompt.length > 320 ? " sm" : "") }, b.prompt), b.note ? el("p", { class: "snote" }, b.note) : null]); break;
+      case "workflow": {
+        add("", [el("span", { class: "tag" }, l.workflow), el("h2", null, b.heading), el("p", { class: "big" }, b.purpose)]);
+        const g = chunkArr(b.steps, 5); g.forEach((it, i) => add("", [el("h2", null, pg(b.heading, i, g.length)), el("ol", { start: i * 5 + 1 }, it.map(x => el("li", null, x)))]));
+        add("", [el("span", { class: "tag" }, l.reuse), el("h2", null, b.heading), el("p", { class: "big" }, b.reuse)]); break;
+      }
+      case "tip": add("tipS" + (b.style === "safety" ? " safe" : ""), [el("span", { class: "tag" }, b.style === "safety" ? l.safety : l.tip), el("p", { class: "big" }, b.body)]); break;
+      case "cheat_sheet": { const g = chunkArr(b.items, 6); g.forEach((it, i) => add("", [el("h2", null, pg(b.heading, i, g.length)), el("ul", null, it.map(x => el("li", null, x)))])); break; }
+      case "next_steps": { const g = chunkArr(b.items, 6); g.forEach((it, i) => add("", [el("h2", null, pg(l.next, i, g.length)), el("ul", null, it.map(x => el("li", null, x)))])); break; }
+      case "disclaimer": add("", [el("p", { class: "snote" }, b.body)]); break;
+    }
+  });
+  out.push(el("section", { class: "sl cl" }, el("div", { class: "si" }, el("img", { class: "slogo", src: br.logo, alt: "" }), el("h1", null, l.thanks), el("p", null, br.line1), el("p", null, br.line2)), foot()));
+  return out;
+}
+const deckPreview = d => el("div", { class: "pv" }, deckSlides(d));
+const previewOf = d => d.output_type === "deck" ? deckPreview(d) : renderDeliverable(d);
+const DECK_PRESENT_CSS = "html,body{height:100%;margin:0;padding:0;background:#000;overflow:hidden}.deck{height:100%;display:flex;align-items:center;justify-content:center}.deck .sl{display:none;width:min(100vw,177.78vh);box-shadow:none}.deck .sl.on{display:flex}.deck .sf::after{content:none}.deck .nt{position:fixed;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);color:#fff;font-size:20px;line-height:1.4;padding:14px 22px;z-index:5}.deck.shownotes .sl.on .nt{display:block}#ctl{position:fixed;right:10px;bottom:10px;z-index:9;display:flex;gap:6px;opacity:.35}#ctl:hover,#ctl:focus-within{opacity:1}#ctl button{font:15px system-ui;background:#fff;border:0;border-radius:8px;padding:8px 12px;color:#111}@page{size:297mm 167mm;margin:0}@media print{html,body{height:auto;overflow:visible;background:#fff}.deck{display:block;height:auto}.deck .sl{display:flex!important;width:297mm;height:167mm;aspect-ratio:auto;break-after:page;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact}.deck .sf::after{content:counter(sl)}.deck .nt,#ctl{display:none!important}}";
+const DECK_JS = "(function(){var s=[].slice.call(document.querySelectorAll('.sl')),i=0,dk=document.getElementById('deck'),c=document.getElementById('ctr');function show(n){i=Math.max(0,Math.min(s.length-1,n));s.forEach(function(x,k){x.classList.toggle('on',k===i)});c.textContent=(i+1)+' / '+s.length;try{history.replaceState(null,'','#'+(i+1))}catch(e){}}function fs(){var e=document.documentElement;try{if(document.fullscreenElement){document.exitFullscreen()}else if(e.requestFullscreen){e.requestFullscreen()}else if(e.webkitRequestFullscreen){e.webkitRequestFullscreen()}}catch(x){}}function nt(){dk.classList.toggle('shownotes')}document.addEventListener('keydown',function(e){var k=e.key;if(k==='ArrowRight'||k==='PageDown'||k===' '||k==='Enter'){e.preventDefault();show(i+1)}else if(k==='ArrowLeft'||k==='PageUp'||k==='Backspace'){e.preventDefault();show(i-1)}else if(k==='Home')show(0);else if(k==='End')show(s.length-1);else if(k==='f'||k==='F')fs();else if(k==='n'||k==='N')nt()});var x0=null;dk.addEventListener('touchstart',function(e){x0=e.touches[0].clientX},{passive:true});dk.addEventListener('touchend',function(e){if(x0===null)return;var dx=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(dx)>40){show(i+(dx<0?1:-1));e.preventDefault()}});dk.addEventListener('click',function(e){if(e.target.closest('#ctl'))return;show(i+(e.clientX<window.innerWidth/3?-1:1))});document.getElementById('bp').onclick=function(){show(i-1)};document.getElementById('bn').onclick=function(){show(i+1)};document.getElementById('bf').onclick=fs;document.getElementById('bt').onclick=nt;var h=parseInt((location.hash||'').slice(1),10);show(h>0?h-1:0)})();";
+function deckHtml(d) {
+  const doc = document.implementation.createHTMLDocument(d.title);
+  doc.documentElement.setAttribute("lang", d.language);
+  const meta = doc.createElement("meta"); meta.setAttribute("charset", "utf-8"); doc.head.prepend(meta);
+  const vp = doc.createElement("meta"); vp.setAttribute("name", "viewport"); vp.setAttribute("content", "width=device-width, initial-scale=1"); doc.head.append(vp);
+  const c = brandFor(d.session_type).colors, st = doc.createElement("style");
+  st.textContent = ":root{--navy:" + c.navy + ";--blue:" + c.blue + ";--light:" + c.light + ";--sky:" + c.sky + ";--onblue:" + (c.onAccent || "#fff") + ";--blue-text:" + (c.accentText || c.blue) + "}" + document.getElementById("appcss").textContent.replace(/^:root\{[^}]*\}/m, "") + DECK_PRESENT_CSS;
+  doc.head.append(st);
+  const dk = doc.createElement("div"); dk.id = "deck"; dk.className = "deck";
+  deckSlides(d).forEach(n => dk.append(doc.importNode(n, true)));
+  const ctl = doc.createElement("div"); ctl.id = "ctl";
+  [["bp", "‹"], ["bn", "›"], ["bt", "N"], ["bf", "⛶"]].forEach(([id, tx]) => { const b = doc.createElement("button"); b.id = id; b.type = "button"; b.textContent = tx; ctl.append(b); });
+  const ctr = doc.createElement("button"); ctr.id = "ctr"; ctr.type = "button"; ctl.append(ctr);
+  doc.body.append(dk, ctl);
+  const sc = doc.createElement("script"); sc.textContent = DECK_JS; doc.body.append(sc);
+  return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
+}
+
 /* ---- Export ------------------------------------------------------------- */
 const STANDALONE_CSS = "body{margin:0 auto;padding:12px;max-width:760px}@page{margin:14mm}";
 function slug(s) { return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50) || "handout"; }
 function standaloneHtml(d) {
+  if (d.output_type === "deck") return deckHtml(d);
   const doc = document.implementation.createHTMLDocument(d.title);
   doc.documentElement.setAttribute("lang", d.language);
   const meta = doc.createElement("meta"); meta.setAttribute("charset", "utf-8"); doc.head.prepend(meta);
@@ -932,6 +1209,10 @@ function plainText(d) {
   d.blocks.forEach(b => {
     switch (b.type) {
       case "section": o.push(b.heading, b.body); break;
+      case "slide": o.push(b.heading, ...list(b.points)); if (b.notes) o.push(b.notes); break;
+      case "fill_in": o.push(b.heading); if (b.instructions) o.push(b.instructions); o.push(...b.items.map(x => "- " + x + " ______")); break;
+      case "write_box": o.push(b.heading, b.prompt, "______"); break;
+      case "survey_question": o.push(b.question); if (b.kind === "scale") o.push("1 2 3 4 5" + (b.options.length ? " (" + b.options.join(" / ") + ")" : "")); else if (b.kind === "text") o.push("______"); else o.push(...b.options.map(x => (b.kind === "multi" ? "[ ] " : "( ) ") + x)); break;
       case "steps": o.push(b.heading, ...list(b.items, true)); break;
       case "comparison_table": o.push(b.heading, b.columns.join(" | "), ...b.rows.map(r => r.join(" | "))); break;
       case "practice_prompt": o.push(l.tryIt + ": " + b.heading, b.prompt); if (b.note) o.push(b.note); break;
@@ -948,7 +1229,7 @@ function plainText(d) {
 }
 let blobUrl = null;
 function exportPanel(d) {
-  const html = standaloneHtml(d), name = slug(d.title) + "-" + d.language + ".html";
+  const html = standaloneHtml(d), isDeck = d.output_type === "deck", name = slug(d.title) + "-" + d.language + (isDeck ? "-slides" : "") + ".html";
   const blob = new Blob([html], { type: "text/html" });
   if (blobUrl) URL.revokeObjectURL(blobUrl);
   blobUrl = URL.createObjectURL(blob);
@@ -965,8 +1246,10 @@ function exportPanel(d) {
     el("ol", { class: "how" }, UI[S.ui].pdfSteps.map(x => el("li", null, x))), el("div", { class: "muted" }, t("pdfTip")));
   const ibtn = el("button", { class: "ibtn", "aria-label": t("pdfInfoLabel"), "aria-expanded": "false", onclick: () => { const open = info.hidden; info.hidden = !open; ibtn.setAttribute("aria-expanded", String(open)); } }, "i");
   return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, t("exportTitle")),
+    isDeck ? el("a", { class: "btn primary", href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none" }, t("presentBtn")) : null,
+    isDeck ? el("p", { class: "muted" }, t("presentTip")) : null,
     el("div", { class: "prow" },
-      el("a", { class: "btn primary", href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none" }, t("pdfBtn")), ibtn),
+      el("a", { class: "btn " + (isDeck ? "" : "primary"), href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none" }, t("pdfBtn")), ibtn),
     info, share,
     copy, msg,
     el("a", { class: "btn link", href: blobUrl, download: name, style: "text-decoration:none;line-height:30px" }, t("downloadFile")));
@@ -1039,7 +1322,7 @@ function blockEditor(b, i, all) {
       const sel = el("select", { style: "font:inherit;font-size:17px;padding:10px;border-radius:12px;border:2px solid var(--line);width:100%", onchange: e => { b[k] = e.target.value; } },
         rule.map(v => el("option", { value: v }, v)));
       sel.value = b[k]; fields.push(el("div", null, el("label", null, k), sel));
-    } else if (rule === "a") fields.push(listField(b, k, k));
+    } else if (rule === "a" || rule === "a?") fields.push(listField(b, k, k));
     else if (rule === "m") fields.push(tableField(b));
     else fields.push(textField(b, k, k, { long: !["heading"].includes(k) }));
   }
@@ -1056,24 +1339,25 @@ function editScreen() {
   const tabs = el("div", { class: "seg dark", role: "group", style: "margin-bottom:12px" },
     [["edit", "tabEdit"], ["preview", "tabPreview"]].map(([id, key]) => el("button", { "aria-pressed": String(S.tab === id), onclick: () => { S.tab = id; render(); window.scrollTo(0, 0); } }, t(key))));
   const body = S.tab === "edit"
-    ? [el("p", { class: "muted" }, t("editHint")),
+    ? [el("p", { class: "muted" }, t("editHint")), el("span", { class: "pill" }, L(currentType().label)),
        el("div", { class: "ed" }, textField(d, "title", t("title")), textField(d, "intro", t("intro"), { long: true })),
        d.blocks.map((b, i) => blockEditor(b, i, d.blocks))]
-    : [renderDeliverable(d), exportPanel(d)];
+    : [previewOf(d), exportPanel(d)];
   return shell(tabs, body,
     el("button", { class: "btn", onclick: () => { S.screen = "import"; S.errors = []; render(); window.scrollTo(0, 0); } }, t("newImport")),
+    el("button", { class: "btn", onclick: () => { S.screen = "hub"; render(); window.scrollTo(0, 0); } }, t("hubBack")),
     el("button", { class: "btn link", onclick: () => { S.screen = "composer"; render(); window.scrollTo(0, 0); } }, t("backPrompt")));
 }
 
 function render() {
   document.documentElement.lang = S.ui;
   document.title = BRANDING.appName;
-  applyBranding(brandFor(currentType().sessionType));
+  applyBranding(brandFor(S.brand));
   persist();
   const root = document.getElementById("root");
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
-  const screens = { intake: intakeScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen };
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen };
   root.replaceChildren((screens[S.screen] || homeScreen)());
 }
 
