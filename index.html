@@ -56,6 +56,7 @@ details{border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin:
 summary{min-height:48px;display:flex;align-items:center;font-weight:700;color:var(--navy)}
 ol.how{padding-left:22px;margin:8px 0}
 footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
+.prow{display:flex;gap:10px;align-items:center}.prow .btn{flex:1;margin:10px 0;line-height:30px}.ibtn{flex:none;width:56px;height:56px;border-radius:50%;border:2px solid var(--blue);background:#fff;color:var(--navy);font:italic 700 26px Georgia,serif;padding:0}
 .btn.sm{min-height:44px;width:auto;display:inline-block;margin:4px 6px 4px 0;padding:6px 14px;font-size:15px}
 .btn.danger{border-color:#B3261E;color:#B3261E}
 .err{background:#FDECEA;border-left:5px solid #B3261E;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:15px}
@@ -310,8 +311,10 @@ const UI = {
     pasteReply: "Paste the AI's reply",
     langLabel: "Language",
     exportTitle: "Export", shareFile: "Share / save file", downloadFile: "Download file (fallback link)", openPage: "Open printable page", copyText: "Copy handout text",
-    pdfHelp: "To make a PDF: tap Open printable page, then tap Share, choose Print, spread two fingers on the preview to enlarge it, tap Share again and Save to Files. In Safari you can also use Share > Options > PDF.",
-    printBtn: "Print / Save as PDF (works only in some apps)", shared: "Shared.", textCopied: "Handout text copied.", shareFail: "Sharing is not available here - use the download link.",
+    pdfBtn: "Save as PDF", pdfInfoLabel: "How to save as PDF", pdfTitle: "How to save a PDF on iPhone",
+    pdfSteps: ["Tap Save as PDF. The document opens on its own page.", "Tap the Share button in Safari (the square with an arrow).", "Scroll the share sheet and tap Print.", "On the Print screen, spread two fingers on the small page preview to enlarge it. It turns into a PDF.", "Tap Share again (top right), then choose Save to Files, Mail, Messages or AirDrop."],
+    pdfTip: "To come back to the toolkit, close that page or tap Back.",
+    shared: "Shared.", textCopied: "Handout text copied.", shareFail: "Sharing is not available here - use the download link.",
     loginTitle: "Sign in", loginSub: "Use the same account as your other AI with Robert apps.",
     email: "Email", password: "Password", signIn: "Sign in", signingIn: "Signing in...", signOut: "Sign out", signedInAs: "Signed in as",
     a_wrong: "Wrong email or password.", a_noaccess: "This account does not have access to the toolkit. Ask for access on the access page.",
@@ -364,8 +367,10 @@ const UI = {
     pasteReply: "Coller la réponse de l'IA",
     langLabel: "Langue",
     exportTitle: "Exporter", shareFile: "Partager / enregistrer le fichier", downloadFile: "Télécharger le fichier (lien de secours)", openPage: "Ouvrir la page imprimable", copyText: "Copier le texte du document",
-    pdfHelp: "Pour faire un PDF : touchez Ouvrir la page imprimable, puis Partager, choisissez Imprimer, écartez deux doigts sur l'aperçu pour l'agrandir, touchez Partager de nouveau et Enregistrer dans Fichiers. Dans Safari, vous pouvez aussi utiliser Partager > Options > PDF.",
-    printBtn: "Imprimer / PDF (fonctionne seulement dans certaines applis)", shared: "Partagé.", textCopied: "Texte du document copié.", shareFail: "Le partage n'est pas disponible ici : utilisez le lien de téléchargement.",
+    pdfBtn: "Enregistrer en PDF", pdfInfoLabel: "Comment enregistrer en PDF", pdfTitle: "Comment enregistrer un PDF sur iPhone",
+    pdfSteps: ["Touchez Enregistrer en PDF. Le document s'ouvre sur sa propre page.", "Touchez le bouton Partager de Safari (le carré avec une flèche).", "Faites défiler la feuille de partage et touchez Imprimer.", "Sur l'écran Imprimer, écartez deux doigts sur le petit aperçu de la page pour l'agrandir. Il devient un PDF.", "Touchez Partager de nouveau (en haut à droite), puis choisissez Enregistrer dans Fichiers, Mail, Messages ou AirDrop."],
+    pdfTip: "Pour revenir à la boîte à outils, fermez cette page ou touchez Retour.",
+    shared: "Partagé.", textCopied: "Texte du document copié.", shareFail: "Le partage n'est pas disponible ici : utilisez le lien de téléchargement.",
     loginTitle: "Connexion", loginSub: "Utilisez le même compte que vos autres applications AI with Robert.",
     email: "Courriel", password: "Mot de passe", signIn: "Se connecter", signingIn: "Connexion...", signOut: "Se déconnecter", signedInAs: "Connecté en tant que",
     a_wrong: "Courriel ou mot de passe incorrect.", a_noaccess: "Ce compte n'a pas accès à la boîte à outils. Demandez l'accès sur la page d'accès.",
@@ -956,12 +961,15 @@ function exportPanel(d) {
     } catch (e) { if (!e || e.name !== "AbortError") msg.textContent = t("shareFail"); }
   } }, t("shareFile"));
   const copy = el("button", { class: "btn", onclick: async () => { msg.textContent = (await copyText(plainText(d))) ? t("textCopied") : t("copyFail"); } }, t("copyText"));
+  const info = el("div", { class: "note", hidden: true }, el("b", null, t("pdfTitle")),
+    el("ol", { class: "how" }, UI[S.ui].pdfSteps.map(x => el("li", null, x))), el("div", { class: "muted" }, t("pdfTip")));
+  const ibtn = el("button", { class: "ibtn", "aria-label": t("pdfInfoLabel"), "aria-expanded": "false", onclick: () => { const open = info.hidden; info.hidden = !open; ibtn.setAttribute("aria-expanded", String(open)); } }, "i");
   return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, t("exportTitle")),
-    share,
-    el("a", { class: "btn", href: blobUrl, download: name, style: "text-decoration:none;line-height:30px" }, t("downloadFile")),
-    el("a", { class: "btn", href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none;line-height:30px" }, t("openPage")),
-    el("button", { class: "btn", onclick: () => { try { window.print(); } catch (e) { msg.textContent = t("shareFail"); } } }, t("printBtn")),
-    copy, msg, el("div", { class: "note" }, t("pdfHelp")));
+    el("div", { class: "prow" },
+      el("a", { class: "btn primary", href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none" }, t("pdfBtn")), ibtn),
+    info, share,
+    copy, msg,
+    el("a", { class: "btn link", href: blobUrl, download: name, style: "text-decoration:none;line-height:30px" }, t("downloadFile")));
 }
 
 /* ---- Import screen ------------------------------------------------------- */
