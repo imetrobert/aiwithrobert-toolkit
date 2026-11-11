@@ -170,7 +170,7 @@ const BLOCK_LABELS = {
   cheat_sheet: { en: "Cheat sheet", fr: "Aide-mémoire" }, next_steps: { en: "Next steps", fr: "Prochaines étapes" },
   disclaimer: { en: "Disclaimer", fr: "Avis" }
 };
-const LIMITS = { bytes: 300000, blocks: 100, str: 8000, items: 100, rows: 100, cols: 8 };
+const LIMITS = { backup: 5000000, sessions: 200, bytes: 300000, blocks: 100, str: 8000, items: 100, rows: 100, cols: 8 };
 
 /* ==========================================================================
    OUTPUT_TYPES  -  the registry. Add a new output type by adding an entry.
@@ -266,6 +266,13 @@ const UI = {
     a_wrong: "Wrong email or password.", a_noaccess: "This account does not have access to the toolkit. Ask for access on the access page.",
     a_offline: "No internet connection. This tool needs to be online to open.", checking: "Checking access...", a_revoked: "Your session ended. Please sign in again.",
     a_error: "Could not reach the sign-in service. Try again.",
+    sessionsTitle: "Saved sessions", noSessions: "No saved sessions yet. Sessions save automatically on this device as you work.", open: "Open", exportOne: "Export", deleteOne: "Delete",
+    confirmDelete1: "Delete this saved session? This cannot be undone.", exportAll: "Export backup of all sessions", deleteAll: "Delete all data on this device",
+    confirmDeleteAll: "Delete ALL saved sessions on this device? Export a backup first if you need one. This cannot be undone.", deletedAll: "All saved sessions were deleted.",
+    importedN: "Imported: %s. Skipped (already have a newer copy): %s.", downloaded: "File downloaded.", saveErr: "Could not save to this device (storage full or blocked). Export a backup now.",
+    localNote: "Saved only on this device, unencrypted. Backups and exports contain whatever you typed - handle them as confidential. iOS can erase web-app data after long disuse.",
+    b_obj: "is not an object.", b_format: "This is not a toolkit backup file (expected the backup format this app exports).", b_big: "That file is too large to be a backup.",
+    b_many: "Too many sessions in the file (limit %s).", b_sess: "session %s is invalid:", back2: "Back", sessionLabel: "Session",
     importTitle: "Paste the AI's reply", importSub: "Paste the JSON below, or import a .json file. Your intake answers are kept either way.",
     pastePh: "Paste the AI's JSON reply here", validate: "Check and continue", importFile: "Import a JSON file", backPrompt: "Back to the prompt",
     problems: "Please fix this and paste again:", moreErrs: "more problems not shown",
@@ -313,6 +320,13 @@ const UI = {
     a_wrong: "Courriel ou mot de passe incorrect.", a_noaccess: "Ce compte n'a pas accès à la boîte à outils. Demandez l'accès sur la page d'accès.",
     a_offline: "Aucune connexion Internet. Cet outil doit être en ligne pour s'ouvrir.", checking: "Vérification de l'accès...", a_revoked: "Votre session a pris fin. Veuillez vous reconnecter.",
     a_error: "Impossible de joindre le service de connexion. Réessayez.",
+    sessionsTitle: "Séances enregistrées", noSessions: "Aucune séance enregistrée. Les séances s'enregistrent automatiquement sur cet appareil pendant que vous travaillez.", open: "Ouvrir", exportOne: "Exporter", deleteOne: "Supprimer",
+    confirmDelete1: "Supprimer cette séance enregistrée? Cette action est irréversible.", exportAll: "Exporter une sauvegarde de toutes les séances", deleteAll: "Supprimer toutes les données de cet appareil",
+    confirmDeleteAll: "Supprimer TOUTES les séances enregistrées sur cet appareil? Exportez d'abord une sauvegarde au besoin. Cette action est irréversible.", deletedAll: "Toutes les séances enregistrées ont été supprimées.",
+    importedN: "Importées : %s. Ignorées (copie plus récente déjà présente) : %s.", downloaded: "Fichier téléchargé.", saveErr: "Impossible d'enregistrer sur cet appareil (stockage plein ou bloqué). Exportez une sauvegarde maintenant.",
+    localNote: "Enregistré uniquement sur cet appareil, non chiffré. Les sauvegardes et exports contiennent tout ce que vous avez saisi : traitez-les comme confidentiels. iOS peut effacer les données d'une application web après une longue inutilisation.",
+    b_obj: "n'est pas un objet.", b_format: "Ce n'est pas un fichier de sauvegarde de la boîte à outils (format exporté par cette application attendu).", b_big: "Ce fichier est trop volumineux pour être une sauvegarde.",
+    b_many: "Trop de séances dans le fichier (limite %s).", b_sess: "la séance %s est invalide :", back2: "Retour", sessionLabel: "Séance",
     importTitle: "Coller la réponse de l'IA", importSub: "Collez le JSON ci-dessous, ou importez un fichier .json. Vos réponses de collecte sont conservées dans les deux cas.",
     pastePh: "Collez ici la réponse JSON de l'IA", validate: "Vérifier et continuer", importFile: "Importer un fichier JSON", backPrompt: "Retour à la requête",
     problems: "Corrigez ceci et collez à nouveau :", moreErrs: "autres problèmes non affichés",
@@ -344,7 +358,8 @@ const S = {
   step: 0,
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
-  auth: { status: "out", msg: "", email: "", busy: false }
+  auth: { status: "out", msg: "", email: "", busy: false },
+  sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -523,6 +538,114 @@ function loginScreen() {
     S.auth.msg ? el("div", { class: "err", role: "alert" }, t(A_MSG[S.auth.msg] || "a_error")) : null, form);
 }
 
+/* ---- Saved sessions (localStorage, this device only) ---------------------- */
+const STORE_KEY = "awr_toolkit_sessions";
+const Store = {
+  all() { try { const a = JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } },
+  write(a) { try { localStorage.setItem(STORE_KEY, JSON.stringify(a)); S.saveErr = false; return true; } catch (e) { S.saveErr = true; return false; } },
+  upsert(rec) { const a = Store.all().filter(x => x.id !== rec.id); a.push(rec); return Store.write(a); },
+  remove(id) { Store.write(Store.all().filter(x => x.id !== id)); },
+  clear() { try { localStorage.removeItem(STORE_KEY); } catch (e) {} S.saveErr = false; }
+};
+let lastSaved = "";
+const newId = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function persist() {
+  if (!S.sid || S.auth.status !== "in" || !["intake", "composer", "import", "edit"].includes(S.screen)) return;
+  if (!Object.keys(S.answers).length && !S.result && !S.paste) return;
+  const rec = { id: S.sid, typeId: S.typeId, lang: S.lang, created: S.created || Date.now(), updated: Date.now(), step: S.step, answers: S.answers, paste: S.paste, result: S.result };
+  const sig = JSON.stringify(Object.assign({}, rec, { updated: 0 }));
+  if (sig === lastSaved) return;
+  if (Store.upsert(rec)) lastSaved = sig;
+}
+/* Rebuild a clean session from untrusted data (a backup file or storage). */
+function cleanSession(raw) {
+  const bad = m => ({ error: m });
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return bad(t("b_obj"));
+  if (!isStr(raw.id) || !/^[A-Za-z0-9_-]{1,64}$/.test(raw.id)) return bad("id");
+  if (!isStr(raw.typeId) || !Object.prototype.hasOwnProperty.call(OUTPUT_TYPES, raw.typeId) || !OUTPUT_TYPES[raw.typeId].enabled) return bad("typeId");
+  const type = OUTPUT_TYPES[raw.typeId];
+  if (raw.lang !== "en" && raw.lang !== "fr") return bad("lang");
+  const ra = raw.answers && typeof raw.answers === "object" && !Array.isArray(raw.answers) ? raw.answers : {}, answers = {};
+  for (const q of type.questions) {
+    const v = ra[q.id];
+    if (q.type === "multi") { if (Array.isArray(v)) answers[q.id] = v.filter(x => isStr(x) && q.options.some(o => o.id === x)); }
+    else if (q.type === "choice") { if (isStr(v) && q.options.some(o => o.id === v)) answers[q.id] = v; }
+    else if (isStr(v)) answers[q.id] = v.slice(0, LIMITS.str);
+  }
+  let result = null;
+  if (raw.result != null) { const r = validateText(JSON.stringify(raw.result), type, raw.lang); if (r.errors.length) return bad("result - " + r.errors[0]); result = r.data; }
+  const step = Number.isInteger(raw.step) ? Math.min(Math.max(raw.step, 0), type.questions.length - 1) : 0, num = v => Number.isFinite(v) ? v : Date.now();
+  return { rec: { id: raw.id, typeId: raw.typeId, lang: raw.lang, created: num(raw.created), updated: num(raw.updated), step, answers, paste: isStr(raw.paste) ? raw.paste.slice(0, LIMITS.bytes) : "", result } };
+}
+function backupText(list) { return JSON.stringify({ app: "awr-toolkit", backup_version: 1, exported_at: new Date().toISOString(), sessions: list }, null, 1); }
+function importBackup(text) {
+  if (!text || text.length > LIMITS.backup) return { errors: [t("b_big")] };
+  let o; try { o = JSON.parse(text); } catch (e) { return { errors: [t("e_parse") + " " + shorten(e && e.message, 120)] }; }
+  if (!o || o.app !== "awr-toolkit" || o.backup_version !== 1 || !Array.isArray(o.sessions)) return { errors: [t("b_format")] };
+  if (o.sessions.length > LIMITS.sessions) return { errors: [fmt(t("b_many"), LIMITS.sessions)] };
+  const errs = [], recs = [];
+  o.sessions.forEach((x, i) => { const r = cleanSession(x); if (r.error) errs.push(fmt(t("b_sess"), i + 1) + " " + r.error); else recs.push(r.rec); });
+  if (errs.length) return { errors: errs };
+  const have = Store.all(); let added = 0, skipped = 0;
+  const merged = have.slice();
+  recs.forEach(r => { const j = merged.findIndex(x => x.id === r.id); if (j < 0) { merged.push(r); added++; } else if (r.updated > (merged[j].updated || 0)) { merged[j] = r; added++; } else skipped++; });
+  if (!Store.write(merged)) return { errors: [t("saveErr")] };
+  return { added, skipped };
+}
+async function shareOrDownload(name, text, mime, say) {
+  const blob = new Blob([text], { type: mime });
+  try {
+    const f = new File([blob], name, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f] }); say(t("shared")); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  const url = URL.createObjectURL(blob), a = el("a", { href: url, download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000); say(t("downloaded"));
+}
+const dstr = () => new Date().toISOString().slice(0, 10);
+const when = ms => { try { return new Date(ms).toLocaleString(S.ui === "fr" ? "fr-CA" : "en-CA", { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return ""; } };
+function sessionTitle(r) { return r.result ? r.result.title : ((r.answers.goals || "").trim().slice(0, 60) || L(OUTPUT_TYPES[r.typeId].label)); }
+function openSession(rec) {
+  const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
+  const r = c.rec, type = OUTPUT_TYPES[r.typeId];
+  S.typeId = r.typeId; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.paste = r.paste; S.result = r.result; S.errors = []; S.sid = r.id; S.created = r.created; S.tab = "edit";
+  lastSaved = "";
+  const done = type.questions.every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
+  S.screen = r.result ? "edit" : done ? "composer" : "intake";
+  render(); window.scrollTo(0, 0);
+}
+function pickBackup(afterImport) {
+  const inp = el("input", { type: "file", accept: ".json,application/json,text/plain", style: "display:none", onchange: e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    if (f.size > LIMITS.backup) { S.sErrs = [t("b_big")]; S.sMsg = ""; afterImport(); return; }
+    const fr = new FileReader();
+    fr.onload = () => { const r = importBackup(String(fr.result || "")); if (r.errors) { S.sErrs = r.errors; S.sMsg = ""; } else { S.sErrs = []; S.sMsg = fmt(t("importedN"), r.added, r.skipped); } afterImport(); };
+    fr.onerror = () => { S.sErrs = [t("b_big")]; afterImport(); };
+    fr.readAsText(f);
+  } });
+  document.body.append(inp); inp.click(); setTimeout(() => inp.remove(), 60000);
+}
+function sessionsScreen() {
+  const list = Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).sort((a, b) => b.updated - a.updated);
+  const say = m => { S.sMsg = m; render(); };
+  const cards = list.map(r => el("div", { class: "card" },
+    el("span", { class: "pill" }, L(OUTPUT_TYPES[r.typeId].label) + " \u00B7 " + r.lang.toUpperCase()),
+    el("p", { style: "margin:8px 0 2px;font-weight:700;color:var(--navy)" }, sessionTitle(r)),
+    el("p", { class: "muted", style: "margin:0 0 6px" }, when(r.updated)),
+    el("button", { class: "btn sm primary", onclick: () => openSession(r) }, t("open")),
+    el("button", { class: "btn sm", onclick: () => shareOrDownload("awr-session-" + slug(sessionTitle(r)) + "-" + dstr() + ".json", backupText([r]), "application/json", say) }, t("exportOne")),
+    el("button", { class: "btn sm danger", onclick: () => { if (confirm(t("confirmDelete1"))) { Store.remove(r.id); if (S.sid === r.id) { S.sid = null; lastSaved = ""; } render(); } } }, t("deleteOne"))));
+  return shell(
+    el("h1", null, t("sessionsTitle")),
+    S.sMsg ? el("div", { class: "note", role: "status" }, S.sMsg) : null,
+    S.sErrs.length ? el("div", { class: "err", role: "alert" }, el("ul", null, S.sErrs.slice(0, 12).map(x => el("li", null, x)))) : null,
+    list.length ? cards : el("p", { class: "muted" }, t("noSessions")),
+    el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); }) }, t("importBackup")),
+    el("button", { class: "btn", disabled: !list.length, onclick: () => shareOrDownload("awr-toolkit-backup-" + dstr() + ".json", backupText(Store.all()), "application/json", say) }, t("exportAll")),
+    el("button", { class: "btn danger", disabled: !list.length, onclick: () => { if (confirm(t("confirmDeleteAll"))) { Store.clear(); S.sid = null; lastSaved = ""; S.sErrs = []; S.sMsg = t("deletedAll"); render(); } } }, t("deleteAll")),
+    el("div", { class: "note" }, t("localNote")),
+    el("button", { class: "btn link", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
+}
+
 /* ---- Screens ------------------------------------------------------------ */
 function shell(...content) {
   const brand = brandFor(currentType().sessionType);
@@ -530,7 +653,7 @@ function shell(...content) {
     ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.ui === code), onclick: () => { S.ui = code; render(); } }, code.toUpperCase())));
   return el("div", null,
     el("header", { class: "top" }, el("div", { class: "brand" }, el("img", { class: "hlogo", src: brand.logo, alt: "" }), el("div", null, el("div", null, brand.name), el("small", { style: "display:block;font-weight:400;font-size:12px;opacity:.85" }, t("appTitle")))), lang),
-    el("main", null, content, el("footer", null, BRANDING.appFooter)));
+    el("main", null, S.saveErr ? el("div", { class: "err", role: "alert" }, t("saveErr")) : null, content, el("footer", null, BRANDING.appFooter)));
 }
 
 function homeScreen() {
@@ -546,9 +669,9 @@ function homeScreen() {
       el("h2", { style: "margin-top:0" }, t("startNew")),
       el("p", { class: "muted" }, t("outputType")), typeBtns,
       el("p", { class: "muted" }, t("sessionLang")), langSeg,
-      el("button", { class: "btn primary", onclick: () => { S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.screen = "intake"; render(); } }, t("start"))),
-    el("button", { class: "btn", disabled: true }, t("resume") + " " + t("soon")),
-    el("button", { class: "btn", disabled: true }, t("importBackup") + " " + t("soon")),
+      el("button", { class: "btn primary", onclick: () => { S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.screen = "intake"; render(); } }, t("start"))),
+    el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, t("resume") + " (" + Store.all().length + ")"),
+    el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
     el("div", { class: "note" }, t("standing")),
     el("p", { class: "muted", style: "text-align:center" }, S.auth.email ? t("signedInAs") + " " + S.auth.email : ""),
     el("button", { class: "btn link", onclick: signOut }, t("signOut")));
@@ -621,7 +744,7 @@ function composerScreen() {
       el("pre", { class: "fmt" }, exampleJson(type, S.lang))),
     el("button", { class: "btn primary", onclick: () => { S.screen = "import"; render(); window.scrollTo(0, 0); } }, t("pasteReply")),
     el("button", { class: "btn", onclick: () => { S.step = type.questions.length - 1; S.screen = "intake"; render(); window.scrollTo(0, 0); } }, t("editAnswers")),
-    el("button", { class: "btn link", onclick: () => { if (confirm(t("confirmOver"))) { S.screen = "home"; S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; render(); } } }, t("startOver")));
+    el("button", { class: "btn link", onclick: () => { if (confirm(t("confirmOver"))) { if (S.sid) Store.remove(S.sid); S.sid = null; lastSaved = ""; S.screen = "home"; S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; render(); } } }, t("startOver")));
 }
 
 /* ---- Validation (AI output is untrusted: parse, check, rebuild clean) ---- */
@@ -882,15 +1005,19 @@ function render() {
   document.documentElement.lang = S.ui;
   document.title = BRANDING.appName;
   applyBranding(brandFor(currentType().sessionType));
+  persist();
   const root = document.getElementById("root");
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
-  const screens = { intake: intakeScreen, composer: composerScreen, import: importScreen, edit: editScreen };
+  const screens = { intake: intakeScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen };
   root.replaceChildren((screens[S.screen] || homeScreen)());
 }
 
 bootAuth();
 render();
+setInterval(persist, 2500);
+addEventListener("pagehide", persist);
+document.addEventListener("visibilitychange", () => { if (document.hidden) persist(); });
 </script>
 </body>
 </html>
