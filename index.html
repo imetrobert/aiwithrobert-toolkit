@@ -313,6 +313,36 @@ const OUTPUT_TYPES = {
   }
 };
 
+const SIZE_QS = [
+  { id: "lesson", type: "choice", required: true, when: ["workbook", "deck"], promptLabel: "Length of the in-person lesson",
+    label: { en: "How long is the in-person lesson?", fr: "Quelle est la dur\u00E9e de la le\u00E7on en personne?" },
+    hint: { en: "The workbook and slide deck are sized to fit this time.", fr: "Le cahier et la pr\u00E9sentation sont dimensionn\u00E9s selon cette dur\u00E9e." },
+    options: [["30", "30 minutes"], ["60", "1 hour"], ["90", "1.5 hours"], ["120", "2 hours"], ["150", "2.5 hours"], ["180", "3 hours"]].map(([id, en]) => ({ id, en, fr: en })) },
+  { id: "hlen", type: "choice", required: true, when: ["handout"], promptLabel: "Length and level of detail of the post-session handout",
+    label: { en: "How long should the post-session handout be?", fr: "Quelle longueur pour le document remis apr\u00E8s la s\u00E9ance?" },
+    hint: { en: "Longer means more detail and more personalization to this client.", fr: "Plus long = plus de d\u00E9tails et de personnalisation pour ce client." },
+    options: [{ id: "brief", en: "Brief: one page, the essentials", fr: "Bref : une page, l'essentiel" }, { id: "medium", en: "Medium: a few pages, key topics covered", fr: "Moyen : quelques pages, sujets cl\u00E9s" }, { id: "long", en: "Long: detailed and highly personalized", fr: "Long : d\u00E9taill\u00E9 et tr\u00E8s personnalis\u00E9" }] }
+];
+function sizeRule(type, answers) {
+  const m = parseInt(answers.lesson, 10), h = answers.hlen;
+  if ((type.art === "workbook" || type.art === "deck") && m) {
+    const hrs = m / 60, lbl = m < 60 ? "30 minutes" : (hrs + (hrs === 1 ? " hour" : " hours"));
+    if (type.art === "deck") {
+      const lo = Math.max(6, Math.round(m / 6)), hi = Math.max(8, Math.round(m / 4));
+      return "LENGTH RULE (overrides any block counts above): the in-person lesson lasts " + lbl + (m < 60 ? "" : " (" + m + " minutes)") + ". Size the deck to fill it: about " + lo + " to " + hi + " blocks in total (one slide per 4 to 6 minutes of teaching, plus live practice time). Put an approximate time marker in the 'notes' of each major section so the facilitator can pace the session" + (m >= 120 ? ", and add a short 'slide' for a break about every 60 minutes" : "") + ".";
+    }
+    const lo = Math.max(5, Math.round(m / 8)), hi = Math.max(8, Math.round(m / 5));
+    return "LENGTH RULE (overrides any block counts above): the in-person lesson lasts " + lbl + (m < 60 ? "" : " (" + m + " minutes)") + ". Size the workbook to fill that time without rushing: about " + lo + " to " + hi + " blocks in total, with enough 'fill_in', 'steps' and 'practice_prompt' blocks that participants are busy for the whole lesson. Shorter lessons get fewer, simpler exercises.";
+  }
+  if (type.art === "handout" && h) {
+    const spec = { brief: "BRIEF: about 5 to 7 blocks that fit on one page. Only the essentials: one short summary, the single most useful workflow, 1 or 2 ready-to-use prompts and next steps.",
+      medium: "MEDIUM: about 9 to 13 blocks (a few pages). Cover each key topic with a section, 3 or 4 prompts, 1 or 2 workflows, a tip and next steps.",
+      long: "LONG: about 16 to 24 blocks. Detailed and highly personalized: explain each topic in depth, write many prompts tailored to the client's own tasks, several workflows, a cheat sheet and clear next steps." }[h];
+    return "LENGTH RULE (overrides any block counts above): " + spec + " Personalize every block to the intake details; the longer the handout, the more specific it must be to this client.";
+  }
+  return null;
+}
+const visibleQs = (brand, sel) => OUTPUT_TYPES[BASE[brand]].questions.filter(q => !q.when || sel.some(id => q.when.includes(OUTPUT_TYPES[id].art)));
 /* ---- Artifacts: one shared intake per brand, one deliverable type per artifact ---- */
 const BASE = { seniors: "seniors_handout", business: "business_pack" };
 const ARTIFACT_ORDER = ["handout", "workbook", "deck", "survey"];
@@ -351,13 +381,13 @@ const ARTIFACTS = {
         "This is a SLIDE DECK the facilitator presents on a large screen during the live session. Each block becomes one or more slides. Plain language, no jargon, one big simple idea per slide.",
         "Keep slides sparse: a 'slide' block has a short heading (max 8 words) and 3-5 'points', each max 12 words. Put what the speaker says aloud in 'notes' (1-3 sentences).",
         "Match the comfort level and the device given in the intake (mention device-specific tips only for that device).",
-        "Aim for 12-20 blocks: an opening 'slide' on what we will do today; one or more 'slide', 'section' or 'steps' blocks per requested topic; 'practice_prompt' blocks for live demonstrations, with [placeholders]; one 'tip' with style 'safety'; a closing 'cheat_sheet' or 'next_steps'."
+        "Structure: an opening 'slide' on what we will do today; one or more 'slide', 'section' or 'steps' blocks per requested topic; 'practice_prompt' blocks for live demonstrations, with [placeholders]; one 'tip' with style 'safety'; a closing 'cheat_sheet' or 'next_steps'."
       ],
       business: [
         "This is a SLIDE DECK the facilitator presents on a large screen during the live session. Each block becomes one or more slides. Professional, confident, organized around the client's own tasks.",
         "Keep slides sparse: a 'slide' block has a short heading (max 8 words) and 3-5 'points', each max 12 words. Put what the speaker says aloud in 'notes' (1-3 sentences).",
         "Use ONLY the business type, team size, tasks, experience and tools given in the intake. Do not invent clients, results, prices or tools they did not mention.",
-        "Aim for 12-20 blocks: an opening 'slide' on the session objective; blocks per key task ('slide', 'workflow', 'steps'); 'practice_prompt' blocks for live demonstrations on THEIR tasks, with [placeholders]; a 'tip' on data safety; a closing 'next_steps'."
+        "Structure: an opening 'slide' on the session objective; blocks per key task ('slide', 'workflow', 'steps'); 'practice_prompt' blocks for live demonstrations on THEIR tasks, with [placeholders]; a 'tip' on data safety; a closing 'next_steps'."
       ]
     }
   },
@@ -385,7 +415,7 @@ const ARTIFACTS = {
 };
 Object.keys(BASE).forEach(br => {
   const base = OUTPUT_TYPES[BASE[br]];
-  base.art = "handout"; base.allowed = HANDOUT_BLOCKS;
+  base.art = "handout"; base.allowed = HANDOUT_BLOCKS; base.questions.splice(base.questions.length - 1, 0, ...SIZE_QS);
   for (const [a, def] of Object.entries(ARTIFACTS)) {
     const id = artId(br, a);
     OUTPUT_TYPES[id] = { id, enabled: true, sessionType: br, outputType: a, art: a, label: def.label, desc: def.desc, requiredBlocks: def.required, allowed: def.allowed, questions: base.questions, audienceRules: def.rules[br], exampleTitle: def.title[br] };
@@ -524,7 +554,7 @@ const UI = {
    App code
    ========================================================================== */
 const S = {
-  ui: (navigator.language || "en").toLowerCase().startsWith("fr") ? "fr" : "en",
+  ui: "en",
   screen: "home",
   brand: "seniors", sel: ["seniors_handout"], results: {}, pastes: {},
   typeId: "seniors_handout",
@@ -604,7 +634,7 @@ function exampleJson(type, lang) {
 
 function buildPrompt(type, lang, answers) {
   const langName = lang === "fr" ? 'Quebec professional French ("fr")' : 'English ("en")';
-  const intake = type.questions.map(q => {
+  const intake = type.questions.filter(q => !q.when || q.when.includes(type.art)).map(q => {
     let v = answers[q.id];
     if (q.type === "choice") v = optLabel(q, v);
     else if (q.type === "multi") v = (v || []).map(id => optLabel(q, id)).join(", ");
@@ -620,6 +650,7 @@ function buildPrompt(type, lang, answers) {
     "- Use ONLY the intake information below. Never invent facts about the client.",
     ...type.audienceRules.map(r => "- " + r),
     "- Write every text value in " + langName + ".",
+    ...(sizeRule(type, answers) ? ["- " + sizeRule(type, answers)] : []),
     '- Set "schema_version" to 1, "session_type" to exactly "' + type.sessionType + '", "output_type" to exactly "' + type.outputType + '", and "language" to exactly "' + lang + '".',
     "- Required: at least one block of each of these types: " + req + ". Every other block type is optional. Blocks may appear in any order and any number.",
     "- Every string must be plain text: no HTML, no markdown, no emoji.",
@@ -826,7 +857,7 @@ function openSession(rec) {
   S.brand = r.brand; S.sel = r.sel; S.results = r.results; S.pastes = r.pastes; S.typeId = r.typeId; S.result = r.results[r.typeId] || null; S.paste = r.pastes[r.typeId] || "";
   S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.created = r.created; S.tab = "edit";
   lastSaved = "";
-  const done = base.questions.every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
+  const done = visibleQs(r.brand, r.sel).every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
   S.screen = done ? "hub" : "intake";
   render(); window.scrollTo(0, 0);
 }
@@ -869,7 +900,7 @@ function shell(...content) {
   const lang = el("div", { class: "seg", role: "group", "aria-label": t("langLabel") },
     ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.ui === code), onclick: () => { S.ui = code; render(); } }, code.toUpperCase())));
   return el("div", null,
-    el("header", { class: "top" }, el("div", { class: "brand" }, el("img", { class: "hlogo", src: brand.logo, alt: "" }), el("div", null, el("div", null, brand.name), el("small", { style: "display:block;font-weight:400;font-size:12px;opacity:.85" }, t("appTitle")))), lang),
+    el("header", { class: "top" }, el("div", { class: "brand" }, el("img", { class: "hlogo", src: brand.logo, alt: "" }), el("div", null, el("div", null, brand.name), el("small", { style: "display:block;font-weight:400;font-size:12px;opacity:.85" }, t("appTitle"))))),
     el("main", null, S.saveErr ? el("div", { class: "err", role: "alert" }, t("saveErr")) : null, content, el("footer", null, BRANDING.appFooter)));
 }
 
@@ -914,7 +945,7 @@ function isAnswered(q) {
 }
 
 function intakeScreen() {
-  const type = baseType(), q = type.questions[S.step], total = type.questions.length;
+  const qs = visibleQs(S.brand, S.sel), q = qs[Math.min(S.step, qs.length - 1)], total = qs.length;
   const nextBtn = el("button", { class: "btn primary", onclick: () => {
     if (S.step < total - 1) S.step++; else S.screen = "hub";
     render(); window.scrollTo(0, 0);
@@ -964,7 +995,7 @@ function hubScreen() {
       done ? el("button", { class: "btn sm", onclick: go(id, "composer") }, t("hubPromptAgain")) : null);
   });
   return shell(el("h1", null, t("hubTitle")), el("p", { class: "muted" }, t("hubSub")), cards,
-    el("button", { class: "btn", onclick: () => { S.step = baseType().questions.length - 1; S.screen = "intake"; render(); window.scrollTo(0, 0); } }, t("hubEditAns")),
+    el("button", { class: "btn", onclick: () => { S.step = visibleQs(S.brand, S.sel).length - 1; S.screen = "intake"; render(); window.scrollTo(0, 0); } }, t("hubEditAns")),
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("hubHome")));
 }
 
@@ -992,7 +1023,7 @@ function composerScreen() {
       el("pre", { class: "fmt" }, exampleJson(type, S.lang))),
     el("button", { class: "btn primary", onclick: () => { S.screen = "import"; render(); window.scrollTo(0, 0); } }, t("pasteReply")),
     el("button", { class: "btn", onclick: () => { S.screen = "hub"; render(); window.scrollTo(0, 0); } }, t("hubBack")),
-    el("button", { class: "btn", onclick: () => { S.step = type.questions.length - 1; S.screen = "intake"; render(); window.scrollTo(0, 0); } }, t("editAnswers")),
+    el("button", { class: "btn", onclick: () => { S.step = visibleQs(S.brand, S.sel).length - 1; S.screen = "intake"; render(); window.scrollTo(0, 0); } }, t("editAnswers")),
     el("button", { class: "btn link", onclick: () => { if (confirm(t("confirmOver"))) { if (S.sid) Store.remove(S.sid); S.sid = null; lastSaved = ""; S.screen = "home"; S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; render(); } } }, t("startOver")));
 }
 
