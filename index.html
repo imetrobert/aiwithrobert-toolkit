@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#11304C">
+<title>AI with Robert Toolkit</title>
+<style id="appcss">
+:root{--navy:#11304C;--blue:#1F77AE;--light:#EAF5FC;--ink:#1c2433;--muted:#5b6678;--line:#d9e2ee}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font:17px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Helvetica,Arial,sans-serif;color:var(--ink);background:#fff}
+header.top{background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}
+.brand{font-weight:700;font-size:18px;display:flex;align-items:center;gap:10px}
+.hlogo{width:34px;height:34px;background:#fff;border-radius:10px;padding:3px}
+.seg{display:flex;border:1px solid rgba(255,255,255,.55);border-radius:999px;overflow:hidden}
+.seg button{background:transparent;color:#fff;border:0;padding:8px 14px;font:inherit;font-size:15px;min-height:40px}
+.seg button[aria-pressed=true]{background:#fff;color:var(--navy);font-weight:700}
+.seg.dark{border-color:var(--blue)}
+.seg.dark button{color:var(--navy);flex:1;min-height:48px}
+.seg.dark button[aria-pressed=true]{background:var(--blue);color:#fff}
+main{padding:16px 16px calc(28px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
+h1{color:var(--navy);font-size:26px;line-height:1.2;margin:8px 0 12px}
+h2{color:var(--navy);font-size:19px;margin:18px 0 8px}
+p{margin:8px 0}
+.card{border:1px solid var(--line);border-radius:16px;padding:16px;margin:14px 0}
+.note{background:var(--light);border-left:5px solid var(--blue);border-radius:12px;padding:12px 14px;margin:14px 0;font-size:15px}
+.note.warn{background:#FFF6E0;border-left-color:#E0A100}
+.btn{display:block;width:100%;min-height:56px;border-radius:14px;border:2px solid var(--blue);background:#fff;color:var(--navy);font:inherit;font-weight:700;margin:10px 0;padding:12px 16px;text-align:center}
+.btn.primary{background:var(--blue);color:#fff}
+.btn.link{border-color:transparent;font-weight:600;color:var(--blue)}
+.btn:disabled{opacity:.4}
+.opt{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;text-align:left;border:2px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font:inherit;padding:10px 14px;margin:8px 0}
+.opt[aria-pressed=true]{border-color:var(--blue);background:var(--light);font-weight:600}
+.opt .dot{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--blue);background:#fff}
+.opt.multi .dot{border-radius:6px}
+.opt[aria-pressed=true] .dot{background:var(--blue);box-shadow:inset 0 0 0 4px #fff}
+.opt small{display:block;color:var(--muted);font-weight:400}
+input,textarea{font:inherit;font-size:17px;width:100%;border:2px solid var(--line);border-radius:12px;padding:12px;color:var(--ink)}
+textarea{min-height:140px;resize:vertical}
+.pill{display:inline-block;background:var(--light);color:var(--navy);border-radius:999px;padding:4px 12px;font-size:14px;font-weight:700}
+.bar{height:8px;background:var(--light);border-radius:99px;margin:6px 0 14px}
+.bar i{display:block;height:100%;background:var(--blue);border-radius:99px}
+.muted{color:var(--muted);font-size:15px}
+pre.prompt,pre.fmt{white-space:pre-wrap;word-break:break-word;background:#f5f8fc;border:1px solid var(--line);border-radius:12px;padding:12px;font:13px/1.45 ui-monospace,Menlo,monospace;-webkit-user-select:text;user-select:text;margin:8px 0}
+pre.prompt{max-height:42vh;overflow:auto}
+details{border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin:12px 0}
+summary{min-height:48px;display:flex;align-items:center;font-weight:700;color:var(--navy)}
+ol.how{padding-left:22px;margin:8px 0}
+footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
+.btn.sm{min-height:44px;width:auto;display:inline-block;margin:4px 6px 4px 0;padding:6px 14px;font-size:15px}
+.btn.danger{border-color:#B3261E;color:#B3261E}
+.err{background:#FDECEA;border-left:5px solid #B3261E;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:15px}
+.err ul{margin:6px 0 0;padding-left:20px}
+.ed{border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:14px 0}
+.ed label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.03em}
+.ed textarea{min-height:90px}
+.ed .grid{display:grid;gap:6px;margin:6px 0}
+.ed .grid input{padding:8px;font-size:16px;min-width:0}
+.doc{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.doc .hero{background:var(--navy);color:#fff;padding:20px 18px}
+.doc .hero h1{color:#fff;margin:8px 0 6px}
+.doc .hero p{margin:0;white-space:pre-line}
+.doc .htop{display:flex;align-items:center;gap:12px}
+.doc .logo{width:64px;height:64px;flex:none;background:#fff;border-radius:16px;padding:6px}
+.doc .bname{font-weight:800;font-size:19px;color:#fff;line-height:1.2}
+.doc .hero h1{margin-top:16px}
+.doc .dbody{padding:6px 16px 12px}
+.doc .blk{margin:20px 0}
+.doc h3{color:var(--navy);font-size:20px;margin:0 0 8px}
+.doc .txt{white-space:pre-line}
+.doc ol.st{padding:0;list-style:none;counter-reset:n;margin:6px 0}
+.doc ol.st li{counter-increment:n;display:flex;gap:10px;margin:10px 0;align-items:flex-start}
+.doc ol.st li::before{content:counter(n);flex:none;width:30px;height:30px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center}
+.doc .tw{overflow-x:auto}
+.doc table{border-collapse:collapse;width:100%;font-size:15px}
+.doc th{background:var(--navy);color:#fff;text-align:left;padding:8px}
+.doc td{border:1px solid var(--line);padding:8px;vertical-align:top}
+.doc .tryit{background:var(--light);border:2px dashed var(--blue);border-radius:14px;padding:12px 14px}
+.doc .tryit .p{font-weight:600;color:var(--navy);white-space:pre-wrap;margin-top:8px}
+.doc .box{border-radius:12px;padding:12px 14px;border-left:5px solid var(--blue);background:var(--light);white-space:pre-line}
+.doc .box.safety{background:#FFF6E0;border-left-color:#E0A100}
+.doc .box ul{margin:4px 0;padding-left:20px;white-space:normal}
+.doc .card2{border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.doc .lbl{font-size:13px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.03em;margin-top:8px}
+.doc .disc{font-size:14px;font-style:italic;color:var(--muted);white-space:pre-line}
+@media print{header.top,.seg,.card,.note,.btn,footer,.muted{display:none!important}.doc{border:0}.doc .hero,.doc th,.doc ol.st li::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}.doc .blk{break-inside:avoid}}
+.doc .foot div+div{margin-top:2px;color:var(--navy);font-weight:600}
+.doc .foot{border-top:1px solid var(--line);padding:10px 16px;font-size:12px;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<noscript><p style="padding:16px">This app needs JavaScript.</p></noscript>
+<div id="root"></div>
+<script>
+"use strict";
+
+/* ==========================================================================
+   BRANDING  -  edit your details and colors here (one place only)
+   ========================================================================== */
+const LOGO = "data:image/png;base64,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";
+const BRANDING = {
+  appName: "AI with Robert Toolkit",
+  appFooter: "AI with Robert Toolkit \u00B7 private admin tool \u00B7 data stays on this device",
+  owner: "Robert Simon",
+  year: 2026,
+  /* Client-facing brands, picked by the output's session_type. Footer = line1 + line2. */
+  brands: {
+    seniors:  { name: "AI with Robert for Seniors", logo: LOGO,
+                colors: { navy: "#11304C", blue: "#1F77AE", light: "#EAF5FC", sky: "#3FA7E0" },
+                line1: "\u00A9 2026 AI with Robert for Seniors \u00B7 Robert Simon \u00B7 C\u00F4te Saint-Luc, QC",
+                line2: "aiwithrobert.com/seniors \u00B7 514-250-8491 \u00B7 seniors@aiwithrobert.com" },
+    business: { name: "AI with Robert", logo: LOGO,   /* PROVISIONAL: confirm business colors, logo and contacts in Stage 6 */
+                colors: { navy: "#0A3F3C", blue: "#08A59C", light: "#E6F6F5", sky: "#5CC9C1" },
+                line1: "\u00A9 2026 AI with Robert \u00B7 Robert Simon",
+                line2: "aiwithrobert.com \u00B7 514-250-8491" }
+  },
+};
+/* ==========================================================================
+   AUTH  -  sign-in uses the shared Supabase project (same accounts as your other apps).
+   The publishable key is public by design. Access = has_app_access('toolkit').
+   Grant it from https://access.imetrobert.com. This is an online app: it checks your
+   access every time it opens. The only network use is that check; client data stays on the phone.
+   ========================================================================== */
+const AUTH = {
+  url: "https://ipnajvgwtjrlecbqfwrh.supabase.co",
+  key: "sb_publishable_oPa7fZdSTeXKuCwpOF338Q_PcXS57go",
+  app: "toolkit",
+  storageKey: "awr_toolkit_auth"
+};
+const brandFor = st => BRANDING.brands[st] || BRANDING.brands.seniors;
+
+/* ==========================================================================
+   BLOCK_TYPES  -  the typed content blocks the AI may return (shared by all
+   output types). Stage 2's validator reads this same table.
+   ========================================================================== */
+const BLOCK_TYPES = {
+  section:         { fields: 'heading (text), body (text, 2-6 sentences)' },
+  steps:           { fields: 'heading (text), items (list of text)' },
+  comparison_table:{ fields: 'heading (text), columns (list of text), rows (list of lists of text, same length as columns)' },
+  practice_prompt: { fields: 'heading (text), prompt (text, may contain [placeholders]), note (text, optional)' },
+  workflow:        { fields: 'heading (text), purpose (text), steps (list of text), reuse (text)' },
+  tip:             { fields: 'style ("tip" or "safety"), body (text)' },
+  cheat_sheet:     { fields: 'heading (text), items (list of text)' },
+  next_steps:      { fields: 'items (list of text)' },
+  disclaimer:      { fields: 'body (text)' }
+};
+
+/* Machine-readable field rules used by the validator and the editor.
+   's' required text | 's?' optional text | 'a' list of text | 'm' table rows | [..] allowed values */
+const BLOCK_SPECS = {
+  section:          { heading: 's', body: 's' },
+  steps:            { heading: 's', items: 'a' },
+  comparison_table: { heading: 's', columns: 'a', rows: 'm' },
+  practice_prompt:  { heading: 's', prompt: 's', note: 's?' },
+  workflow:         { heading: 's', purpose: 's', steps: 'a', reuse: 's' },
+  tip:              { style: ['tip', 'safety'], body: 's' },
+  cheat_sheet:      { heading: 's', items: 'a' },
+  next_steps:       { items: 'a' },
+  disclaimer:       { body: 's' }
+};
+const BLOCK_LABELS = {
+  section: { en: "Section", fr: "Section" }, steps: { en: "Steps", fr: "Étapes" },
+  comparison_table: { en: "Comparison table", fr: "Tableau comparatif" }, practice_prompt: { en: "Try it now", fr: "À vous d'essayer" },
+  workflow: { en: "Workflow", fr: "Flux de travail" }, tip: { en: "Tip / safety box", fr: "Encadré astuce / sécurité" },
+  cheat_sheet: { en: "Cheat sheet", fr: "Aide-mémoire" }, next_steps: { en: "Next steps", fr: "Prochaines étapes" },
+  disclaimer: { en: "Disclaimer", fr: "Avis" }
+};
+const LIMITS = { bytes: 300000, blocks: 100, str: 8000, items: 100, rows: 100, cols: 8 };
+
+/* ==========================================================================
+   OUTPUT_TYPES  -  the registry. Add a new output type by adding an entry.
+   Each entry: intake questions, prompt skeleton pieces, required blocks.
+   (Business session pack is added here in Stage 6.)
+   ========================================================================== */
+const OUTPUT_TYPES = {
+  seniors_handout: {
+    id: "seniors_handout",
+    enabled: true,
+    sessionType: "seniors",
+    outputType: "handout",
+    label: { en: "Seniors session handout", fr: "Aide-mémoire de séance (aînés)" },
+    desc:  { en: "Warm, plain-language take-home handout", fr: "Document à emporter, chaleureux et en langage simple" },
+    requiredBlocks: ["section", "practice_prompt", "workflow"],
+    questions: [
+      { id: "goals", type: "text", required: true, promptLabel: "Participant's goals",
+        label: { en: "What does the participant want to achieve?", fr: "Qu'est-ce que la personne souhaite accomplir?" },
+        hint:  { en: "Example: write emails to my grandchildren, plan a trip.", fr: "Exemple : écrire à mes petits-enfants, planifier un voyage." } },
+      { id: "topics", type: "multi", required: true, promptLabel: "Topics they want to cover",
+        label: { en: "Which topics do they want?", fr: "Quels sujets souhaitent-ils aborder?" },
+        hint:  { en: "Choose all that apply.", fr: "Choisissez tout ce qui s'applique." },
+        options: [
+          { id: "first_chat", en: "Getting started with AI chat", fr: "Premiers pas avec le clavardage IA" },
+          { id: "writing", en: "Writing emails and letters", fr: "Rédiger courriels et lettres" },
+          { id: "learning", en: "Learning and answering questions", fr: "Apprendre et obtenir des réponses" },
+          { id: "health_admin", en: "Health and everyday paperwork", fr: "Santé et paperasse du quotidien" },
+          { id: "travel", en: "Travel and planning", fr: "Voyages et planification" },
+          { id: "safety", en: "Staying safe: scams and privacy", fr: "Sécurité : fraudes et vie privée" },
+          { id: "creative", en: "Hobbies and creativity", fr: "Loisirs et créativité" }
+        ] },
+      { id: "device", type: "choice", required: true, promptLabel: "Device they use",
+        label: { en: "Which device do they use?", fr: "Quel appareil utilisent-ils?" },
+        options: [
+          { id: "iphone", en: "iPhone", fr: "iPhone" },
+          { id: "ipad", en: "iPad", fr: "iPad" },
+          { id: "android_phone", en: "Android phone", fr: "Téléphone Android" },
+          { id: "android_tablet", en: "Android tablet", fr: "Tablette Android" },
+          { id: "windows", en: "Windows computer", fr: "Ordinateur Windows" },
+          { id: "mac", en: "Mac computer", fr: "Ordinateur Mac" },
+          { id: "unsure", en: "Not sure / several", fr: "Incertain / plusieurs" }
+        ] },
+      { id: "comfort", type: "choice", required: true, promptLabel: "Comfort level with technology and AI",
+        label: { en: "How comfortable are they with AI?", fr: "Quel est leur degré d'aisance avec l'IA?" },
+        options: [
+          { id: "brand_new", en: "Brand new to AI", fr: "Complètement nouveau" },
+          { id: "tried", en: "Tried it a little", fr: "Essayé un peu" },
+          { id: "regular", en: "Uses it regularly", fr: "L'utilise régulièrement" }
+        ] },
+      { id: "notes", type: "text", required: false, promptLabel: "Anything else to keep in mind",
+        label: { en: "Anything else? (optional)", fr: "Autre chose? (facultatif)" },
+        hint:  { en: "Interests, pace, things to avoid. No names or personal details.", fr: "Intérêts, rythme, éléments à éviter. Pas de noms ni de détails personnels." } }
+    ],
+    audienceRules: [
+      "Write for adults who are new to AI. Warm, patient, plain language. Short sentences. No jargon; if a technical word is unavoidable, explain it the first time.",
+      "Match the comfort level and the device given in the intake (mention device-specific tips only for that device).",
+      "Aim for: 3-5 'section' blocks covering the requested topics; at least one 'steps' block with numbered, one-action-per-step instructions for the main task; 2-4 'practice_prompt' blocks that are ready to paste into an AI chat app and use [placeholders] in square brackets; one 'tip' with style 'tip' and one with style 'safety' (never share passwords, bank details or health numbers with an AI); a 'comparison_table' if it helps; one 'workflow' (a simple routine they can repeat at home); a 'cheat_sheet' of 5-8 short items; and 'next_steps'.",
+      "Include a 'disclaimer' block only if a health, legal, financial or safety topic is involved."
+    ]
+  }
+};
+
+/* ==========================================================================
+   UI strings (interface language, EN / FR Quebec)
+   ========================================================================== */
+const UI = {
+  en: {
+    appTitle: "AI with Robert Toolkit",
+    homeTitle: "Client session toolkit",
+    homeSub: "Intake, prompt, deliverable - all on this device.",
+    startNew: "Start a new session",
+    outputType: "Output type",
+    sessionLang: "Session language (the deliverable's language)",
+    start: "Start intake",
+    resume: "Resume a saved session",
+    importBackup: "Import a backup file",
+    soon: "(coming in a later stage)",
+    standing: "Session data lives only on this device, unencrypted, in this browser's storage. iOS can erase web-app data after long disuse - export a backup after important sessions. Backups and exports contain whatever you typed, so handle them as confidential.",
+    privacy: "Do not enter client-identifying or sensitive details. Anything typed here may be pasted into an external AI.",
+    question: "Question", of: "of", next: "Next", back: "Back", seePrompt: "Build the prompt", required: "Required",
+    promptTitle: "Your prompt",
+    how1: "Tap Copy.", how2: "Paste it into a free AI tool of your choice.", how3: "Copy the AI's reply (it should be only JSON) and bring it back here.",
+    copy: "Copy prompt", copied: "Copied!", copyFail: "Copy blocked - press and hold the text above, choose Select All, then Copy.",
+    formatTitle: "Expected JSON format", formatBody: "The prompt already tells the AI to reply with only this shape. Block types, in any order and number:",
+    editAnswers: "Edit my answers", startOver: "Start over", confirmOver: "Discard this session and start over?",
+    pasteReply: "Paste the AI's reply",
+    langLabel: "Language",
+    exportTitle: "Export", shareFile: "Share / save file", downloadFile: "Download file (fallback link)", openPage: "Open printable page", copyText: "Copy handout text",
+    pdfHelp: "To make a PDF: tap Open printable page, then tap Share, choose Print, spread two fingers on the preview to enlarge it, tap Share again and Save to Files. In Safari you can also use Share > Options > PDF.",
+    printBtn: "Print / Save as PDF (works only in some apps)", shared: "Shared.", textCopied: "Handout text copied.", shareFail: "Sharing is not available here - use the download link.",
+    loginTitle: "Sign in", loginSub: "Use the same account as your other AI with Robert apps.",
+    email: "Email", password: "Password", signIn: "Sign in", signingIn: "Signing in...", signOut: "Sign out", signedInAs: "Signed in as",
+    a_wrong: "Wrong email or password.", a_noaccess: "This account does not have access to the toolkit. Ask for access on the access page.",
+    a_offline: "No internet connection. This tool needs to be online to open.", checking: "Checking access...", a_revoked: "Your session ended. Please sign in again.",
+    a_error: "Could not reach the sign-in service. Try again.",
+    importTitle: "Paste the AI's reply", importSub: "Paste the JSON below, or import a .json file. Your intake answers are kept either way.",
+    pastePh: "Paste the AI's JSON reply here", validate: "Check and continue", importFile: "Import a JSON file", backPrompt: "Back to the prompt",
+    problems: "Please fix this and paste again:", moreErrs: "more problems not shown",
+    tabEdit: "Edit", tabPreview: "Preview", title: "Title", intro: "Intro", up: "Up", down: "Down", remove: "Remove", addRow: "Add row", removeRow: "Remove row",
+    confirmRemove: "Remove this block?", newImport: "Import a different reply", exportSoon: "Export comes in the next stage.",
+    editHint: "Edits are plain text only. One item per line in lists.",
+    e_smart: "The text was damaged by the chat app: curly quotes or stray backslashes. Ask the AI to \"send the same JSON again inside one code block\", then use that code block's Copy button.",
+    e_empty: "Nothing to check - the box is empty.", e_big: "That is too large to be an AI reply (limit about 300 KB).",
+    e_fence: "The reply is wrapped in code fences (```). Delete the ``` lines and paste again.",
+    e_extra: "The reply has extra text before the JSON. It should start with { - it starts with:",
+    e_parse: "This is not valid JSON:", e_notobj: "The top level must be one JSON object { ... }, not a list or a single value.",
+    e_ver: 'schema_version must be the number 1.', e_st: 'session_type must be exactly "%s".', e_ot: 'output_type must be exactly "%s".',
+    e_lang: 'language must be exactly "%s" (the session language you chose).', e_langbad: 'language must be "en" or "fr".',
+    e_title: "title must be non-empty text.", e_introf: "intro must be non-empty text.", e_blocks: "blocks must be a list with at least one block.",
+    e_blocksmax: "Too many blocks (limit %s).", e_bobj: "is not an object.", e_btype: "has an unknown or missing type:", e_text: "must be non-empty text.",
+    e_opttext: "must be text if present.", e_list: "must be a non-empty list of non-empty text items.", e_matrix: "must be a non-empty list of rows, each a list of text cells.",
+    e_cols: "row %s must have exactly %s cells (one per column).", e_enum: "must be one of:", e_long: "is too long.", e_need: 'The reply must include at least one block of type "%s".'
+  },
+  fr: {
+    appTitle: "Boîte à outils AI with Robert",
+    homeTitle: "Boîte à outils de séance",
+    homeSub: "Collecte, requête, livrable - tout sur cet appareil.",
+    startNew: "Commencer une nouvelle séance",
+    outputType: "Type de livrable",
+    sessionLang: "Langue de la séance (langue du livrable)",
+    start: "Démarrer la collecte",
+    resume: "Reprendre une séance enregistrée",
+    importBackup: "Importer un fichier de sauvegarde",
+    soon: "(dans une étape ultérieure)",
+    standing: "Les données de séance restent uniquement sur cet appareil, non chiffrées, dans le stockage de ce navigateur. iOS peut effacer les données d'une application web après une longue inutilisation : exportez une sauvegarde après les séances importantes. Les sauvegardes et exports contiennent tout ce que vous avez saisi; traitez-les comme confidentiels.",
+    privacy: "N'entrez aucun renseignement identifiant ou sensible sur le client. Tout ce qui est saisi ici peut être collé dans une IA externe.",
+    question: "Question", of: "sur", next: "Suivant", back: "Retour", seePrompt: "Créer la requête", required: "Obligatoire",
+    promptTitle: "Votre requête",
+    how1: "Touchez Copier.", how2: "Collez-la dans l'outil d'IA gratuit de votre choix.", how3: "Copiez la réponse de l'IA (uniquement du JSON) et rapportez-la ici.",
+    copy: "Copier la requête", copied: "Copié!", copyFail: "Copie bloquée : maintenez le doigt sur le texte ci-dessus, choisissez Tout sélectionner, puis Copier.",
+    formatTitle: "Format JSON attendu", formatBody: "La requête demande déjà à l'IA de répondre uniquement avec cette structure. Types de blocs, dans n'importe quel ordre et nombre :",
+    editAnswers: "Modifier mes réponses", startOver: "Recommencer", confirmOver: "Abandonner cette séance et recommencer?",
+    pasteReply: "Coller la réponse de l'IA",
+    langLabel: "Langue",
+    exportTitle: "Exporter", shareFile: "Partager / enregistrer le fichier", downloadFile: "Télécharger le fichier (lien de secours)", openPage: "Ouvrir la page imprimable", copyText: "Copier le texte du document",
+    pdfHelp: "Pour faire un PDF : touchez Ouvrir la page imprimable, puis Partager, choisissez Imprimer, écartez deux doigts sur l'aperçu pour l'agrandir, touchez Partager de nouveau et Enregistrer dans Fichiers. Dans Safari, vous pouvez aussi utiliser Partager > Options > PDF.",
+    printBtn: "Imprimer / PDF (fonctionne seulement dans certaines applis)", shared: "Partagé.", textCopied: "Texte du document copié.", shareFail: "Le partage n'est pas disponible ici : utilisez le lien de téléchargement.",
+    loginTitle: "Connexion", loginSub: "Utilisez le même compte que vos autres applications AI with Robert.",
+    email: "Courriel", password: "Mot de passe", signIn: "Se connecter", signingIn: "Connexion...", signOut: "Se déconnecter", signedInAs: "Connecté en tant que",
+    a_wrong: "Courriel ou mot de passe incorrect.", a_noaccess: "Ce compte n'a pas accès à la boîte à outils. Demandez l'accès sur la page d'accès.",
+    a_offline: "Aucune connexion Internet. Cet outil doit être en ligne pour s'ouvrir.", checking: "Vérification de l'accès...", a_revoked: "Votre session a pris fin. Veuillez vous reconnecter.",
+    a_error: "Impossible de joindre le service de connexion. Réessayez.",
+    importTitle: "Coller la réponse de l'IA", importSub: "Collez le JSON ci-dessous, ou importez un fichier .json. Vos réponses de collecte sont conservées dans les deux cas.",
+    pastePh: "Collez ici la réponse JSON de l'IA", validate: "Vérifier et continuer", importFile: "Importer un fichier JSON", backPrompt: "Retour à la requête",
+    problems: "Corrigez ceci et collez à nouveau :", moreErrs: "autres problèmes non affichés",
+    tabEdit: "Modifier", tabPreview: "Aperçu", title: "Titre", intro: "Introduction", up: "Monter", down: "Descendre", remove: "Retirer", addRow: "Ajouter une ligne", removeRow: "Retirer la ligne",
+    confirmRemove: "Retirer ce bloc?", newImport: "Importer une autre réponse", exportSoon: "L'exportation arrive à la prochaine étape.",
+    editHint: "Texte brut seulement. Un élément par ligne dans les listes.",
+    e_smart: "Le texte a été abîmé par l'application de clavardage : guillemets courbes ou barres obliques inverses. Demandez à l'IA de « renvoyer le même JSON dans un seul bloc de code », puis utilisez le bouton Copier de ce bloc.",
+    e_empty: "Rien à vérifier : la zone est vide.", e_big: "C'est trop volumineux pour une réponse d'IA (limite d'environ 300 Ko).",
+    e_fence: "La réponse est entourée de blocs de code (```). Supprimez les lignes ``` et collez à nouveau.",
+    e_extra: "La réponse contient du texte avant le JSON. Elle doit commencer par { - elle commence par :",
+    e_parse: "Ce n'est pas du JSON valide :", e_notobj: "Le niveau supérieur doit être un seul objet JSON { ... }, pas une liste ni une valeur seule.",
+    e_ver: 'schema_version doit être le nombre 1.', e_st: 'session_type doit être exactement "%s".', e_ot: 'output_type doit être exactement "%s".',
+    e_lang: 'language doit être exactement "%s" (la langue de séance choisie).', e_langbad: 'language doit être "en" ou "fr".',
+    e_title: "title doit être un texte non vide.", e_introf: "intro doit être un texte non vide.", e_blocks: "blocks doit être une liste d'au moins un bloc.",
+    e_blocksmax: "Trop de blocs (limite %s).", e_bobj: "n'est pas un objet.", e_btype: "a un type inconnu ou manquant :", e_text: "doit être un texte non vide.",
+    e_opttext: "doit être du texte s'il est présent.", e_list: "doit être une liste non vide d'éléments texte non vides.", e_matrix: "doit être une liste non vide de lignes, chacune une liste de cellules texte.",
+    e_cols: "la ligne %s doit avoir exactement %s cellules (une par colonne).", e_enum: "doit être l'une de :", e_long: "est trop long.", e_need: 'La réponse doit inclure au moins un bloc de type "%s".'
+  }
+};
+
+/* ==========================================================================
+   App code
+   ========================================================================== */
+const S = {
+  ui: (navigator.language || "en").toLowerCase().startsWith("fr") ? "fr" : "en",
+  screen: "home",
+  typeId: Object.keys(OUTPUT_TYPES).find(k => OUTPUT_TYPES[k].enabled),
+  lang: null,
+  step: 0,
+  answers: {},
+  paste: "", errors: [], result: null, tab: "edit",
+  auth: { status: "out", msg: "", email: "", busy: false }
+};
+S.lang = S.ui;
+
+const t = k => UI[S.ui][k] || k;
+const L = o => o[S.ui] || o.en;
+
+/* Safe DOM builder: strings are always text nodes, never HTML. */
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (k === "disabled") n.disabled = !!v;
+    else if (v === true) n.setAttribute(k, "");
+    else if (v !== false && v != null) n.setAttribute(k, v);
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return n;
+}
+
+function applyBranding(brand) {
+  const r = document.documentElement.style, c = brand.colors;
+  r.setProperty("--navy", c.navy); r.setProperty("--blue", c.blue); r.setProperty("--light", c.light); r.setProperty("--sky", c.sky);
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", c.navy);
+}
+
+function currentType() { return OUTPUT_TYPES[S.typeId]; }
+
+/* ---- Prompt composer ---------------------------------------------------- */
+function optLabel(q, id) { const o = (q.options || []).find(x => x.id === id); return o ? o.en : ""; }
+
+function exampleJson(type, lang) {
+  return JSON.stringify({
+    schema_version: 1, session_type: type.sessionType, output_type: type.outputType, language: lang,
+    title: "Your First AI Conversation",
+    intro: "2-3 sentence welcome or summary",
+    blocks: [
+      { type: "section", heading: "What we covered", body: "Plain-language explanation, 2-6 sentences." },
+      { type: "steps", heading: "How to do it", items: ["First step", "Second step"] },
+      { type: "comparison_table", heading: "Side by side", columns: ["Doing it yourself", "With AI"], rows: [["Staring at a blank page", "A draft in seconds"]] },
+      { type: "practice_prompt", heading: "Try it now", prompt: "Explain [topic] like I'm new to it.", note: "Swap [topic] for anything." },
+      { type: "workflow", heading: "Reusable workflow", purpose: "What this workflow is for", steps: ["Step 1", "Step 2"], reuse: "How and when to reuse it" },
+      { type: "tip", style: "tip", body: "A pro tip or safety note." },
+      { type: "cheat_sheet", heading: "Take-home cheat sheet", items: ["Short prompt or key point"] },
+      { type: "next_steps", items: ["Suggested follow-up"] },
+      { type: "disclaimer", body: "Only for health, legal, financial or safety topics." }
+    ]
+  }, null, 2);
+}
+
+function buildPrompt(type, lang, answers) {
+  const langName = lang === "fr" ? 'Quebec professional French ("fr")' : 'English ("en")';
+  const intake = type.questions.map(q => {
+    let v = answers[q.id];
+    if (q.type === "choice") v = optLabel(q, v);
+    else if (q.type === "multi") v = (v || []).map(id => optLabel(q, id)).join(", ");
+    v = (v == null ? "" : String(v)).trim();
+    return v ? "- " + q.promptLabel + ": " + v : null;
+  }).filter(Boolean).join("\n");
+  const blockList = Object.entries(BLOCK_TYPES).map(([k, b]) => '- "' + k + '": ' + b.fields).join("\n");
+  const req = type.requiredBlocks.map(b => '"' + b + '"').join(", ");
+  return [
+    "You are helping " + BRANDING.owner + " (" + brandFor(type.sessionType).name + ") prepare a client deliverable for an AI training session.",
+    "",
+    "RULES",
+    "- Use ONLY the intake information below. Never invent facts about the client.",
+    ...type.audienceRules.map(r => "- " + r),
+    "- Write every text value in " + langName + ".",
+    '- Set "schema_version" to 1, "session_type" to exactly "' + type.sessionType + '", "output_type" to exactly "' + type.outputType + '", and "language" to exactly "' + lang + '".',
+    "- Required: at least one block of each of these types: " + req + ". Every other block type is optional. Blocks may appear in any order and any number.",
+    "- Every string must be plain text: no HTML, no markdown, no emoji.",
+    "- Reply with ONLY one JSON object, placed inside a single code block so it can be copied exactly. No commentary before or after the code block.",
+    '- Use straight double quotes (") for all JSON syntax, never curly quotes, and do not add backslashes.',
+    "",
+    "INTAKE",
+    intake,
+    "",
+    "BLOCK TYPES (each block is an object with a \"type\" field plus these fields)",
+    blockList,
+    "",
+    "EXACT JSON FORMAT (example values only - replace them with real content):",
+    exampleJson(type, lang)
+  ].join("\n");
+}
+
+/* ---- Clipboard ---------------------------------------------------------- */
+async function copyText(txt) {
+  try { await navigator.clipboard.writeText(txt); return true; }
+  catch (e) {
+    const ta = el("textarea", { readonly: true, style: "position:fixed;top:0;opacity:0" });
+    ta.value = txt; document.body.append(ta); ta.focus(); ta.select();
+    try { ta.setSelectionRange(0, txt.length); } catch (_) {}
+    let ok = false; try { ok = document.execCommand("copy"); } catch (_) {}
+    ta.remove(); return ok;
+  }
+}
+
+/* ---- Auth ---------------------------------------------------------------- */
+const Auth = {
+  load() { try { return JSON.parse(localStorage.getItem(AUTH.storageKey) || "null"); } catch (e) { return null; } },
+  save(v) { try { localStorage.setItem(AUTH.storageKey, JSON.stringify(v)); } catch (e) {} },
+  clear() { try { localStorage.removeItem(AUTH.storageKey); } catch (e) {} },
+  async api(path, body, token) {
+    const c = new AbortController(), to = setTimeout(() => c.abort(), 12000);
+    try {
+      const r = await fetch(AUTH.url + path, { method: "POST", body: JSON.stringify(body), signal: c.signal,
+        headers: Object.assign({ apikey: AUTH.key, "Content-Type": "application/json" }, token ? { Authorization: "Bearer " + token } : {}) });
+      let j = null; try { j = await r.json(); } catch (e) {}
+      return { ok: r.ok, status: r.status, json: j };
+    } finally { clearTimeout(to); }
+  },
+  /* true / false / "expired"; throws on network failure */
+  async hasAccess(token) {
+    const r = await Auth.api("/rest/v1/rpc/has_app_access", { app_name: AUTH.app }, token);
+    if (r.ok) return r.json === true;
+    return r.status === 401 ? "expired" : "error";
+  },
+  mk(j, email, verified) {
+    return { access: j.access_token, refresh: j.refresh_token, expires: Date.now() + (j.expires_in || 3600) * 1000, email: email || (j.user && j.user.email) || "", verified };
+  },
+  async signIn(email, pw) {
+    let r; try { r = await Auth.api("/auth/v1/token?grant_type=password", { email, password: pw }); } catch (e) { return "offline"; }
+    if (!r.ok) return r.status >= 500 ? "error" : "wrong";
+    let ok; try { ok = await Auth.hasAccess(r.json.access_token); } catch (e) { return "offline"; }
+    if (ok !== true) return ok === false ? "noaccess" : "error";
+    Auth.save(Auth.mk(r.json, email, Date.now())); return "ok";
+  },
+  /* re-check a stored session: ok / offline / noaccess / revoked / error */
+  async verify() {
+    const s = Auth.load(); if (!s) return "revoked";
+    try {
+      const refresh = async () => {
+        const r = await Auth.api("/auth/v1/token?grant_type=refresh_token", { refresh_token: s.refresh });
+        if (!r.ok) return r.status >= 500 ? "error" : "revoked";
+        Object.assign(s, Auth.mk(r.json, s.email, s.verified)); return "ok";
+      };
+      if (s.expires < Date.now() + 60000) { const x = await refresh(); if (x !== "ok") { if (x === "revoked") Auth.clear(); return x; } }
+      let ok = await Auth.hasAccess(s.access);
+      if (ok === "expired") { const x = await refresh(); if (x !== "ok") { if (x === "revoked") Auth.clear(); return x; } ok = await Auth.hasAccess(s.access); }
+      if (ok === true) { s.verified = Date.now(); Auth.save(s); return "ok"; }
+      if (ok === false) { Auth.clear(); return "noaccess"; }
+      return "error";
+    } catch (e) { return "offline"; }
+  }
+};
+const A_MSG = { wrong: "a_wrong", noaccess: "a_noaccess", offline: "a_offline", revoked: "a_revoked", error: "a_error" };
+function applyVerify(res) {
+  if (res === "ok") { const s = Auth.load(); S.auth = { status: "in", msg: "", email: s ? s.email : "", busy: false }; }
+  else S.auth = { status: "out", msg: res, email: "", busy: false };
+  render();
+}
+function bootAuth() {
+  const s = Auth.load();
+  S.auth = { status: s ? "checking" : "out", msg: "", email: s ? s.email : "", busy: false };
+  if (s) Auth.verify().then(applyVerify);
+  window.addEventListener("online", () => { if (Auth.load() && S.auth.status === "out") { S.auth.status = "checking"; render(); Auth.verify().then(applyVerify); } });
+}
+function signOut() { Auth.clear(); S.auth = { status: "out", msg: "", email: "", busy: false }; render(); }
+
+function loginScreen() {
+  const email = el("input", { type: "email", autocomplete: "username", autocapitalize: "off", autocorrect: "off", "aria-label": t("email") });
+  const pw = el("input", { type: "password", autocomplete: "current-password", "aria-label": t("password") });
+  const btn = el("button", { class: "btn primary", type: "submit" }, S.auth.busy ? t("signingIn") : t("signIn"));
+  btn.disabled = S.auth.busy;
+  const form = el("form", { onsubmit: async e => {
+    e.preventDefault();
+    const em = email.value.trim(), pass = pw.value;
+    if (!em || !pass) return;
+    S.auth.busy = true; btn.disabled = true; btn.textContent = t("signingIn");
+    const r = await Auth.signIn(em, pass);
+    pw.value = "";
+    if (r === "ok") applyVerify("ok");
+    else { S.auth = { status: "out", msg: r, email: "", busy: false }; render(); }
+  } }, el("label", { class: "muted" }, t("email")), email, el("label", { class: "muted", style: "display:block;margin-top:12px" }, t("password")), pw, btn);
+  return shell(el("h1", null, t("loginTitle")), el("p", { class: "muted" }, t("loginSub")),
+    S.auth.msg ? el("div", { class: "err", role: "alert" }, t(A_MSG[S.auth.msg] || "a_error")) : null, form);
+}
+
+/* ---- Screens ------------------------------------------------------------ */
+function shell(...content) {
+  const brand = brandFor(currentType().sessionType);
+  const lang = el("div", { class: "seg", role: "group", "aria-label": t("langLabel") },
+    ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.ui === code), onclick: () => { S.ui = code; render(); } }, code.toUpperCase())));
+  return el("div", null,
+    el("header", { class: "top" }, el("div", { class: "brand" }, el("img", { class: "hlogo", src: brand.logo, alt: "" }), el("div", null, el("div", null, brand.name), el("small", { style: "display:block;font-weight:400;font-size:12px;opacity:.85" }, t("appTitle")))), lang),
+    el("main", null, content, el("footer", null, BRANDING.appFooter)));
+}
+
+function homeScreen() {
+  const types = Object.values(OUTPUT_TYPES).filter(o => o.enabled);
+  const typeBtns = types.map(o => el("button", { class: "opt", "aria-pressed": String(S.typeId === o.id), onclick: () => { S.typeId = o.id; render(); } },
+    el("span", { class: "dot" }), el("span", null, L(o.label), el("small", null, L(o.desc)))));
+  const langSeg = el("div", { class: "seg dark", role: "group" },
+    ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.lang === code), onclick: () => { S.lang = code; render(); } }, code === "en" ? "English" : "Français")));
+  return shell(
+    el("h1", null, t("homeTitle")),
+    el("p", { class: "muted" }, t("homeSub")),
+    el("div", { class: "card" },
+      el("h2", { style: "margin-top:0" }, t("startNew")),
+      el("p", { class: "muted" }, t("outputType")), typeBtns,
+      el("p", { class: "muted" }, t("sessionLang")), langSeg,
+      el("button", { class: "btn primary", onclick: () => { S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.screen = "intake"; render(); } }, t("start"))),
+    el("button", { class: "btn", disabled: true }, t("resume") + " " + t("soon")),
+    el("button", { class: "btn", disabled: true }, t("importBackup") + " " + t("soon")),
+    el("div", { class: "note" }, t("standing")),
+    el("p", { class: "muted", style: "text-align:center" }, S.auth.email ? t("signedInAs") + " " + S.auth.email : ""),
+    el("button", { class: "btn link", onclick: signOut }, t("signOut")));
+}
+
+function isAnswered(q) {
+  const v = S.answers[q.id];
+  if (q.type === "multi") return Array.isArray(v) && v.length > 0;
+  return v != null && String(v).trim() !== "";
+}
+
+function intakeScreen() {
+  const type = currentType(), q = type.questions[S.step], total = type.questions.length;
+  const nextBtn = el("button", { class: "btn primary", onclick: () => {
+    if (S.step < total - 1) S.step++; else S.screen = "composer";
+    render(); window.scrollTo(0, 0);
+  } }, S.step < total - 1 ? t("next") : t("seePrompt"));
+  const refresh = () => { nextBtn.disabled = q.required && !isAnswered(q); };
+
+  let input;
+  if (q.type === "text") {
+    input = el("textarea", { "aria-label": L(q.label), oninput: e => { S.answers[q.id] = e.target.value; refresh(); } });
+    input.value = S.answers[q.id] || "";
+  } else {
+    const multi = q.type === "multi";
+    input = el("div", null, q.options.map(o => {
+      const on = () => multi ? (S.answers[q.id] || []).includes(o.id) : S.answers[q.id] === o.id;
+      const b = el("button", { class: "opt" + (multi ? " multi" : ""), "aria-pressed": String(on()), onclick: () => {
+        if (multi) { const a = S.answers[q.id] || []; S.answers[q.id] = a.includes(o.id) ? a.filter(x => x !== o.id) : a.concat(o.id); }
+        else S.answers[q.id] = o.id;
+        input.querySelectorAll("button").forEach((btn, i) => btn.setAttribute("aria-pressed", String(
+          multi ? (S.answers[q.id] || []).includes(q.options[i].id) : S.answers[q.id] === q.options[i].id)));
+        refresh();
+      } }, el("span", { class: "dot" }), el("span", null, L(o)));
+      return b;
+    }));
+  }
+  refresh();
+  return shell(
+    el("span", { class: "pill" }, t("question") + " " + (S.step + 1) + " " + t("of") + " " + total),
+    el("div", { class: "bar" }, el("i", { style: "width:" + Math.round(((S.step + 1) / total) * 100) + "%" })),
+    el("h1", null, L(q.label)),
+    q.hint ? el("p", { class: "muted" }, L(q.hint)) : null,
+    input,
+    el("div", { class: "note warn" }, t("privacy")),
+    nextBtn,
+    el("button", { class: "btn", onclick: () => { if (S.step > 0) S.step--; else S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back")));
+}
+
+function composerScreen() {
+  const type = currentType();
+  const prompt = buildPrompt(type, S.lang, S.answers);
+  const msg = el("p", { class: "muted", role: "status" });
+  const copyBtn = el("button", { class: "btn primary" }, t("copy"));
+  copyBtn.addEventListener("click", async () => {
+    const ok = await copyText(prompt);
+    if (ok) { copyBtn.textContent = t("copied"); msg.textContent = ""; setTimeout(() => { copyBtn.textContent = t("copy"); }, 2000); }
+    else msg.textContent = t("copyFail");
+  });
+  const blockLines = Object.entries(BLOCK_TYPES).map(([k, b]) => el("p", { class: "muted" }, el("b", null, k), ": " + b.fields));
+  return shell(
+    el("h1", null, t("promptTitle")),
+    el("ol", { class: "how" }, el("li", null, t("how1")), el("li", null, t("how2")), el("li", null, t("how3"))),
+    copyBtn, msg,
+    el("pre", { class: "prompt" }, prompt),
+    el("details", null,
+      el("summary", null, t("formatTitle")),
+      el("p", { class: "muted" }, t("formatBody")),
+      blockLines,
+      el("pre", { class: "fmt" }, exampleJson(type, S.lang))),
+    el("button", { class: "btn primary", onclick: () => { S.screen = "import"; render(); window.scrollTo(0, 0); } }, t("pasteReply")),
+    el("button", { class: "btn", onclick: () => { S.step = type.questions.length - 1; S.screen = "intake"; render(); window.scrollTo(0, 0); } }, t("editAnswers")),
+    el("button", { class: "btn link", onclick: () => { if (confirm(t("confirmOver"))) { S.screen = "home"; S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; render(); } } }, t("startOver")));
+}
+
+/* ---- Validation (AI output is untrusted: parse, check, rebuild clean) ---- */
+function fmt(s, ...a) { let i = 0; return s.replace(/%s/g, () => a[i++]); }
+const isStr = v => typeof v === "string";
+const shorten = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n) + "..." : s; };
+
+function validateText(text, type, lang) {
+  const E = [], add = m => E.push(m);
+  text = (text || "").trim();
+  if (!text) return { errors: [t("e_empty")] };
+  if (text.length > LIMITS.bytes) return { errors: [t("e_big")] };
+  if (text.startsWith("```")) {
+    const m = text.match(/^```[A-Za-z]*[ \t]*\r?\n([\s\S]*?)\r?\n?```\s*$/);
+    if (!m) return { errors: [t("e_fence")] };
+    text = m[1].trim();
+  }
+  if (text[0] !== "{") {
+    if (text.includes("{")) return { errors: [t("e_extra") + ' "' + shorten(text.split("\n")[0], 40) + '"'] };
+  }
+  let o;
+  try { o = JSON.parse(text); } catch (e) {
+    const errs = [t("e_parse") + " " + shorten(e && e.message, 160)];
+    if (/[\u201C\u201D]|\\[\[\]_]/.test(text)) errs.push(t("e_smart"));
+    return { errors: errs };
+  }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return { errors: [t("e_notobj")] };
+
+  if (o.schema_version !== 1) add(t("e_ver"));
+  if (o.session_type !== type.sessionType) add(fmt(t("e_st"), type.sessionType));
+  if (o.output_type !== type.outputType) add(fmt(t("e_ot"), type.outputType));
+  if (o.language !== "en" && o.language !== "fr") add(t("e_langbad"));
+  else if (o.language !== lang) add(fmt(t("e_lang"), lang));
+  const top = (k, msg) => { if (!isStr(o[k]) || !o[k].trim()) add(msg); else if (o[k].length > LIMITS.str) add(k + " " + t("e_long")); };
+  top("title", t("e_title")); top("intro", t("e_introf"));
+
+  const clean = [];
+  if (!Array.isArray(o.blocks) || o.blocks.length === 0) add(t("e_blocks"));
+  else if (o.blocks.length > LIMITS.blocks) add(fmt(t("e_blocksmax"), LIMITS.blocks));
+  else o.blocks.forEach((b, i) => {
+    const at = "blocks[" + (i + 1) + "]";
+    if (!b || typeof b !== "object" || Array.isArray(b)) return add(at + " " + t("e_bobj"));
+    const spec = isStr(b.type) && Object.prototype.hasOwnProperty.call(BLOCK_SPECS, b.type) ? BLOCK_SPECS[b.type] : null;
+    if (!spec) return add(at + " " + t("e_btype") + ' "' + shorten(b.type === undefined ? "" : (isStr(b.type) ? b.type : JSON.stringify(b.type)), 40) + '"');
+    const nb = { type: b.type }, p = at + " (" + b.type + ")", before = E.length;
+    for (const [k, rule] of Object.entries(spec)) {
+      const v = b[k], f = p + ' "' + k + '"';
+      if (Array.isArray(rule)) {
+        if (!rule.includes(v)) add(f + " " + t("e_enum") + " " + rule.join(", ")); else nb[k] = v;
+      } else if (rule === "s" || rule === "s?") {
+        if (rule === "s?" && (v === undefined || v === null)) nb[k] = "";
+        else if (!isStr(v)) add(f + " " + t(rule === "s" ? "e_text" : "e_opttext"));
+        else if (rule === "s" && !v.trim()) add(f + " " + t("e_text"));
+        else if (v.length > LIMITS.str) add(f + " " + t("e_long"));
+        else nb[k] = v;
+      } else if (rule === "a") {
+        if (!Array.isArray(v) || !v.length || v.length > LIMITS.items || v.some(x => !isStr(x) || !x.trim() || x.length > LIMITS.str)) add(f + " " + t("e_list"));
+        else nb[k] = v.slice();
+      } else if (rule === "m") {
+        const cols = Array.isArray(b.columns) ? b.columns.length : 0;
+        if (!Array.isArray(v) || !v.length || v.length > LIMITS.rows || v.some(r => !Array.isArray(r) || r.some(c => !isStr(c) || c.length > LIMITS.str))) add(f + " " + t("e_matrix"));
+        else {
+          const bad = v.findIndex(r => r.length !== cols);
+          if (cols && bad >= 0) add(p + " " + fmt(t("e_cols"), bad + 1, cols)); else nb[k] = v.map(r => r.slice());
+        }
+      }
+    }
+    if (E.length === before) clean.push(nb);
+  });
+  for (const r of type.requiredBlocks) if (Array.isArray(o.blocks) && !o.blocks.some(b => b && b.type === r)) add(fmt(t("e_need"), r));
+  if (E.length) return { errors: E };
+  return { errors: [], data: { schema_version: 1, session_type: o.session_type, output_type: o.output_type, language: o.language, title: o.title, intro: o.intro, blocks: clean } };
+}
+
+/* ---- Deliverable renderer (text nodes only - nothing is ever parsed as HTML) ---- */
+const DOC_L = {
+  en: { tryIt: "Try it now", tip: "Pro tip", safety: "Safety note", workflow: "Workflow", purpose: "What it is for", reuse: "How to reuse it", next: "Next steps" },
+  fr: { tryIt: "À vous d'essayer", tip: "Astuce", safety: "Sécurité", workflow: "Flux de travail", purpose: "À quoi ça sert", reuse: "Comment le réutiliser", next: "Prochaines étapes" }
+};
+function renderDeliverable(d) {
+  const l = DOC_L[d.language] || DOC_L.en, brand = brandFor(d.session_type);
+  const ul = items => el("ul", null, items.map(x => el("li", null, x)));
+  const blocks = d.blocks.map(b => {
+    switch (b.type) {
+      case "section": return el("div", { class: "blk" }, el("h3", null, b.heading), el("div", { class: "txt" }, b.body));
+      case "steps": return el("div", { class: "blk" }, el("h3", null, b.heading), el("ol", { class: "st" }, b.items.map(x => el("li", null, el("span", null, x)))));
+      case "comparison_table": return el("div", { class: "blk" }, el("h3", null, b.heading), el("div", { class: "tw" }, el("table", null,
+        el("thead", null, el("tr", null, b.columns.map(c => el("th", null, c)))),
+        el("tbody", null, b.rows.map(r => el("tr", null, r.map(c => el("td", null, c))))))));
+      case "practice_prompt": return el("div", { class: "blk" }, el("h3", null, b.heading), el("div", { class: "tryit" },
+        el("span", { class: "pill" }, l.tryIt), el("div", { class: "p" }, b.prompt), b.note ? el("div", { class: "muted", style: "margin-top:6px" }, b.note) : null));
+      case "workflow": return el("div", { class: "blk" }, el("div", { class: "card2" }, el("span", { class: "pill" }, l.workflow), el("h3", { style: "margin-top:8px" }, b.heading),
+        el("div", { class: "lbl" }, l.purpose), el("div", { class: "txt" }, b.purpose), el("ol", { class: "st" }, b.steps.map(x => el("li", null, el("span", null, x)))),
+        el("div", { class: "lbl" }, l.reuse), el("div", { class: "txt" }, b.reuse)));
+      case "tip": return el("div", { class: "blk" }, el("div", { class: "box" + (b.style === "safety" ? " safety" : "") }, el("b", null, b.style === "safety" ? l.safety : l.tip), ": ", b.body));
+      case "cheat_sheet": return el("div", { class: "blk" }, el("h3", null, b.heading), el("div", { class: "box" }, ul(b.items)));
+      case "next_steps": return el("div", { class: "blk" }, el("h3", null, l.next), ul(b.items));
+      case "disclaimer": return el("div", { class: "blk" }, el("div", { class: "disc" }, b.body));
+    }
+    return null;
+  });
+  return el("article", { class: "doc" },
+    el("div", { class: "hero" }, el("div", { class: "htop" }, el("img", { class: "logo", src: brand.logo, alt: "" }), el("div", { class: "bname" }, brand.name)), el("h1", null, d.title), el("p", null, d.intro)),
+    el("div", { class: "dbody" }, blocks), el("div", { class: "foot" }, el("div", null, brand.line1), el("div", null, brand.line2)));
+}
+
+/* ---- Export ------------------------------------------------------------- */
+const STANDALONE_CSS = "body{margin:0 auto;padding:12px;max-width:760px}@page{margin:14mm}";
+function slug(s) { return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50) || "handout"; }
+function standaloneHtml(d) {
+  const doc = document.implementation.createHTMLDocument(d.title);
+  doc.documentElement.setAttribute("lang", d.language);
+  const meta = doc.createElement("meta"); meta.setAttribute("charset", "utf-8"); doc.head.prepend(meta);
+  const vp = doc.createElement("meta"); vp.setAttribute("name", "viewport"); vp.setAttribute("content", "width=device-width, initial-scale=1"); doc.head.append(vp);
+  const c = brandFor(d.session_type).colors, st = doc.createElement("style");
+  st.textContent = ":root{--navy:" + c.navy + ";--blue:" + c.blue + ";--light:" + c.light + ";--sky:" + c.sky + "}" + document.getElementById("appcss").textContent.replace(/^:root\{[^}]*\}/m, "") + STANDALONE_CSS;
+  doc.head.append(st);
+  doc.body.append(doc.importNode(renderDeliverable(d), true));
+  return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
+}
+function plainText(d) {
+  const l = DOC_L[d.language] || DOC_L.en, o = [d.title, "", d.intro, ""];
+  const list = (a, num) => a.map((x, i) => (num ? (i + 1) + ". " : "- ") + x);
+  d.blocks.forEach(b => {
+    switch (b.type) {
+      case "section": o.push(b.heading, b.body); break;
+      case "steps": o.push(b.heading, ...list(b.items, true)); break;
+      case "comparison_table": o.push(b.heading, b.columns.join(" | "), ...b.rows.map(r => r.join(" | "))); break;
+      case "practice_prompt": o.push(l.tryIt + ": " + b.heading, b.prompt); if (b.note) o.push(b.note); break;
+      case "workflow": o.push(l.workflow + ": " + b.heading, b.purpose, ...list(b.steps, true), l.reuse + ": " + b.reuse); break;
+      case "tip": o.push((b.style === "safety" ? l.safety : l.tip) + ": " + b.body); break;
+      case "cheat_sheet": o.push(b.heading, ...list(b.items)); break;
+      case "next_steps": o.push(l.next, ...list(b.items)); break;
+      case "disclaimer": o.push(b.body); break;
+    }
+    o.push("");
+  });
+  o.push(brandFor(d.session_type).line1, brandFor(d.session_type).line2);
+  return o.join("\n");
+}
+let blobUrl = null;
+function exportPanel(d) {
+  const html = standaloneHtml(d), name = slug(d.title) + "-" + d.language + ".html";
+  const blob = new Blob([html], { type: "text/html" });
+  if (blobUrl) URL.revokeObjectURL(blobUrl);
+  blobUrl = URL.createObjectURL(blob);
+  const msg = el("p", { class: "muted", role: "status" });
+  const share = el("button", { class: "btn primary", onclick: async () => {
+    try {
+      const f = new File([blob], name, { type: "text/html" });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: d.title }); msg.textContent = t("shared"); }
+      else msg.textContent = t("shareFail");
+    } catch (e) { if (!e || e.name !== "AbortError") msg.textContent = t("shareFail"); }
+  } }, t("shareFile"));
+  const copy = el("button", { class: "btn", onclick: async () => { msg.textContent = (await copyText(plainText(d))) ? t("textCopied") : t("copyFail"); } }, t("copyText"));
+  return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, t("exportTitle")),
+    share,
+    el("a", { class: "btn", href: blobUrl, download: name, style: "text-decoration:none;line-height:30px" }, t("downloadFile")),
+    el("a", { class: "btn", href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none;line-height:30px" }, t("openPage")),
+    el("button", { class: "btn", onclick: () => { try { window.print(); } catch (e) { msg.textContent = t("shareFail"); } } }, t("printBtn")),
+    copy, msg, el("div", { class: "note" }, t("pdfHelp")));
+}
+
+/* ---- Import screen ------------------------------------------------------- */
+function runValidation(text) {
+  const type = currentType();
+  const r = validateText(text, type, S.lang);
+  if (r.errors.length) { S.errors = r.errors; S.result = null; }
+  else { S.errors = []; S.result = r.data; S.tab = "edit"; S.screen = "edit"; }
+  render(); window.scrollTo(0, 0);
+}
+
+function importScreen() {
+  const ta = el("textarea", { placeholder: t("pastePh"), "aria-label": t("pastePh"), style: "min-height:220px;font:14px/1.4 ui-monospace,Menlo,monospace", autocapitalize: "off", autocorrect: "off", spellcheck: "false", oninput: e => { S.paste = e.target.value; } });
+  ta.value = S.paste;
+  const file = el("input", { type: "file", accept: ".json,.txt,application/json,text/plain", style: "display:none", onchange: e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    if (f.size > LIMITS.bytes) { S.errors = [t("e_big")]; render(); return; }
+    const fr = new FileReader();
+    fr.onerror = () => { S.errors = [t("e_parse") + " " + shorten(fr.error && fr.error.message, 100)]; render(); };
+    fr.onload = () => { S.paste = String(fr.result || ""); runValidation(S.paste); };
+    fr.readAsText(f);
+  } });
+  const shown = S.errors.slice(0, 12);
+  return shell(
+    el("h1", null, t("importTitle")), el("p", { class: "muted" }, t("importSub")),
+    S.errors.length ? el("div", { class: "err", role: "alert" }, el("b", null, t("problems")),
+      el("ul", null, shown.map(x => el("li", null, x))),
+      S.errors.length > 12 ? el("div", null, "+" + (S.errors.length - 12) + " " + t("moreErrs")) : null) : null,
+    ta,
+    el("button", { class: "btn primary", onclick: () => runValidation(S.paste) }, t("validate")),
+    file, el("button", { class: "btn", onclick: () => file.click() }, t("importFile")),
+    el("button", { class: "btn link", onclick: () => { S.screen = "composer"; render(); window.scrollTo(0, 0); } }, t("backPrompt")));
+}
+
+/* ---- Edit + preview screen ---------------------------------------------- */
+function textField(obj, key, label, opts) {
+  opts = opts || {};
+  const inp = opts.long ? el("textarea", { oninput: e => { obj[key] = e.target.value; } }) : el("input", { type: "text", oninput: e => { obj[key] = e.target.value; } });
+  inp.value = obj[key] || "";
+  return el("div", null, el("label", null, label), inp);
+}
+function listField(obj, key, label) {
+  const ta = el("textarea", { oninput: e => { obj[key] = e.target.value.split("\n").map(s => s.trim()).filter(Boolean); } });
+  ta.value = (obj[key] || []).join("\n");
+  return el("div", null, el("label", null, label), ta);
+}
+function tableField(b) {
+  const wrap = el("div");
+  const build = () => {
+    const n = b.columns.length, tpl = "grid-template-columns:repeat(" + n + ",minmax(0,1fr))";
+    const cell = (arr, i) => { const x = el("input", { type: "text", oninput: e => { arr[i] = e.target.value; } }); x.value = arr[i] || ""; return x; };
+    wrap.replaceChildren(
+      el("label", null, "columns"), el("div", { class: "grid", style: tpl }, b.columns.map((_, i) => cell(b.columns, i))),
+      el("label", null, "rows"),
+      b.rows.map((r, ri) => el("div", null, el("div", { class: "grid", style: tpl }, r.map((_, ci) => cell(r, ci))),
+        el("button", { class: "btn sm danger", disabled: b.rows.length < 2, onclick: () => { b.rows.splice(ri, 1); build(); } }, t("removeRow")))),
+      el("button", { class: "btn sm", onclick: () => { b.rows.push(b.columns.map(() => "")); build(); } }, t("addRow")));
+  };
+  build();
+  return wrap;
+}
+function blockEditor(b, i, all) {
+  const spec = BLOCK_SPECS[b.type], fields = [];
+  for (const [k, rule] of Object.entries(spec)) {
+    if (Array.isArray(rule)) {
+      const sel = el("select", { style: "font:inherit;font-size:17px;padding:10px;border-radius:12px;border:2px solid var(--line);width:100%", onchange: e => { b[k] = e.target.value; } },
+        rule.map(v => el("option", { value: v }, v)));
+      sel.value = b[k]; fields.push(el("div", null, el("label", null, k), sel));
+    } else if (rule === "a") fields.push(listField(b, k, k));
+    else if (rule === "m") fields.push(tableField(b));
+    else fields.push(textField(b, k, k, { long: !["heading"].includes(k) }));
+  }
+  const mv = d => () => { const j = i + d; if (j < 0 || j >= all.length) return; [all[i], all[j]] = [all[j], all[i]]; render(); };
+  return el("div", { class: "ed" },
+    el("span", { class: "pill" }, (i + 1) + ". " + L(BLOCK_LABELS[b.type])), fields,
+    el("div", { style: "margin-top:10px" },
+      el("button", { class: "btn sm", disabled: i === 0, onclick: mv(-1) }, t("up")),
+      el("button", { class: "btn sm", disabled: i === all.length - 1, onclick: mv(1) }, t("down")),
+      el("button", { class: "btn sm danger", onclick: () => { if (confirm(t("confirmRemove"))) { all.splice(i, 1); render(); } } }, t("remove"))));
+}
+function editScreen() {
+  const d = S.result;
+  const tabs = el("div", { class: "seg dark", role: "group", style: "margin-bottom:12px" },
+    [["edit", "tabEdit"], ["preview", "tabPreview"]].map(([id, key]) => el("button", { "aria-pressed": String(S.tab === id), onclick: () => { S.tab = id; render(); window.scrollTo(0, 0); } }, t(key))));
+  const body = S.tab === "edit"
+    ? [el("p", { class: "muted" }, t("editHint")),
+       el("div", { class: "ed" }, textField(d, "title", t("title")), textField(d, "intro", t("intro"), { long: true })),
+       d.blocks.map((b, i) => blockEditor(b, i, d.blocks))]
+    : [renderDeliverable(d), exportPanel(d)];
+  return shell(tabs, body,
+    el("button", { class: "btn", onclick: () => { S.screen = "import"; S.errors = []; render(); window.scrollTo(0, 0); } }, t("newImport")),
+    el("button", { class: "btn link", onclick: () => { S.screen = "composer"; render(); window.scrollTo(0, 0); } }, t("backPrompt")));
+}
+
+function render() {
+  document.documentElement.lang = S.ui;
+  document.title = BRANDING.appName;
+  applyBranding(brandFor(currentType().sessionType));
+  const root = document.getElementById("root");
+  if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
+  if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
+  const screens = { intake: intakeScreen, composer: composerScreen, import: importScreen, edit: editScreen };
+  root.replaceChildren((screens[S.screen] || homeScreen)());
+}
+
+bootAuth();
+render();
+</script>
+</body>
+</html>
