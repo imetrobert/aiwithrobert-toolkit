@@ -343,6 +343,40 @@ function sizeRule(type, answers) {
   return null;
 }
 const visibleQs = (brand, sel) => OUTPUT_TYPES[BASE[brand]].questions.filter(q => !q.when || sel.some(id => q.when.includes(OUTPUT_TYPES[id].art)));
+/* ---- Free AI tool recommender (edit TOOLS when free plans change; last reviewed November 2026) ---- */
+const TOOLS = {
+  claude:  { name: "Claude", url: "https://claude.ai", strong: "natural, personal-sounding writing and careful instruction-following", limit: "its free plan works in sessions that reset about every 5 hours, so a very long reply could stop part-way" },
+  chatgpt: { name: "ChatGPT", url: "https://chatgpt.com", strong: "unlimited everyday text chats on the free plan and a broad, dependable toolbox", limit: "the writing can sound a little more generic than Claude's" },
+  gemini:  { name: "Gemini", url: "https://gemini.google.com", strong: "a generous free allowance and a very large memory for long prompts", limit: "the free version can be less polished at tone and writing style" },
+  mistral: { name: "Le Chat (Mistral)", url: "https://chat.mistral.ai", strong: "strong French, often rated more natural and less anglicized than American tools", limit: "less proven at returning strict JSON, so check the reply carefully" }
+};
+function recommendTools(type, answers, lang) {
+  const m = parseInt(answers.lesson, 10) || 0, art = type.art;
+  const long = (art === "handout" && answers.hlen === "long") || ((art === "deck" || art === "workbook") && m >= 120);
+  let p, b, why;
+  if (art === "survey") { p = "chatgpt"; b = "gemini"; why = "This is a short, simple output, so any of the big free tools does it well. ChatGPT is the easy default because its everyday text chats are unlimited."; }
+  else if (long) { p = "chatgpt"; b = "claude"; why = "This is a very long output. ChatGPT's free everyday chats are unlimited, so it is least likely to stop part-way. Claude writes the most naturally but may hit its free allowance on something this big."; }
+  else if (art === "handout") { p = "claude"; b = "chatgpt"; why = "A personalised handout depends on warm, natural writing and tone that fits the audience, which is Claude's strength."; }
+  else if (art === "deck") { p = "claude"; b = "chatgpt"; why = "Good slides need tight, well-ordered wording and strict structure. Claude follows detailed formatting instructions closely."; }
+  else { p = "claude"; b = "chatgpt"; why = "A workbook needs clear, simple instructions and well-structured exercises. Claude follows detailed formatting instructions closely."; }
+  const alt = lang === "fr" ? "mistral" : null;
+  return { primary: TOOLS[p], backup: TOOLS[b], alt: alt && TOOLS[alt], why, long };
+}
+function toolCard(type) {
+  const r = recommendTools(type, S.answers, S.lang);
+  const link = (tool, cls) => el("a", { class: "btn " + cls, href: tool.url, target: "_blank", rel: "noopener", style: "text-decoration:none" }, t("openTool") + " " + tool.name);
+  return el("div", { class: "card" },
+    el("span", { class: "pill" }, t("bestTool")),
+    el("h2", { style: "margin:8px 0 4px" }, r.primary.name),
+    el("p", { class: "muted", style: "margin:0 0 8px" }, r.why),
+    link(r.primary, "primary"),
+    el("details", null, el("summary", null, t("otherTools")),
+      el("p", { class: "muted" }, el("b", null, r.backup.name + ": "), "good backup for " + r.backup.strong + ". Note: " + r.backup.limit + "."),
+      link(r.backup, ""),
+      r.alt ? el("p", { class: "muted" }, el("b", null, r.alt.name + ": "), "for French, try it too, known for " + r.alt.strong + ". Note: " + r.alt.limit + ".") : null,
+      r.alt ? link(r.alt, "") : null,
+      el("p", { class: "muted" }, t("toolTip"))));
+}
 /* ---- Voice and structure guardrails per audience (learned from aiwithrobert.com and biz.aiwithrobert.com) ---- */
 const VOICE = {
   seniors: {
@@ -471,6 +505,7 @@ const UI = {
     homeTitle: "Client session toolkit",
     homeSub: "Intake, prompt, deliverable - all on this device.",
     startNew: "Start a new session",
+    bestTool: "Best free tool for this", openTool: "Open", otherTools: "Backup options", toolTip: "Free plans change often. Paste the same prompt into any of these in a new chat. If one stops at a limit, switch to another and paste the prompt again.",
     pickBrand: "Which brand is this session for?", pickArts: "What do you want to build? Pick one or more.", pickNone: "Pick at least one.",
     hubTitle: "Your session materials", hubSub: "One shared intake, one prompt per item. Do them in any order.", hubTodo: "Not started", hubDone: "Ready",
     hubPrompt: "Get the prompt", hubOpen: "Open, edit and export", hubPromptAgain: "See the prompt again", hubBack: "Back to my materials", hubEditAns: "Edit the shared answers", hubHome: "Back to home", toHub: "Continue",
@@ -1055,6 +1090,7 @@ function composerScreen() {
     el("span", { class: "pill" }, L(type.label)),
     el("h1", null, t("promptTitle")),
     el("ol", { class: "how" }, el("li", null, t("how1")), el("li", null, t("how2")), el("li", null, t("how3"))),
+    toolCard(type),
     copyBtn, msg,
     el("pre", { class: "prompt" }, prompt),
     el("details", null,
