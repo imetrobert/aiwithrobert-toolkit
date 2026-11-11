@@ -343,6 +343,46 @@ function sizeRule(type, answers) {
   return null;
 }
 const visibleQs = (brand, sel) => OUTPUT_TYPES[BASE[brand]].questions.filter(q => !q.when || sel.some(id => q.when.includes(OUTPUT_TYPES[id].art)));
+/* ---- Voice and structure guardrails per audience (learned from aiwithrobert.com and biz.aiwithrobert.com) ---- */
+const VOICE = {
+  seniors: {
+    tone: [
+      "Voice: patient, warm and personal, like a trusted local tutor sitting beside the learner. Speak directly to 'you'. Encouraging, never talking down: AI is a helpful tool for staying connected and independent, not something to fear.",
+      "Plain language only. Short sentences (about 15 words or fewer). Roughly a grade 6 to 8 reading level. No jargon, no acronyms and no tech slang; if a technical word is unavoidable, explain it in everyday words the first time it appears.",
+      "Reassure often: no question is too simple, go at your own pace, practice makes it easier. No pressure, no hype, no urgency, no fear tactics.",
+      "Be concrete and practical: tie every idea to a real everyday task such as emails to family, video calls, appointments, travel planning, shopping or staying safe from scams. Never assume family, health or personal details that are not in the intake.",
+      "Safety is part of the teaching: repeat the key rules in a calm tone (never share passwords, bank or health card numbers with an AI; double-check important answers; be wary of urgent messages asking for money or codes).",
+      "Always name where to look or tap for the device given in the intake (for example 'the microphone button on your keyboard'), and never use another device's wording."
+    ],
+    structure: {
+      handout: "Open with a warm 2-3 sentence welcome. One idea per block. Numbered steps with exactly one action per step. Prompts are short and copy-ready with simple [placeholders]. Close with a short encouraging note and gentle things to try at their own pace; mention that follow-up help is available.",
+      workbook: "Large-print friendly: short blocks, lots of space to write, one task at a time. Instructions are a single sentence. Practice prompts are simple and safe to try with the facilitator beside them.",
+      deck: "One simple idea per slide with 3 to 4 short bullets in everyday words. Start with what we will do today and end with a calm recap. Put the facilitator's explanations in the notes, not on the slide.",
+      survey: "Very short, friendly questions in plain words. Scales are 1 to 5 with clear labels. Offer choices rather than making people write long answers, and keep open questions to one or two."
+    }
+  },
+  business: {
+    tone: [
+      "Voice: plain, practical and concrete; friendly and professional, never salesy. Address the reader as 'you'. Short, direct sentences; fragments and parallel lists are fine. No hype, buzzwords, agency-speak or promises of guaranteed results.",
+      "Frame value as hours saved, manual work removed and processes that run better. Do not invent numbers: use figures only if the intake gives them, otherwise describe the benefit qualitatively.",
+      "Start from the client's existing tools and the tasks that cost them the most time. Prefer simple, repeatable, documented workflows over new tools or complexity ('no enterprise platform, no custom software'). Suggest agents or advanced automation only when the payoff clearly justifies the complexity.",
+      "Keep a human in the loop: wherever AI output affects a client, a number or a decision, include a clear 'review before you send' or approval step.",
+      "Treat privacy as a priority: tell the reader what not to paste into an AI tool (client names, personal, health or financial details) and refer to Quebec's Law 25 only as practical guidance, never as legal advice.",
+      "Be transparent about trade-offs and about what depends on the client's plan, tools and connections. Never state prices or costs that are not in the intake."
+    ],
+    structure: {
+      handout: "Lead with the outcome. Short, benefit-oriented headings (for example 'Turn meeting notes into follow-ups in minutes'). For each key task: the situation, a documented ready-to-paste prompt (what to paste, what to check) and a reusable workflow with steps. End with clear, low-pressure next steps.",
+      workbook: "Work from the client's real tasks: fill-in blocks capture their current process, the time it takes and the outcome they want. Exercises are guided, one task at a time, and produce something they can reuse on Monday morning.",
+      deck: "Lead each section with the outcome in a short benefit-led headline. 3 to 5 tight bullets per slide. Show the problem, then the repeatable workflow, then the live demo prompt. Close with next steps. Put the speaking points in the notes.",
+      survey: "Short and professional. Ask about value, clarity and confidence to apply it, which of THEIR tasks or workflows they want help with next, and the preferred follow-up format. Keep it low-pressure, never a sales pitch."
+    }
+  }
+};
+function voiceLines(type) {
+  const v = VOICE[type.sessionType];
+  if (!v) return [];
+  return ["", "VOICE AND STRUCTURE GUARDRAILS (follow strictly so the result fits this audience)", ...v.tone.map(x => "- " + x), "- Structure for this material: " + v.structure[type.art]];
+}
 /* ---- Artifacts: one shared intake per brand, one deliverable type per artifact ---- */
 const BASE = { seniors: "seniors_handout", business: "business_pack" };
 const ARTIFACT_ORDER = ["handout", "workbook", "deck", "survey"];
@@ -656,6 +696,7 @@ function buildPrompt(type, lang, answers) {
     "- Every string must be plain text: no HTML, no markdown, no emoji.",
     "- Reply with ONLY one JSON object, placed inside a single code block so it can be copied exactly. No commentary before or after the code block.",
     '- Use straight double quotes (") for all JSON syntax, never curly quotes, and do not add backslashes.',
+    ...voiceLines(type),
     "",
     "INTAKE",
     intake,
