@@ -170,6 +170,9 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
 .sl th{background:var(--navy)}.sl tbody tr:nth-child(even) td{background:var(--light)}
 @media print{.doc{box-shadow:none;border-radius:0}.doc .hero,.doc .foot,.doc .eyebrow,.doc .pill,.doc .tryit,.doc .box,.doc .card2,.doc tbody td,.doc th{-webkit-print-color-adjust:exact;print-color-adjust:exact}.doc .foot{break-inside:avoid}}
 .sl.tl .si,.sl.cl .si{padding-top:3.5cqw;padding-bottom:9cqw}.sl .slogo{width:9cqw;height:9cqw;background:#fff;padding:.9cqw;border-radius:2cqw;box-shadow:0 .4cqw 1.6cqw rgba(0,0,0,.3)}.sl.tl h1{font-size:5.6cqw;margin:1.6cqw 0 1.6cqw}.sl.tl .eye{margin-top:2cqw}.sl .stag{margin-top:2cqw}
+.actbar{position:sticky;top:0;z-index:20;background:#fff;padding:8px 0 6px;margin:0 0 8px;border-bottom:1px solid var(--line)}.actbar .row{display:flex;gap:10px}.actbar .btn{margin:0;flex:1;min-height:48px}
+.modal{position:fixed;inset:0;background:rgba(10,25,40,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}.mbox{background:#fff;border-radius:18px;padding:18px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+@media print{.actbar,.modal{display:none!important}}
 </style>
 </head>
 <body>
@@ -731,7 +734,7 @@ const S = {
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
   auth: { status: "out", msg: "", email: "", busy: false },
-  saveMsg: "", cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
+  saveMsg: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -1004,7 +1007,7 @@ function reuseInputs(rec) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
   const r = c.rec, a = Object.assign({}, r.answers); delete a.transcript;
   S.brand = r.brand; S.sel = r.sel.slice(); S.lang = r.lang; S.answers = a; S.results = {}; S.pastes = {}; S.typeId = S.sel[0]; S.result = null; S.paste = ""; S.errors = [];
-  S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.step = 0; S.screen = "intake"; render(); window.scrollTo(0, 0);
+  S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.step = 0; S.screen = "intake"; render(); window.scrollTo(0, 0);
 }
 const STORE_KEY = "awr_toolkit_sessions";
 const Store = {
@@ -1100,7 +1103,7 @@ function openSession(rec, openId) {
   const r = c.rec, base = OUTPUT_TYPES[BASE[r.brand]];
   S.brand = r.brand; S.sel = r.sel; S.results = r.results; S.pastes = r.pastes; S.typeId = r.typeId; S.result = r.results[r.typeId] || null; S.paste = r.pastes[r.typeId] || "";
   S.saveMsg = ""; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.created = r.created; S.tab = "edit";
-  lastSaved = "";
+  lastSaved = ""; S.libSig = JSON.stringify([S.brand, S.sel, S.answers, S.results, S.pastes]);
   const done = visibleQs(r.brand, r.sel).every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
   S.screen = done ? "hub" : "intake";
   if (openId && r.sel.includes(openId)) { S.typeId = openId; S.result = r.results[openId] || null; S.paste = r.pastes[openId] || ""; S.screen = S.result ? "edit" : "composer"; S.tab = "preview"; }
@@ -1180,7 +1183,7 @@ function homeScreen() {
       el("button", { class: "btn primary", disabled: !S.sel.length, onclick: () => {
         if (!S.sel.length) return;
         S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; S.typeId = S.sel[0];
-        S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.screen = "intake"; render();
+        S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
       } }, t("start"))),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
@@ -1633,14 +1636,27 @@ async function saveNow() {
   lastSaved = ""; persist(); S.saveMsg = "Saving..."; render();
   await Cloud.flush();
   const at = new Date().toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" }), c = S.cloud.status;
+  S.libSig = curSig();
   S.saveMsg = c === "ok" ? "Saved to your library on this device and in your cloud account at " + at + "." : "Saved on this device at " + at + ". Cloud copy: " + (c === "setup" ? "not set up yet" : c === "offline" ? "offline, will retry" : "problem, will retry") + ".";
   render();
 }
+const curSig = () => { syncCur(); return JSON.stringify([S.brand, S.sel, S.answers, S.results, S.pastes]); };
+const isDirty = () => curSig() !== S.libSig;
+function goStart() { S.modal = false; S.saveMsg = ""; S.screen = "home"; render(); window.scrollTo(0, 0); }
+function leaveModal() {
+  return el("div", { class: "modal", role: "dialog", "aria-modal": "true" }, el("div", { class: "mbox" },
+    el("h2", { style: "margin-top:0" }, "Save before going back?"),
+    el("p", { class: "muted" }, "You have changes that are not saved to your library yet. Your work is also autosaved on this device."),
+    el("button", { class: "btn primary", onclick: async () => { await saveNow(); goStart(); } }, "Save and go to start"),
+    el("button", { class: "btn", onclick: goStart }, "Go to start without saving"),
+    el("button", { class: "btn link", onclick: () => { S.modal = false; render(); } }, "Cancel")));
+}
 function saveBar() {
-  return el("div", { class: "card", style: "margin:0 0 12px" },
-    el("button", { class: "btn primary", style: "margin:0", onclick: saveNow }, "Save to library"),
-    el("p", { class: "muted", role: "status", style: "margin:8px 0 0" }, S.saveMsg || "Autosaves as you work. Tap Save to store this material now and sync it to your account."),
-    el("button", { class: "btn sm", style: "margin:8px 0 0", onclick: () => { S.saveMsg = ""; S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Open saved materials"));
+  return el("div", { class: "actbar" },
+    el("div", { class: "row" },
+      el("button", { class: "btn", onclick: () => { if (isDirty()) { S.modal = true; render(); } else goStart(); } }, "← Start"),
+      el("button", { class: "btn primary", onclick: saveNow }, "Save")),
+    el("div", { class: "muted", role: "status", style: "margin:6px 2px 0;font-size:13px" }, S.saveMsg || (isDirty() ? "Not saved to your library yet." : "Saved to your library.")));
 }
 function editScreen() {
   const d = S.result;
@@ -1668,7 +1684,7 @@ function render() {
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
   if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); }
   const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen };
-  root.replaceChildren((screens[S.screen] || homeScreen)());
+  root.replaceChildren((screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null);
 }
 
 bootAuth();
