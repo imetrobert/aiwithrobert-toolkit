@@ -375,6 +375,10 @@ const OUTPUT_TYPES = {
   }
 };
 
+const VENUE_Q = { id: "venue", type: "text", required: false, max: 120, promptLabel: "Venue where the session is held",
+  label: { en: "Where is the session held? (optional)", fr: "O\u00F9 la s\u00E9ance a-t-elle lieu? (facultatif)" },
+  hint: { en: "Example: Eleanor London Library, Monday morning group; or the client's office. It is shown on every output and the content is tailored to the setting.", fr: "Exemple : biblioth\u00E8que Eleanor London, groupe du lundi matin; ou le bureau du client. Le lieu appara\u00EEt sur chaque document et le contenu est adapt\u00E9 au cadre." } };
+const venueOf = () => { const v = S.answers && S.answers.venue; return isStr(v) ? v.trim().slice(0, 120) : ""; };
 const SIZE_QS = [
   { id: "lesson", type: "choice", required: true, when: ["workbook", "deck"], promptLabel: "Length of the in-person lesson",
     label: { en: "How long is the in-person lesson?", fr: "Quelle est la dur\u00E9e de la le\u00E7on en personne?" },
@@ -586,7 +590,7 @@ const ARTIFACTS = {
 };
 Object.keys(BASE).forEach(br => {
   const base = OUTPUT_TYPES[BASE[br]];
-  base.art = "handout"; base.allowed = HANDOUT_BLOCKS; base.questions.splice(base.questions.length - 1, 0, ...SIZE_QS, TRANSCRIPT_Q);
+  base.art = "handout"; base.allowed = HANDOUT_BLOCKS; base.questions.splice(base.questions.length - 1, 0, VENUE_Q, ...SIZE_QS, TRANSCRIPT_Q);
   for (const [a, def] of Object.entries(ARTIFACTS)) {
     const id = artId(br, a);
     OUTPUT_TYPES[id] = { id, enabled: true, sessionType: br, outputType: a, art: a, label: def.label, desc: def.desc, requiredBlocks: def.required, allowed: def.allowed, questions: base.questions, audienceRules: def.rules[br], exampleTitle: def.title[br] };
@@ -824,6 +828,7 @@ function buildPrompt(type, lang, answers) {
     ...type.audienceRules.map(r => "- " + r),
     "- Write every text value in " + langName + ".",
     ...(sizeRule(type, answers) ? ["- " + sizeRule(type, answers)] : []),
+    ...(isStr(answers.venue) && answers.venue.trim() ? ["- VENUE: this deliverable is curated for a session held at \"" + answers.venue.trim() + "\". Mention the setting naturally once in the introduction, and choose examples, scenarios and practice prompts that fit that kind of place and the people who gather there. Do not invent facts about the venue (programs, staff, hours, rules, equipment, Wi-Fi) beyond what the intake states."] : []),
     '- Set "schema_version" to 1, "session_type" to exactly "' + type.sessionType + '", "output_type" to exactly "' + type.outputType + '", and "language" to exactly "' + lang + '".',
     "- Required: at least one block of each of these types: " + req + ". Every other block type is optional. Blocks may appear in any order and any number.",
     "- Every string must be plain text: no HTML, no markdown, no emoji.",
@@ -1377,8 +1382,8 @@ const DOC_L_BIZ = {
   fr: { tryIt: "Requ\u00EAte pr\u00EAte \u00E0 l'emploi", tip: "Astuce", safety: "S\u00E9curit\u00E9 des donn\u00E9es", workflow: "Flux de travail r\u00E9utilisable", purpose: "\u00C0 quoi \u00E7a sert", reuse: "Comment le r\u00E9utiliser", next: "Prochaines \u00E9tapes sugg\u00E9r\u00E9es" }
 };
 const DOC_X = {
-  en: { k_handout: "Your session handout", k_session_pack: "Your session pack", k_workbook: "In-session workbook", k_survey: "Feedback and interest survey", k_deck: "Session presentation", prepared: "Prepared for your session", yourNotes: "Your notes", scaleLo: "Not at all", scaleHi: "Very much", pickOne: "Choose one", pickAny: "Choose all that apply", thanks: "Thank you" },
-  fr: { k_handout: "Votre aide-m\u00E9moire de s\u00E9ance", k_session_pack: "Votre trousse de s\u00E9ance", k_workbook: "Cahier de s\u00E9ance", k_survey: "Sondage de r\u00E9troaction et d'int\u00E9r\u00EAt", k_deck: "Pr\u00E9sentation de la s\u00E9ance", prepared: "Pr\u00E9par\u00E9 pour votre s\u00E9ance", yourNotes: "Vos notes", scaleLo: "Pas du tout", scaleHi: "Beaucoup", pickOne: "Choisissez-en un", pickAny: "Choisissez tout ce qui s'applique", thanks: "Merci" }
+  en: { k_handout: "Your session handout", k_session_pack: "Your session pack", k_workbook: "In-session workbook", k_survey: "Feedback and interest survey", k_deck: "Session presentation", prepared: "Prepared for your session", atVenue: "Prepared for your session at", yourNotes: "Your notes", scaleLo: "Not at all", scaleHi: "Very much", pickOne: "Choose one", pickAny: "Choose all that apply", thanks: "Thank you" },
+  fr: { k_handout: "Votre aide-m\u00E9moire de s\u00E9ance", k_session_pack: "Votre trousse de s\u00E9ance", k_workbook: "Cahier de s\u00E9ance", k_survey: "Sondage de r\u00E9troaction et d'int\u00E9r\u00EAt", k_deck: "Pr\u00E9sentation de la s\u00E9ance", prepared: "Pr\u00E9par\u00E9 pour votre s\u00E9ance", atVenue: "Pr\u00E9par\u00E9 pour votre s\u00E9ance :", yourNotes: "Vos notes", scaleLo: "Pas du tout", scaleHi: "Beaucoup", pickOne: "Choisissez-en un", pickAny: "Choisissez tout ce qui s'applique", thanks: "Merci" }
 };
 const docL = d => Object.assign({}, DOC_L[d.language] || DOC_L.en, (d.session_type === "business" ? DOC_L_BIZ : {})[d.language] || {}, DOC_X[d.language] || DOC_X.en);
 const DOC_L = {
@@ -1429,10 +1434,10 @@ function renderDeliverable(d) {
       el("div", { class: "htop" }, el("img", { class: "logo", src: brand.logo, alt: "" }), el("div", null, el("div", { class: "bname" }, brand.name), el("div", { class: "btag" }, tag))),
       kind ? el("div", { class: "eyebrow" }, kind) : null,
       el("h1", null, d.title), el("p", { class: "lead" }, d.intro),
-      el("div", { class: "hmeta" }, el("span", null, l.prepared), dt ? el("span", null, dt) : null)),
+      el("div", { class: "hmeta" }, el("span", null, venueOf() ? l.atVenue + " " + venueOf() : l.prepared), dt ? el("span", null, dt) : null)),
     el("div", { class: "dbody" }, blocks),
     el("div", { class: "foot" }, el("img", { class: "flogo", src: brand.logo, alt: "" }),
-      el("div", { class: "ftx" }, el("div", { class: "ftag" }, brand.name + " — " + tag), el("div", null, brand.line1), el("div", null, brand.line2))));
+      el("div", { class: "ftx" }, el("div", { class: "ftag" }, brand.name + " — " + tag), venueOf() ? el("div", null, venueOf()) : null, el("div", null, brand.line1), el("div", null, brand.line2))));
 }
 
 /* ---- Slide deck (deterministic: every AI block becomes one or more full-screen slides) ---- */
@@ -1446,10 +1451,10 @@ function sentenceGroups(txt, max) {
 }
 function deckSlides(d) {
   const l = docL(d), br = brandFor(d.session_type), out = [];
-  const foot = () => el("div", { class: "sf" }, el("span", null, br.name));
+  const foot = () => el("div", { class: "sf" }, el("span", null, br.name + (venueOf() ? " \u00B7 " + venueOf() : "")));
   const add = (cls, kids, notes) => out.push(el("section", { class: "sl " + cls }, el("div", { class: "bar2" }), el("img", { class: "shl", src: br.logo, alt: "" }), el("div", { class: "si" }, kids), notes ? el("aside", { class: "nt" }, notes) : null, foot()));
   const pg = (h, i, n) => n > 1 ? h + " (" + (i + 1) + "/" + n + ")" : h;
-  out.push(el("section", { class: "sl tl" }, el("div", { class: "deco" }), el("div", { class: "deco2" }), el("div", { class: "si" }, el("img", { class: "slogo", src: br.logo, alt: "" }), el("span", { class: "eye" }, l.k_deck), el("h1", null, d.title), el("div", { class: "rule" }), el("p", null, d.intro), el("p", { class: "stag" }, br.tag[d.language] || br.tag.en)), foot()));
+  out.push(el("section", { class: "sl tl" }, el("div", { class: "deco" }), el("div", { class: "deco2" }), el("div", { class: "si" }, el("img", { class: "slogo", src: br.logo, alt: "" }), el("span", { class: "eye" }, l.k_deck), el("h1", null, d.title), el("div", { class: "rule" }), el("p", null, d.intro), el("p", { class: "stag" }, venueOf() ? l.atVenue + " " + venueOf() : (br.tag[d.language] || br.tag.en))), foot()));
   d.blocks.forEach(b => {
     switch (b.type) {
       case "slide": { const g = chunkArr(b.points, 6); g.forEach((pts, i) => add("", [el("h2", null, pg(b.heading, i, g.length)), el("ul", null, pts.map(x => el("li", null, x)))], i === 0 ? b.notes : "")); break; }
