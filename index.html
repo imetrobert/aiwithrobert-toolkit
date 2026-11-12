@@ -1207,11 +1207,12 @@ function leadsScreen() {
         el("button", { class: "btn sm", onclick: () => saveLead(r, { archived: !arch(r) }) }, arch(r) ? "Restore" : "Archive"),
         el("button", { class: "btn sm danger", onclick: () => { if (confirm("Delete this lead from this device and your cloud account? Any saved profile or feasibility check on it is deleted too. This cannot be undone. Use Archive to keep it.")) { Store.remove(r.id); if (S.sid === r.id) { S.sid = null; S.lead = null; S.feasSaved = null; lastSaved = ""; } render(); } } }, "Delete (tests only)")));
   });
+  const sfl = searchable("leads", list, cards, r => [r.name, r.lead && r.lead.contact, r.lead && r.lead.note, r.lead && r.lead.status, r.feas && r.feas.name].join(" "), r => r.created);
   return shell(el("h1", null, "Leads"),
     el("p", { class: "muted" }, "Track venues and businesses from first contact to won or lost. Syncs with your other saved profiles. Saved Feasibility checks appear here too."),
     el("div", { class: "card" }, nameIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => newLead(nameIn.value) }, "Add lead")),
-    all.length ? filt : null,
-    cards.length ? cards : el("p", { class: "muted" }, all.length ? "Nothing in this view." : "No leads yet. Add one above or save a Feasibility check."),
+    all.length ? filt : null, sfl.bar,
+    cards.length ? sfl.box : el("p", { class: "muted" }, all.length ? "Nothing in this view." : "No leads yet. Add one above or save a Feasibility check."),
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
 }
 function sessionsScreen() {
@@ -1692,6 +1693,32 @@ function wlToLead(x) {
     lead: { status: "new", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("From the waitlist" + (x.services && x.services.length ? ". Interested in: " + x.services.join(", ") : "") + ".").slice(0, 500) } };
   if (Store.upsert(rec)) { Cloud.push(rec); S.cap.wlMsg = "Lead created for " + rec.name + ". Find it under Leads."; wlSet(x.id, "contacted"); } else { S.cap.wlMsg = "Could not save the lead on this device."; render(); }
 }
+/* Search + "date captured" filter for the Leads, Inquiries and Waitlist lists. Cards are built once; typing only shows or hides them,
+   so the keyboard stays open. Returns {bar, box}. match(item) is also kept in S.sfMatch[key] (used by "Copy these emails"). */
+function searchable(key, list, cards, textOf, tsOf) {
+  const f = S.sf || (S.sf = {}), st = f[key] || (f[key] = { q: "", range: "all", from: "", to: "", sort: "default" });
+  const day = 86400000, d0 = new Date(); d0.setHours(0, 0, 0, 0); const s0 = d0.getTime();
+  const span = () => st.range === "today" ? [s0, Infinity] : st.range === "7" ? [s0 - 6 * day, Infinity] : st.range === "30" ? [s0 - 29 * day, Infinity]
+    : st.range === "custom" ? [st.from ? new Date(st.from + "T00:00:00").getTime() : 0, st.to ? new Date(st.to + "T23:59:59.999").getTime() : Infinity] : [0, Infinity];
+  const match = x => { const [a, b] = span(), t = tsOf(x) || 0, q = st.q.trim().toLowerCase(); return (!q || String(textOf(x) || "").toLowerCase().includes(q)) && (st.range === "all" || (t >= a && t <= b)); };
+  (S.sfMatch || (S.sfMatch = {}))[key] = match;
+  const none = el("p", { class: "muted", style: "display:none" }, "No matches. Clear the search or widen the dates."), count = el("p", { class: "muted", style: "margin:0 0 8px;font-size:14px" });
+  const wrap = el("div"), order = list.map((x, i) => i);
+  const place = () => { const idx = order.slice(); if (st.sort !== "default") idx.sort((a, b) => (st.sort === "new" ? 1 : -1) * ((tsOf(list[b]) || 0) - (tsOf(list[a]) || 0)) || a - b);
+    idx.forEach(i => wrap.append(cards[i])); wrap.append(none); };
+  const apply = () => { let n = 0; list.forEach((x, i) => { const ok = match(x); cards[i].style.display = ok ? "" : "none"; if (ok) n++; });
+    none.style.display = list.length && !n ? "" : "none"; place(); count.textContent = n === list.length ? list.length + " shown" : n + " of " + list.length + " shown"; };
+  const q = el("input", { type: "search", placeholder: "Search name, email, phone, notes", "aria-label": "Search", value: st.q, style: "margin-bottom:8px", oninput: e => { st.q = e.target.value; apply(); } });
+  const seg = el("div", { class: "seg dark", role: "group", "aria-label": "Date captured", style: "margin:0 0 8px;flex-wrap:wrap" },
+    [["all", "Any date"], ["today", "Today"], ["7", "7 days"], ["30", "30 days"], ["custom", "Custom"]].map(([k, n]) => el("button", { "aria-pressed": String(st.range === k), onclick: () => { st.range = k; render(); } }, n)));
+  const sortSeg = el("div", { class: "seg dark", role: "group", "aria-label": "Sort by date captured", style: "margin:0 0 8px;flex-wrap:wrap" },
+    [["default", "Default order"], ["new", "Newest first"], ["old", "Oldest first"]].map(([k, n]) => el("button", { "aria-pressed": String(st.sort === k), onclick: () => { st.sort = k; render(); } }, n)));
+  const custom = st.range === "custom" ? el("div", { class: "row2", style: "margin-bottom:8px" },
+    el("label", null, el("span", { class: "muted", style: "display:block" }, "From"), el("input", { type: "date", value: st.from, "aria-label": "Captured from", onchange: e => { st.from = e.target.value; apply(); } })),
+    el("label", null, el("span", { class: "muted", style: "display:block" }, "To"), el("input", { type: "date", value: st.to, "aria-label": "Captured to", onchange: e => { st.to = e.target.value; apply(); } }))) : null;
+  apply();
+  return { bar: list.length ? [q, el("p", { class: "muted", style: "margin:0 0 4px;font-size:13px" }, "Date captured"), seg, custom, el("p", { class: "muted", style: "margin:0 0 4px;font-size:13px" }, "Sort by date captured"), sortSeg, count] : null, box: wrap };
+}
 function waitScreen() {
   const all = S.cap.wl || [], f = S.cap.wlFilter, list = all.filter(x => f === "all" ? x.status !== "archived" : f === "archived" ? x.status === "archived" : x.status === "new");
   const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter waitlist", style: "margin:0 0 12px" }, [["new", "New (" + all.filter(x => x.status === "new").length + ")"], ["all", "All"], ["archived", "Archived"]].map(([k, n]) => el("button", { "aria-pressed": String(f === k), onclick: () => { S.cap.wlFilter = k; render(); } }, n)));
@@ -1705,13 +1732,14 @@ function waitScreen() {
       x.status !== "contacted" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "contacted") }, "Mark contacted") : null,
       x.status !== "archived" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "archived") }, "Archive") : el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "new") }, "Restore"),
       el("button", { class: "btn sm", style: "margin:0;width:auto;color:#9A1C1C;border-color:#9A1C1C", onclick: () => wlDelete(x) }, "Delete (tests only)"))));
+  const sfw = searchable("wait", list, cards, x => [x.name, x.organization, x.email, x.phone, (x.services || []).join(" "), x.site].join(" "), x => ts(x));
   return shell(el("h1", null, "Waitlist"),
     el("div", { class: "note" }, "People who asked to be contacted while a site was at capacity. Make a lead to follow up in the Leads tracker. Archive hides an entry and keeps it. Delete erases it for good, so use it only for test entries."),
     S.cap.wlMsg ? el("div", { class: "note", role: "status" }, S.cap.wlMsg) : null,
     S.cap.wlStatus === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
     S.cap.wlStatus === "error" ? el("button", { class: "btn", onclick: () => { S.cap.wlStatus = "idle"; wlLoad(); } }, "Try again") : null,
-    filt, cards.length ? cards : (S.cap.wlStatus === "ok" ? el("p", { class: "muted" }, "Nothing here.") : null),
-    list.length ? el("button", { class: "btn", onclick: async () => { S.cap.wlMsg = (await copyText(list.map(x => x.email).join(", ")) ? "Emails copied (" + list.length + ")." : "Could not copy."); render(); } }, "Copy these emails") : null,
+    filt, sfw.bar, cards.length ? sfw.box : (S.cap.wlStatus === "ok" ? el("p", { class: "muted" }, "Nothing here.") : null),
+    list.length ? el("button", { class: "btn", onclick: async () => { S.cap.wlMsg = (await copyText(list.filter(S.sfMatch.wait).map(x => x.email).join(", ")) ? "Emails copied (" + list.filter(S.sfMatch.wait).length + ")." : "Could not copy."); render(); } }, "Copy these emails") : null,
     el("button", { class: "btn link", onclick: () => { S.screen = "cap"; render(); window.scrollTo(0, 0); } }, "Back to Site availability"));
 }
 /* Contact-form submissions saved by the sites (table site_inquiries, migration/site_inquiries.sql). The formsubmit.co email still arrives too. */
@@ -1768,12 +1796,13 @@ function inqScreen() {
         x.status !== "archived" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => inqSet(x.id, "archived") }, "Archive") : el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => inqSet(x.id, "new") }, "Restore"),
         el("button", { class: "btn sm", style: "margin:0;width:auto;color:#9A1C1C;border-color:#9A1C1C", onclick: () => inqDelete(x) }, "Delete (tests only)")));
   });
+  const sfi = searchable("inq", list, cards, x => [x.name, x.organization, x.email, x.phone, x.message, x.site, Object.values(x.extra || {}).join(" ")].join(" "), x => ts(x));
   return shell(el("h1", null, "Inquiries"),
     el("div", { class: "note" }, "Contact-form submissions from both sites (a copy of what is emailed to you). Archive hides an entry and keeps it. Delete erases it for good, so use it only for test entries."),
     S.cap.inqMsg ? el("div", { class: "note", role: "status" }, S.cap.inqMsg) : null,
     S.cap.inqStatus === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
     S.cap.inqStatus === "error" ? el("button", { class: "btn", onclick: () => { S.cap.inqStatus = "idle"; inqLoad(); } }, "Try again") : null,
-    filt, cards.length ? cards : (S.cap.inqStatus === "ok" ? el("p", { class: "muted" }, "Nothing here.") : null),
+    filt, sfi.bar, cards.length ? sfi.box : (S.cap.inqStatus === "ok" ? el("p", { class: "muted" }, "Nothing here.") : null),
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
 }
 /* Paste the formsubmit.co email from the Business contact form to fill a Feasibility check and a lead. Field names are fixed by the form (see the biz repo CLAUDE.md). */
