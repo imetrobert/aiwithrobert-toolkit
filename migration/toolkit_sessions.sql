@@ -39,4 +39,6 @@ create policy "toolkit_sessions delete" on public.toolkit_sessions
 -- Explicit Data API grants (Supabase no longer grants these automatically on new tables).
 revoke all on public.toolkit_sessions from anon;
 grant select, insert, update, delete on public.toolkit_sessions to authenticated;
+-- Supabase default privileges also hand out these; the app does not need them (TRUNCATE ignores RLS).
+revoke truncate, references, trigger, maintain on public.toolkit_sessions from authenticated;
 grant all on public.toolkit_sessions to service_role;
