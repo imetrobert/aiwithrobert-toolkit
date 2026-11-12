@@ -389,11 +389,20 @@ const SIZE_QS = [
     hint: { en: "Longer means more detail and more personalization to this client.", fr: "Plus long = plus de d\u00E9tails et de personnalisation pour ce client." },
     options: [{ id: "brief", en: "Brief: one page, the essentials", fr: "Bref : une page, l'essentiel" }, { id: "medium", en: "Medium: a few pages, key topics covered", fr: "Moyen : quelques pages, sujets cl\u00E9s" }, { id: "long", en: "Long: detailed and highly personalized", fr: "Long : d\u00E9taill\u00E9 et tr\u00E8s personnalis\u00E9" }] }
 ];
-const TRANSCRIPT_Q = { id: "transcript", type: "transcript", required: false, when: ["handout"], max: 100000, promptLabel: "Session transcript",
+const TRANSCRIPT_Q = { id: "transcript", type: "transcript", required: false, when: ["handout"], max: 150000, promptLabel: "Session transcript",
   label: { en: "Add the session transcript (optional)", fr: "Ajouter la transcription de la séance (facultatif)" },
   hint: { en: "The handout will be tailored to what the client raised and asked. Upload a .txt, .vtt or .srt file or paste the text. Emails and phone numbers are removed automatically; please remove names too.", fr: "Le document sera adapté à ce que le client a soulevé. Importez un fichier .txt, .vtt ou .srt ou collez le texte." } };
+/* Voice Memos / Notes can share rich text (.rtf): strip the formatting codes and keep the words. */
+function rtfToText(r) {
+  const w1252 = { 0x91: "\u2018", 0x92: "\u2019", 0x93: "\u201C", 0x94: "\u201D", 0x96: "\u2013", 0x97: "\u2014", 0x85: "\u2026" };
+  return r.replace(/\\\r?\n/g, "\n").replace(/\\'([0-9a-f]{2})/gi, (m, h) => { const c = parseInt(h, 16); return w1252[c] || String.fromCharCode(c); }).replace(/\\u(-?\d+)\??/g, (m, n) => String.fromCharCode(n < 0 ? +n + 65536 : +n))
+    .replace(/\{\\\*[^{}]*\}/g, "").replace(/\{\\(?:fonttbl|colortbl|stylesheet|info)(?:[^{}]|\{[^{}]*\})*\}/g, "")
+    .replace(/\\(?:par|line)\b ?/g, "\n").replace(/\\tab\b ?/g, " ").replace(/\\[a-zA-Z]+-?\d* ?/g, "").replace(/\\([\\{}])/g, "$1").replace(/[{}]/g, "");
+}
 function cleanTranscript(raw, max) {
   let txt = String(raw || "").replace(/\r/g, "").replace(/^﻿/, "").replace(/^WEBVTT.*$/m, "");
+  if (/^\s*\{\\rtf/.test(txt)) txt = rtfToText(txt);
+  txt = txt.replace(/[\u00A0\u202F\u2009\u200B]/g, " ");
   txt = txt.replace(/^\s*\d+\s*$/gm, "").replace(/^\s*\[?\d{1,2}:\d{2}(?::\d{2})?[.,]?\d*\]?\s*(?:-->|–)\s*\[?\d{1,2}:\d{2}(?::\d{2})?[.,]?\d*\]?.*$/gm, "").replace(/^\s*\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s+/gm, "").replace(/<[^>]+>/g, "");
   let n = 0;
   txt = txt.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, () => { n++; return "[email removed]"; });
@@ -415,7 +424,7 @@ function transcriptInput(q, refresh) {
   ta.value = S.answers[q.id] || ""; status.textContent = info();
   ta.addEventListener("input", e => { S.answers[q.id] = e.target.value.slice(0, max); status.textContent = info(); refresh(); });
   ta.addEventListener("change", e => apply(e.target.value));
-  const file = el("input", { type: "file", accept: ".txt,.vtt,.srt,.md,text/plain,text/vtt", style: "display:none", onchange: e => {
+  const file = el("input", { type: "file", accept: ".txt,.vtt,.srt,.md,.rtf,text/plain,text/vtt,text/rtf,application/rtf", style: "display:none", onchange: e => {
     const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
     if (f.size > 3000000) { status.textContent = "That file is too large (3 MB maximum)."; return; }
     const fr = new FileReader(); fr.onerror = () => { status.textContent = "Could not read that file."; };
