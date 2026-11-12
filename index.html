@@ -1685,7 +1685,7 @@ async function wlLoad() {
   if (S.auth.status !== "in" || S.cap.wlStatus === "loading") return; S.cap.wlStatus = "loading";
   const r = await sbReq("GET", "waitlist_requests?select=*&order=created_at.desc&limit=300");
   if (r.ok && Array.isArray(r.json)) { S.cap.wl = r.json; S.cap.wlStatus = "ok"; S.cap.wlMsg = ""; } else { S.cap.wlStatus = "error"; S.cap.wlMsg = capErr(r); }
-  if (["wait", "home"].includes(S.screen)) render();
+  if (["wait", "home", "feas"].includes(S.screen)) render();
 }
 async function wlSet(id, status) {
   const r = await sbReq("PATCH", "waitlist_requests?id=eq." + encodeURIComponent(id), { status }, "return=minimal");
@@ -1762,7 +1762,7 @@ async function inqLoad() {
   if (S.auth.status !== "in" || S.cap.inqStatus === "loading") return; S.cap.inqStatus = "loading";
   const r = await sbReq("GET", "site_inquiries?select=*&order=created_at.desc&limit=300");
   if (r.ok && Array.isArray(r.json)) { S.cap.inq = r.json; S.cap.inqStatus = "ok"; S.cap.inqMsg = ""; } else { S.cap.inqStatus = "error"; S.cap.inqMsg = capErr(r); }
-  if (["inq", "home"].includes(S.screen)) render();
+  if (["inq", "home", "feas"].includes(S.screen)) render();
 }
 async function inqSet(id, status) {
   const r = await sbReq("PATCH", "site_inquiries?id=eq." + encodeURIComponent(id), { status }, "return=minimal");
@@ -1788,6 +1788,38 @@ function inqToFeas(x) {
     users: ts === "1" ? 1 : ts === "2-5" ? 5 : ts === "6-20" ? 20 : /^21/.test(ts) ? 21 : 0, teamSet: !!ts, personal: ex.personal_info === "yes" || ex.personal_info === "not-sure",
     tools: ["chatgpt", "claude", "gemini", "copilot"].filter(t => ex["tool_" + t]), reqs: Object.keys(INQ_NEED).filter(k => ex[k]).map(k => INQ_NEED[k]) });
   S.fx.msg = "Filled from the inquiry. Check it below, then tap Save this check to add it to Leads."; S.screen = "feas"; render(); window.scrollTo(0, 0);
+}
+function wlToFeas(x) {
+  const sv = x.services && x.services.length ? x.services.join(", ") : "";
+  applyInquiry({ name: x.name, company: x.organization, email: x.email, phone: x.phone, message: sv ? ("Interested in: " + sv).slice(0, 600) : "", users: 0, teamSet: false, personal: false, tools: [], reqs: [] });
+  S.lead.note = "From the waitlist" + (sv ? ". Interested in: " + sv : "") + ".";
+  S.fx.msg = "Filled from the waitlist entry. It has no team size, plan or needs, so tick those below, then tap Save this check to add it to Leads."; S.screen = "feas"; render(); window.scrollTo(0, 0);
+}
+function leadToFeas(rec) {
+  openSession(rec);
+  S.fx = Object.assign({ tool: "claude", users: 5, flows: 1 }, { reqs: [], request: ((rec.lead && rec.lead.note) || "").slice(0, 600), msg: "Opened the lead for " + (rec.name || "this contact") + ". Tick the plan and needs below, then tap Save this check.", imp: "", flows: 0, assess: false, train: 0 });
+  S.screen = "feas"; render(); window.scrollTo(0, 0);
+}
+function savedContacts() {
+  const out = [], bz = x => x.site !== "seniors" && x.status !== "archived";
+  (S.cap.inq || []).filter(bz).forEach(x => out.push({ kind: "Inquiry", name: x.organization || x.name, sub: x.organization ? x.name : "", t: ts(x), go: () => inqToFeas(x) }));
+  (S.cap.wl || []).filter(bz).forEach(x => out.push({ kind: "Waitlist", name: x.organization || x.name, sub: x.organization ? x.name : "", t: ts(x), go: () => wlToFeas(x) }));
+  Store.all().filter(r => r.brand === "business" && !r.feas && r.lead && !r.lead.archived).forEach(r => out.push({ kind: "Lead", name: r.name || "(no name)", sub: (r.lead.contact || "").slice(0, 60), t: r.updated || r.created || 0, go: () => leadToFeas(r) }));
+  return out.sort((a, b) => b.t - a.t);
+}
+function contactPicker() {
+  const all = savedContacts(), loading = S.cap.inqStatus === "loading" || S.cap.wlStatus === "loading";
+  const box = el("div", null), q = el("input", { type: "search", placeholder: "Search saved contacts", "aria-label": "Search saved contacts", style: "margin:0 0 8px" });
+  const draw = () => {
+    const t = q.value.trim().toLowerCase(), m = all.filter(c => !t || (c.name + " " + c.sub + " " + c.kind).toLowerCase().includes(t)), shown = m.slice(0, 25);
+    box.replaceChildren(...(shown.length ? shown.map(c => el("button", { class: "btn", style: "display:block;width:100%;text-align:left;margin:0 0 6px", onclick: c.go },
+      el("strong", null, c.name), " ", el("span", { class: "muted" }, c.kind + (c.sub ? " \u00B7 " + c.sub : "") + (c.t ? " \u00B7 " + new Date(c.t).toLocaleDateString() : "")))) : [el("p", { class: "muted" }, loading ? "Loading saved contacts\u2026" : "No Business contacts to import yet.")]),
+      ...(m.length > shown.length ? [el("p", { class: "muted" }, "Showing " + shown.length + " of " + m.length + ". Type to narrow the list.")] : []));
+  };
+  q.oninput = draw; draw();
+  return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Start from a saved contact"),
+    el("p", { class: "muted" }, "Pick a Business inquiry, waitlist entry or lead you already have. Name, contact details, team size, plan and needs are filled in where they were captured."),
+    all.length > 6 ? q : null, box);
 }
 function inqScreen() {
   const all = S.cap.inq || [], f = S.cap.inqFilter, list = all.filter(x => f === "all" ? x.status !== "archived" : f === "archived" ? x.status === "archived" : x.status === "new");
@@ -1941,7 +1973,8 @@ function feasScreen() {
     el("div", { class: "note" }, "Check whether a job can be delivered with the client's own paid AI plan before you promise it. Results come from a dated table, not guesses."),
     age > 60 ? el("div", { class: "note warn", role: "alert" }, "This table was last verified " + caps.verified + " (" + age + " days ago). Re-verify with the Refresh prompt below before relying on it.") : el("p", { class: "muted" }, "Table verified " + caps.verified + (caps.custom ? " (your imported version)." : " (built in).")),
     f.msg ? el("div", { class: "note", role: "status" }, f.msg) : null,
-    el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Start from a contact-form email"),
+    contactPicker(),
+    el("details", { class: "card" }, el("summary", { style: "font-weight:700;cursor:pointer" }, "Or paste a contact-form email"),
       el("p", { class: "muted" }, "Open the email from the Business form, select all, copy, and paste it here. The name, needs, plan and team size are filled in for you, and the contact details go to the lead."),
       inq,
       el("button", { class: "btn primary", onclick: () => { const o = parseInquiry(f.inq); if (!o) { say("I could not find the form fields in that text. Copy the whole email, including the lines such as team_size and need_writing."); return; } applyInquiry(o); f.inq = ""; say("Filled from the email. Check it below, then tap Save this check to add it to Leads. Ticked tools: " + (o.tools.length ? o.tools.join(", ") : "none") + "."); window.scrollTo(0, 0); } }, "Fill from email")),
