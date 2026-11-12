@@ -2442,6 +2442,23 @@ async function pdfBuild(d, progress) {
   for (const u of PDF_LIBS) await loadScriptOnce(u);
   const PW = 794, PH = 1123, M = 53, CW = PW - 2 * M, SC = 2, K = 595.28 / PW;
   const c = brandFor(d.session_type).colors, vars = "--navy:" + c.navy + ";--blue:" + c.blue + ";--light:" + c.light + ";--sky:" + c.sky + ";--onblue:" + (c.onAccent || "#fff") + ";--blue-text:" + (c.accentText || c.blue);
+  if (d.output_type === "deck") {
+    const SW = 1280, DK = 842, DH = 595.28, slides = deckSlides(d), dm = 24, sw = DK - 2 * dm, sh = sw * 9 / 16;
+    const stg = el("div", { style: "position:fixed;left:-10000px;top:0;width:" + SW + "px;background:#fff;" + vars }, el("style", null, ".pdfdeck .sf::after{content:none}")); document.body.append(stg);
+    const dp = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "landscape", compress: true });
+    try {
+      for (let i = 0; i < slides.length; i++) {
+        progress(i + 1, slides.length);
+        const hd = el("div", { class: "pdfdeck deck" + (d.session_type === "business" ? " biz" : ""), style: "width:" + SW + "px" }, slides[i].cloneNode(true));
+        stg.replaceChildren(el("style", null, ".pdfdeck .sf::after{content:none}.pdfdeck .sl{box-shadow:none;border-radius:0;margin:0}"), hd);
+        await new Promise(r => setTimeout(r, 0));
+        const cv = await window.html2canvas(hd, { scale: 1.5, backgroundColor: "#ffffff", useCORS: true, logging: false });
+        if (i) dp.addPage();
+        dp.addImage(cv.toDataURL("image/jpeg", 0.9), "JPEG", dm, (DH - sh) / 2, sw, sh);
+      }
+    } finally { stg.remove(); }
+    return dp.output("blob");
+  }
   const root = renderDeliverable(d), parts = [];
   Array.from(root.children).forEach(ch => { if (ch.classList.contains("dbody")) Array.from(ch.children).forEach(k => parts.push({ node: k, wrap: ch })); else parts.push({ node: ch }); });
   const stage = el("div", { style: "position:fixed;left:-10000px;top:0;width:" + CW + "px;background:#fff;" + vars }); document.body.append(stage);
@@ -2506,7 +2523,7 @@ function exportPanel(d) {
   return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, t("exportTitle")),
     isDeck ? el("a", { class: "btn primary", href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none" }, t("presentBtn")) : null,
     isDeck ? el("p", { class: "muted" }, t("presentTip")) : null,
-    isDeck ? null : pdfBtn2, isDeck ? null : pdfBox,
+    pdfBtn2, pdfBox,
     el("div", { class: "prow" },
       el("a", { class: "btn", href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none" }, t("pdfBtn")), ibtn),
     info, share,
