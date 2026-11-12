@@ -735,7 +735,7 @@ const S = {
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
   auth: { status: "out", msg: "", email: "", busy: false },
-  saveMsg: "", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
+  saveMsg: "", sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -1122,10 +1122,14 @@ function pickBackup(afterImport) {
   document.body.append(inp); inp.click(); setTimeout(() => inp.remove(), 60000);
 }
 function sessionsScreen() {
-  const list = Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).sort((a, b) => b.updated - a.updated);
+  const all = Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).sort((a, b) => b.updated - a.updated);
+  const list = S.sFilter === "all" ? all : all.filter(r => r.brand === S.sFilter);
   const say = m => { S.sMsg = m; render(); };
-  const cards = list.map(r => el("div", { class: "card" },
-    el("span", { class: "pill" }, brandFor(r.brand).name + " \u00B7 " + r.sel.length + " " + t("sessItems") + " \u00B7 " + r.lang.toUpperCase()),
+  const cnt = k => k === "all" ? all.length : all.filter(r => r.brand === k).length;
+  const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter by brand", style: "margin:0 0 12px" },
+    [["all", "All"], ["seniors", "Seniors"], ["business", "Business"]].map(([k, lab]) => el("button", { "aria-pressed": String(S.sFilter === k), onclick: () => { S.sFilter = k; render(); } }, lab + " (" + cnt(k) + ")")));
+  const cards = list.map(r => el("div", { class: "card brandcard", style: "border-left:8px solid " + brandFor(r.brand).colors.blue + ";background:" + brandFor(r.brand).colors.light },
+    el("span", { class: "pill", style: "background:" + brandFor(r.brand).colors.blue + ";color:" + (brandFor(r.brand).colors.onAccent || "#fff") }, brandFor(r.brand).name + " \u00B7 " + r.sel.length + " " + t("sessItems") + " \u00B7 " + r.lang.toUpperCase()),
     el("p", { style: "margin:8px 0 2px;font-weight:700;color:var(--navy)" }, r.name || sessionTitle(r)),
     el("p", { class: "muted", style: "margin:0 0 6px" }, when(r.updated) + (r.name ? " \u00B7 " + sessionTitle(r) : "")),
     el("input", { type: "text", maxlength: "80", value: r.name || "", placeholder: "Name (optional)", "aria-label": "Name for this saved profile", style: "margin:0 0 6px",
@@ -1143,7 +1147,8 @@ function sessionsScreen() {
     cloudLine(),
     S.sMsg ? el("div", { class: "note", role: "status" }, S.sMsg) : null,
     S.sErrs.length ? el("div", { class: "err", role: "alert" }, el("ul", null, S.sErrs.slice(0, 12).map(x => el("li", null, x)))) : null,
-    list.length ? cards : el("p", { class: "muted" }, t("noSessions")),
+    all.length ? filt : null,
+    list.length ? cards : el("p", { class: "muted" }, all.length ? "No " + S.sFilter + " profiles saved yet." : t("noSessions")),
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); }) }, t("importBackup")),
     el("button", { class: "btn", disabled: !list.length, onclick: () => shareOrDownload("awr-toolkit-backup-" + dstr() + ".json", backupText(Store.all()), "application/json", say) }, t("exportAll")),
     el("button", { class: "btn danger", disabled: !list.length, onclick: () => { if (confirm(t("confirmDeleteAll"))) { Store.clear(); S.sid = null; lastSaved = ""; S.sErrs = []; S.sMsg = t("deletedAll"); render(); } } }, t("deleteAll")),
