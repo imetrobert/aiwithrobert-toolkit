@@ -19,6 +19,7 @@
 html{-webkit-text-size-adjust:100%}
 body{margin:0;font:17px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Helvetica,Arial,sans-serif;color:var(--ink);background:#fff}
 header.top{background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}
+.hback{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.45);border-radius:10px;padding:8px 12px;font:inherit;font-weight:700;font-size:15px;min-height:40px;margin-right:10px;flex:none;cursor:pointer}
 .brand{font-weight:700;font-size:18px;display:flex;align-items:center;gap:10px}
 .hlogo{width:34px;height:34px;background:#fff;border-radius:10px;padding:3px}
 .seg{display:flex;border:1px solid rgba(255,255,255,.55);border-radius:999px;overflow:hidden}
@@ -1246,12 +1247,27 @@ function sessionsScreen() {
 }
 
 /* ---- Screens ------------------------------------------------------------ */
+/* Header Back button: one tap from the top of any screen (the bottom buttons stay too). */
+function headerBack() {
+  const sc = S.screen;
+  const go = (to, pre) => () => { if (pre) pre(); S.screen = to; render(); window.scrollTo(0, 0); };
+  let fn = null;
+  if (sc === "wait") fn = go("cap");
+  else if (sc === "intake") fn = () => { if (S.step > 0) S.step--; else S.screen = "home"; render(); window.scrollTo(0, 0); };
+  else if (sc === "composer") fn = go("hub");
+  else if (sc === "import") fn = go("composer");
+  else if (sc === "edit") fn = () => { if (currentType().local) { S.screen = "feas"; render(); window.scrollTo(0, 0); } else if (isDirty()) { S.modal = true; render(); } else goStart(); };
+  else if (["hub", "cap", "leads", "sessions", "feas", "inq"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
+  if (!fn) return null;
+  return el("button", { class: "hback", "aria-label": "Back", onclick: fn }, "\u2190 Back");
+}
 function shell(...content) {
   const brand = brandFor(S.brand);
   const lang = el("div", { class: "seg", role: "group", "aria-label": t("langLabel") },
     ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.ui === code), onclick: () => { S.ui = code; render(); } }, code.toUpperCase())));
+  const back = headerBack();
   return el("div", null,
-    el("header", { class: "top" }, el("div", { class: "brand" }, el("img", { class: "hlogo", src: brand.logo, alt: "" }), el("div", null, el("div", null, brand.name), el("small", { style: "display:block;font-weight:400;font-size:12px;opacity:.85" }, t("appTitle"))))),
+    el("header", { class: "top" }, back, el("div", { class: "brand" }, el("img", { class: "hlogo", src: brand.logo, alt: "" }), el("div", null, el("div", null, brand.name), el("small", { style: "display:block;font-weight:400;font-size:12px;opacity:.85" }, t("appTitle"))))),
     el("main", null, S.saveErr ? el("div", { class: "err", role: "alert" }, t("saveErr")) : null, content, el("footer", null, BRANDING.appFooter)));
 }
 
