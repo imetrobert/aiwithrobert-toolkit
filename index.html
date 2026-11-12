@@ -2579,7 +2579,7 @@ function editScreen() {
     ? [el("p", { class: "muted" }, t("editHint")), el("span", { class: "pill" }, L(currentType().label)),
        el("div", { class: "ed" }, textField(d, "title", t("title")), textField(d, "intro", t("intro"), { long: true })),
        d.blocks.map((b, i) => blockEditor(b, i, d.blocks))]
-    : [previewOf(d), exportPanel(d)];
+    : [exportPanel(d), previewOf(d)];
   return shell(saveBar(), nameField(), tabs, body,
     el("button", { class: "btn primary", onclick: saveNow }, "Save to library"),
     currentType().local ? el("button", { class: "btn", onclick: () => { S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Back to the Feasibility check") : el("button", { class: "btn", onclick: () => { S.screen = "import"; S.errors = []; render(); window.scrollTo(0, 0); } }, t("newImport")),
