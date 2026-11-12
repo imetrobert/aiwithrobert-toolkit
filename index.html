@@ -1261,7 +1261,8 @@ function headerBack() {
   else if (sc === "composer") fn = go("hub");
   else if (sc === "import") fn = go("composer");
   else if (sc === "edit") fn = () => { if (currentType().local) { S.screen = "feas"; render(); window.scrollTo(0, 0); } else if (isDirty()) { S.modal = true; render(); } else goStart(); };
-  else if (["hub", "cap", "leads", "sessions", "feas", "inq"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
+  else if (["hub", "cap", "leads", "sessions", "feas", "inq", "surveys"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
+  if (sc === "svadd") fn = () => { const v = svState(); if (["review", "saving"].includes(v.stage) && !confirm("Discard this survey without saving?")) return; if (v.stage === "start") S.screen = "surveys"; else { v.stage = "start"; v.err = ""; } render(); window.scrollTo(0, 0); };
   if (!fn) return null;
   return el("button", { class: "hback", "aria-label": "Back", onclick: fn }, "\u2190 Back");
 }
@@ -1978,6 +1979,7 @@ function homeScreen() {
     el("button", { class: "btn", style: newStyle(NC.inq), onclick: () => { S.cap.inqStatus = "idle"; S.cap.inqMsg = ""; S.screen = "inq"; render(); window.scrollTo(0, 0); inqLoad(); } }, "Inquiries" + (S.cap.inq ? " (" + S.cap.inq.filter(x => x.status === "new").length + " new)" : ""), newPill(NC.inq)),
     el("button", { class: "btn", style: newStyle(NC.wait), onclick: () => { S.cap.wlStatus = "idle"; S.cap.wlMsg = ""; S.screen = "wait"; render(); window.scrollTo(0, 0); wlLoad(); } }, "Waitlist" + (S.cap.wl ? " (" + S.cap.wl.filter(x => x.status === "new").length + " new)" : ""), newPill(NC.wait)),
     el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost" || x.lead.archived))).length + " active)", newPill(NC.leads)),
+    el("button", { class: "btn", onclick: () => { svState().msg = ""; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad(); } }, "Surveys" + (S.sv && S.sv.rows ? " (" + S.sv.rows.length + ")" : "")),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
     el("button", { class: "btn", disabled: S.brand === "seniors", "aria-disabled": String(S.brand === "seniors"), onclick: () => { if (S.brand === "seniors") return; S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
     S.brand === "seniors" ? el("p", { class: "muted", style: "margin:-6px 2px 10px;font-size:13px" }, "Business only. Choose AI with Robert for Business above to use it.") : null,
@@ -2474,6 +2476,300 @@ function editScreen() {
     currentType().local ? null : el("button", { class: "btn link", onclick: () => { S.screen = "composer"; render(); window.scrollTo(0, 0); } }, t("backPrompt")));
 }
 
+/* ==========================================================================
+   SURVEYS  -  paper workshop feedback forms: read a photo (Gemini) or paste a chatbot reply, review, save, and see results.
+   Stored in the shared Supabase table survey_responses (migration/survey_responses.sql). Gemini is OPTIONAL: the copy/paste route
+   needs no API key. The Gemini key (if you use it) stays in this browser only.
+   ========================================================================== */
+const SV_TOPICS = [["chatgpt_emails", "Using ChatGPT to write emails & answer questions", "ChatGPT / Emails"], ["online_scams", "Spotting online scams & phishing emails", "Online Scams"], ["ai_translate", "Using AI to translate text or communicate", "AI Translation"], ["ai_images", "Creating AI images & creative AI tools", "AI Images"], ["smartphones_tablets", "Getting better at smartphones & tablets", "Smartphones & Tablets"], ["video_calling", "Video calling family & friends (Zoom, FaceTime)", "Video Calling"], ["online_banking", "Safe online banking & protecting your accounts", "Online Banking"], ["ai_health", "AI for managing health info & appointments", "AI for Health"], ["social_media", "Social media basics (Facebook, Instagram)", "Social Media"]];
+const SV_SUPPORT = [["newsletter", "Monthly newsletter with tech tips & AI news"], ["group_workshops", "Regular community group workshops"], ["helpline", "On-call helpline for tech questions"], ["video_tutorials", "Short video tutorials by email or WhatsApp"], ["private_group", "Private online group (WhatsApp / Facebook)"]];
+const SV_TOPIC_SHORT = Object.fromEntries(SV_TOPICS.map(x => [x[0], x[2]]));
+const SV_COLS = ["workshop_date", "workshop_location", "first_name", "last_name", "email", "phone", "address", "age_range", "preferred_language", "gender", "tech_comfort", "tech_interest", "ai_interest", "topics", "topics_other", "learning_format", "zoom_comfort", "online_preference", "ongoing_support", "enjoyed_most", "next_topic_comments", "wants_newsletter", "source_pdf_name"];
+const SV_ARR = ["topics", "ongoing_support"];
+const SV_SECTIONS = [
+  { title: "Personal information", f: [
+    { k: "first_name", l: "First name" }, { k: "last_name", l: "Last name" }, { k: "email", l: "Email", t: "email" }, { k: "phone", l: "Phone" }, { k: "address", l: "Address / Apt" },
+    { k: "workshop_date", l: "Workshop date", t: "date" }, { k: "workshop_location", l: "Workshop location", ph: "e.g. Community Library, Room 2" },
+    { k: "age_range", l: "Age range", t: "radio", o: [["under_50", "Under 50"], ["50_64", "50–64"], ["65_74", "65–74"], ["75_plus", "75+"]] },
+    { k: "preferred_language", l: "Preferred language", t: "radio", o: [["english", "English"], ["french", "French"], ["both", "Both / Either"]] },
+    { k: "gender", l: "Gender", t: "radio", o: [["male", "Male"], ["female", "Female"], ["prefer_not", "Prefer not to say"]] }] },
+  { title: "Technology comfort", f: [
+    { k: "tech_comfort", l: "1. Comfortable with technology?", t: "radio", o: [["very", "Very comfortable"], ["somewhat", "Somewhat"], ["not_very", "Not very"], ["not_at_all", "Not at all"]] },
+    { k: "tech_interest", l: "2. Interested in improving tech skills?", t: "radio", o: [["very", "Very interested"], ["somewhat", "Somewhat"], ["not_very", "Not very"]] },
+    { k: "ai_interest", l: "3. Interested in learning about AI?", t: "radio", o: [["very", "Very interested"], ["somewhat", "Somewhat"], ["not_very", "Not very"]] }] },
+  { title: "Topics & future workshops", f: [
+    { k: "topics", l: "4. Topics of interest", t: "check", o: SV_TOPICS.map(x => [x[0], x[1]]) },
+    { k: "topics_other", l: "Other topic (from the write-in line)" },
+    { k: "learning_format", l: "5. Preferred learning format", t: "radio", o: [["one_on_one", "One-on-one tutoring"], ["small_group", "Small group workshop"], ["online", "Online / virtual class"], ["no_preference", "No preference"]] }] },
+  { title: "How you like to learn", f: [
+    { k: "zoom_comfort", l: "6. Comfortable joining online video calls?", t: "radio", o: [["very", "Very comfortable"], ["somewhat", "Somewhat"], ["not_very", "Not very"], ["never_tried", "Never tried"]] },
+    { k: "online_preference", l: "7. Would you attend online instead of in person?", t: "radio", o: [["much_more", "Much more likely"], ["slightly_more", "Slightly more likely"], ["same", "Same / no difference"], ["slightly_less", "Slightly less likely"], ["much_less", "Much less likely"]] },
+    { k: "ongoing_support", l: "8. Ongoing support you would sign up for", t: "check", o: SV_SUPPORT }] },
+  { title: "Feedback", f: [
+    { k: "enjoyed_most", l: "9. What did you enjoy most?", t: "area" }, { k: "next_topic_comments", l: "10. Next topic / other comments", t: "area" },
+    { k: "wants_newsletter", l: "Yes — keep me informed about upcoming workshops & offers", t: "bool" }] }];
+const SV_LABELS = {}; SV_SECTIONS.forEach(s => s.f.forEach(f => { SV_LABELS[f.k] = f.l.replace(/^\d+\.\s*/, ""); }));
+const svEmpty = () => ({ workshop_date: todayStr(), workshop_location: "", first_name: "", last_name: "", email: "", phone: "", address: "", age_range: "", preferred_language: "", gender: "", tech_comfort: "", tech_interest: "", ai_interest: "", topics: [], topics_other: "", learning_format: "", zoom_comfort: "", online_preference: "", ongoing_support: [], enjoyed_most: "", next_topic_comments: "", wants_newsletter: false, low_confidence_fields: [] });
+const svState = () => S.sv || (S.sv = { rows: null, status: "idle", msg: "", q: "", stage: "start", files: [], items: [], idx: 0, form: null, err: "", log: "", paste: "", keyOpen: false });
+const SV_PROMPT = `You are extracting data from a handwritten survey form for "AI with Robert" workshops. The form is filled in by hand by senior citizens, so marks are often shaky, oversized, uneven, or drawn slightly outside the lines. Read carefully and go strictly by which shape a mark physically overlaps, never by assumptions about layout or reading order.
+
+Analyze this survey image carefully and extract ALL fields. Return ONLY valid JSON, no markdown, no explanation.
+
+Return exactly this structure (use null for fields you cannot read):
+{
+  "workshop_date": string (YYYY-MM-DD) or null,
+  "workshop_location": string or null,
+  "first_name": string or null,
+  "last_name": string or null,
+  "email": string or null,
+  "phone": string or null,
+  "address": string or null,
+  "age_range": "under_50" | "50_64" | "65_74" | "75_plus" | null,
+  "preferred_language": "english" | "french" | "both" | null,
+  "gender": "male" | "female" | "prefer_not" | null,
+  "tech_comfort": "very" | "somewhat" | "not_very" | "not_at_all" | null,
+  "tech_interest": "very" | "somewhat" | "not_very" | null,
+  "ai_interest": "very" | "somewhat" | "not_very" | null,
+  "topics": array of strings from: ["chatgpt_emails", "online_scams", "ai_translate", "ai_images", "smartphones_tablets", "video_calling", "online_banking", "ai_health", "social_media"],
+  "topics_other": string or null,
+  "learning_format": "one_on_one" | "small_group" | "online" | "no_preference" | null,
+  "zoom_comfort": "very" | "somewhat" | "not_very" | "never_tried" | null,
+  "online_preference": "much_more" | "slightly_more" | "same" | "slightly_less" | "much_less" | null,
+  "ongoing_support": array of strings from: ["newsletter", "group_workshops", "helpline", "video_tutorials", "private_group"],
+  "enjoyed_most": string or null,
+  "next_topic_comments": string or null,
+  "wants_newsletter": true | false,
+  "low_confidence_fields": array of JSON key names above that you are NOT confident about (empty array if none)
+}
+
+WHERE TO FIND workshop_date AND workshop_location:
+Directly below the dark navy header banner (logo, "AI with Robert" title, and contact info) at the very top of page 1, and ABOVE the light blue "Thank you for attending today's workshop..." banner, there are two handwritten fields side by side on underlined strips: "Date" on the left, "Location" on the right. These are filled in by hand for this specific session. They are NOT the same as the attendee's own address field further down the form.
+- workshop_date: convert whatever date format is handwritten (e.g. "May 28", "5/28/25", "28-05-2025") into strict YYYY-MM-DD. If the year is not written, infer the most recent plausible year. If the date field is blank or you cannot confidently parse a real date, return null. Never guess a date that isn't there.
+- workshop_location: transcribe the handwritten location as written (venue name, neighborhood, or both). Return null if left blank.
+
+FORM LAYOUT - OPTIONS ARE ARRANGED IN ROWS AND COLUMNS, NOT A SIMPLE VERTICAL LIST:
+Every selectable option is a small circle (radio button, single choice) or square (checkbox, multiple choice) positioned immediately to the left of its label text, and the label text often wraps onto two lines beside its shape. Most questions lay their options out horizontally in a single row rather than stacked vertically, so adjacent options and their two-line labels sit close together. Match each mark strictly to the shape it overlaps; never assign it to the nearest text or by guessing left-to-right order.
+
+- Section 1 ("Your Information") has THREE separate single-select radio groups arranged side by side in one row: Age Range (Under 50 / 50-64 / 65-74 / 75+), Preferred Language (English / French / Both/Either), and Gender (Male / Female / Prefer not to say). Treat each as an independent question. A mark in one group's column must never be attributed to a neighboring group just because they are on the same row.
+- Questions 1, 2, 3, 5, 6, and 7 each lay their radio-button options out in a single horizontal row, left to right in the order given in the JSON schema above (e.g. question 1 has 4 options in a row: Very comfortable, Somewhat comfortable, Not very comfortable, Not comfortable at all).
+- Question 4 (topics) is a checkbox list in TWO columns. Left column, top to bottom: ChatGPT for emails/questions, spotting online scams/phishing, AI translation, AI images/creative tools, smartphones & tablets. Right column, top to bottom: video calling, online banking safety, AI for health/appointments, social media basics, then an "Other:" write-in line. A left-column mark must never be read as a right-column item or vice versa. Verify which column the mark's shape actually sits in.
+- Question 8 (ongoing support) is a checkbox list in a SINGLE column, top to bottom: newsletter, community group workshops, on-call helpline, video tutorials, private online group.
+- The newsletter opt-in ("Yes - keep me informed...") is a separate single checkbox inside a light blue box near the very bottom of page 2, below question 10. It maps to wants_newsletter (true if marked, false if left blank).
+
+CHECKBOXES AND RADIO BUTTONS:
+Each option's circle or square is a thin-outlined shape on a white background, roughly 14-16px, immediately to the left of its label. Outline weight and color can vary slightly depending on scan/photo quality. Do not rely on the box looking bold or dark; instead look for the closed circle/square shape itself. A response is marked with a checkmark, X, filled/shaded interior, scribble, or circled-in stroke. Any handwritten mark whose ink is mostly inside or directly overlapping that specific shape counts as selected, even if it is uneven, shaky, oversized, or slightly extends past the shape's edge (this is common with elderly handwriting and should still count). If a mark could plausibly belong to two adjacent shapes because they are close together, choose the one with the greater overlap of ink, not the one closer to the label text. Only fall back to "unmarked" when there is no meaningful mark on or touching any shape for that question, or a stray pen stroke sits clearly in the empty space between two options rather than on either shape. For single-choice questions (radio buttons), there should be at most one marked option; if you see what looks like two marks, prefer the one most clearly and fully filled and treat the other as unmarked.
+
+HANDWRITTEN TEXT FIELDS (name, email, phone, address, topics_other, enjoyed_most, next_topic_comments):
+Transcribe exactly as written, preserving the person's own wording. If a field is left blank or is genuinely illegible after careful attempt, return null rather than guessing a plausible-sounding value.
+
+The "Other" write-in line under question 4 (topics) is separate from the fixed topic checkboxes. Put whatever is handwritten there into topics_other, not into the topics array.
+
+The form may be 2 pages. Extract from all visible content.
+
+low_confidence_fields (self-check, do this LAST after filling in every other field above):
+Go back over each field you extracted and list the JSON key name in low_confidence_fields whenever any of these apply:
+- A mark sits close to the boundary between two options, or its ink meaningfully overlaps more than one circle/square, so you had to pick the "greater overlap" one rather than a clean single mark.
+- The mark itself is faint, smudged, very thin, or partially cut off by a fold/shadow in the photo.
+- You inferred a value that isn't explicitly written (e.g. guessing the year for workshop_date, or reading a name/email through messy cursive) rather than reading it directly and confidently.
+- For a checkbox list (topics, ongoing_support), you're unsure whether a specific item was intended to be marked at all (as opposed to being confident about the overall set but shaky on one member of it).
+Do NOT include a field just because it is null/blank. A clearly empty field is not low-confidence, it is just unanswered. Only flag fields where a mark exists but its meaning is genuinely uncertain. Return an empty array if every field you read was unambiguous.`;
+const SV_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
+const svB64 = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
+async function svPdfImages(file) {
+  try {
+    if (!window.pdfjsLib) {
+      await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+    const pdf = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise, out = [];
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const page = await pdf.getPage(n), vp = page.getViewport({ scale: 2 }), cv = document.createElement("canvas");
+      cv.width = vp.width; cv.height = vp.height;
+      await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+      out.push(cv.toDataURL("image/jpeg", 0.85).split(",")[1]);
+    }
+    return out;
+  } catch (e) { return [await svB64(file)]; }
+}
+/* Tolerant JSON reader: accepts fenced/chatty replies, one object or a list, and repairs a truncated reply. */
+function svParse(text) {
+  const s = String(text || "").replace(/```json|```/g, "").trim();
+  const a = s.indexOf("{"), b = s.indexOf("[");
+  const first = Math.min(a < 0 ? Infinity : a, b < 0 ? Infinity : b);
+  if (first === Infinity) throw new Error("No JSON found in the reply.");
+  let parsed = null, pos = s.length - 1;
+  while (pos > first) {
+    const e = Math.max(s.lastIndexOf("}", pos), s.lastIndexOf("]", pos));
+    if (e <= first) break;
+    try { parsed = JSON.parse(s.substring(first, e + 1)); break; } catch (x) { pos = e - 1; }
+  }
+  if (!parsed) {
+    try { let t = s.substring(first); t += "}".repeat(Math.max(0, (t.match(/\{/g) || []).length - (t.match(/\}/g) || []).length)); parsed = JSON.parse(t.replace(/,\s*([}\]])/g, "$1")); }
+    catch (x) { throw new Error("Could not read that reply as JSON. Copy the whole reply, including the first { and the last }."); }
+  }
+  const arr = (Array.isArray(parsed) ? parsed : [parsed]).filter(x => x && typeof x === "object" && !Array.isArray(x));
+  if (!arr.length) throw new Error("The reply had no survey data in it.");
+  return arr;
+}
+async function svGemini(files, key) {
+  const parts = [];
+  for (const f of files) {
+    if (f.type === "application/pdf") (await svPdfImages(f)).forEach(d => parts.push({ inlineData: { mimeType: "image/jpeg", data: d } }));
+    else parts.push({ inlineData: { mimeType: f.type || "image/jpeg", data: await svB64(f) } });
+  }
+  const prompt = files.length > 1 ? SV_PROMPT + "\n\nNote: the " + files.length + " images provided are separate photos of the SAME survey form (e.g. front and back). Treat them as one combined form and merge fields across all images into a single result." : SV_PROMPT;
+  const r = await fetch(SV_GEMINI_URL + "?key=" + encodeURIComponent(key), { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }].concat(parts) }], generationConfig: { temperature: 0.1, maxOutputTokens: 4096, responseMimeType: "application/json" } }) });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({})), m = (e && e.error && e.error.message) || r.statusText || "HTTP " + r.status;
+    throw new Error(r.status === 429 ? "Rate limit: " + m : r.status === 403 ? "API key rejected: " + m : r.status === 400 ? "Bad request: " + m : "Gemini error: " + m);
+  }
+  const data = await r.json(), ps = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+  const text = ps.filter(p => p.text && !p.thought).map(p => p.text).join("") || ps.filter(p => p.text).map(p => p.text).join("");
+  if (!text.trim()) throw new Error("Empty reply from Gemini. Try again.");
+  return svParse(text);
+}
+function svMerge(x, name) {
+  const base = svEmpty(), o = Object.assign({}, base);
+  Object.keys(x).forEach(k => { if (x[k] != null) o[k] = x[k]; });
+  SV_ARR.forEach(k => { o[k] = Array.isArray(o[k]) ? o[k].filter(isStr) : []; });
+  o.wants_newsletter = o.wants_newsletter === true;
+  o.low_confidence_fields = Array.isArray(o.low_confidence_fields) ? o.low_confidence_fields.filter(isStr) : [];
+  o.workshop_date = /^\d{4}-\d{2}-\d{2}$/.test(String(x.workshop_date)) ? x.workshop_date : todayStr();
+  o.source_pdf_name = name || "";
+  return o;
+}
+const svErr = r => r.status === 404 || (r.json && /does not exist|schema cache|PGRST20/i.test(JSON.stringify(r.json))) ? "Run migration/survey_responses.sql in Supabase first." : r.status === 401 || r.status === 403 ? "No access to the survey table. Run migration/survey_responses.sql in Supabase." : r.status === 0 ? "Offline. Try again." : "Problem (HTTP " + r.status + ")" + (r.json && r.json.message ? ": " + r.json.message : ".");
+async function svLoad() {
+  const v = svState(); if (S.auth.status !== "in" || v.status === "loading") return; v.status = "loading";
+  const r = await sbReq("GET", "survey_responses?select=*&order=created_at.desc&limit=1000");
+  if (r.ok && Array.isArray(r.json)) { v.rows = r.json; v.status = "ok"; } else { v.status = "error"; v.msg = svErr(r); }
+  if (["surveys", "home"].includes(S.screen)) render();
+}
+function svCsv(rows, kind) {
+  const q = x => { if (x == null) return ""; const t = Array.isArray(x) ? x.join("; ") : String(x); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  let head, body;
+  if (kind === "email") { const o = rows.filter(r => r.wants_newsletter && r.email); if (!o.length) { svState().msg = "No newsletter opt-ins with an email yet."; render(); return; } head = ["Email", "First Name", "Last Name", "Language"]; body = o.map(r => [r.email, r.first_name, r.last_name, r.preferred_language || ""]); }
+  else { head = ["Date", "Location", "First Name", "Last Name", "Email", "Phone", "Address", "Age Range", "Language", "Gender", "Tech Comfort", "Tech Interest", "AI Interest", "Topics", "Other Topic", "Learning Format", "Zoom Comfort", "Online Preference", "Ongoing Support", "Enjoyed Most", "Next Topic", "Newsletter"];
+    body = rows.map(r => [r.workshop_date || (r.created_at || "").slice(0, 10), r.workshop_location, r.first_name, r.last_name, r.email, r.phone, r.address, r.age_range, r.preferred_language, r.gender, r.tech_comfort, r.tech_interest, r.ai_interest, r.topics, r.topics_other, r.learning_format, r.zoom_comfort, r.online_preference, r.ongoing_support, r.enjoyed_most, r.next_topic_comments, r.wants_newsletter ? "Yes" : "No"]); }
+  const csv = [head.map(q).join(",")].concat(body.map(b => b.map(q).join(","))).join("\n");
+  const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" })), a = el("a", { href: url, download: "AIwithRobert-" + (kind === "email" ? "EmailList-" : "Surveys-") + todayStr() + ".csv" });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+function svPick(multi, cb) {
+  const inp = el("input", { type: "file", accept: ".pdf,.jpg,.jpeg,.png,image/*,application/pdf", multiple: multi, style: "display:none", onchange: e => cb(Array.from(e.target.files || [])) });
+  document.body.append(inp); inp.click(); setTimeout(() => inp.remove(), 60000);
+}
+function surveysScreen() {
+  const v = svState(), rows = v.rows || [];
+  const optIns = rows.filter(r => r.wants_newsletter && r.email).length;
+  const counts = {}; rows.forEach(r => (r.topics || []).forEach(t => { counts[t] = (counts[t] || 0) + 1; }));
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const stat = (lab, val) => el("div", { class: "card", style: "flex:1;min-width:110px;margin:0" }, el("div", { class: "muted", style: "font-size:12px;text-transform:uppercase" }, lab), el("div", { style: "font-size:24px;font-weight:700;color:var(--navy)" }, val));
+  const listBox = el("div");
+  const drawList = () => {
+    const q = v.q.trim().toLowerCase();
+    const f = q ? rows.filter(r => [r.first_name, r.last_name, r.email, r.phone].some(x => x && String(x).toLowerCase().includes(q))) : rows;
+    listBox.replaceChildren(...(f.length ? f.map(r => el("div", { class: "card" },
+      el("p", { style: "margin:0;font-weight:700;color:var(--navy)" }, [r.first_name, r.last_name].filter(Boolean).join(" ") || "(No name)", r.wants_newsletter ? el("span", { class: "pill", style: "margin-left:8px" }, "Newsletter ✓") : null),
+      el("p", { class: "muted", style: "margin:2px 0 6px" }, (r.email || "No email") + (r.phone ? " · " + r.phone : "") + " · " + (r.workshop_date || (r.created_at || "").slice(0, 10)) + (r.workshop_location ? " · " + r.workshop_location : "")),
+      el("p", { class: "muted", style: "margin:0 0 8px;font-size:14px" }, [r.age_range ? "Age " + r.age_range.replace("_", "–").replace("plus", "+") : "", r.ai_interest ? "AI interest: " + r.ai_interest : "", (r.topics || []).map(t => SV_TOPIC_SHORT[t] || t).join(", ")].filter(Boolean).join(" · ")),
+      r.enjoyed_most ? el("p", { style: "margin:0 0 8px;font-size:15px" }, "“" + r.enjoyed_most + "”") : null,
+      el("button", { class: "btn sm danger", onclick: async () => { if (!confirm("Delete this survey response? This cannot be undone.")) return; const d = await sbReq("DELETE", "survey_responses?id=eq." + encodeURIComponent(r.id), null, "return=minimal"); v.msg = d.ok ? "Deleted." : "Not deleted. " + svErr(d); if (d.ok) { v.rows = rows.filter(x => x.id !== r.id); } render(); } }, "Delete"))) : [el("p", { class: "muted" }, v.status === "ok" ? (q ? "No results." : "No survey responses yet.") : "")]));
+  };
+  drawList();
+  return shell(el("h1", null, "Surveys"),
+    el("p", { class: "muted" }, "Workshop feedback forms. Add a survey from a photo, or by pasting a chatbot's reply, then see the results here."),
+    el("button", { class: "btn primary", onclick: () => { Object.assign(svState(), { stage: "start", files: [], items: [], idx: 0, form: null, err: "", log: "", paste: "" }); S.screen = "svadd"; render(); window.scrollTo(0, 0); } }, "Add a survey"),
+    v.msg ? el("div", { class: "note", role: "status" }, v.msg) : null,
+    v.status === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
+    v.status === "error" ? el("button", { class: "btn", onclick: () => { v.status = "idle"; svLoad(); } }, "Try again") : null,
+    v.status === "ok" ? el("div", { style: "display:flex;gap:10px;flex-wrap:wrap;margin:12px 0" }, stat("Responses", String(rows.length)), stat("Newsletter", String(optIns)), stat("Top topic", top[0] ? SV_TOPIC_SHORT[top[0][0]] || top[0][0] : "—")) : null,
+    top.length ? el("div", { class: "card" }, el("h2", { style: "margin-top:0;font-size:17px" }, "Most requested topics"),
+      top.map(([t, n]) => el("div", { style: "margin-bottom:8px" }, el("div", { style: "display:flex;justify-content:space-between" }, el("span", null, SV_TOPIC_SHORT[t] || t), el("b", null, String(n))),
+        el("div", { style: "height:8px;background:var(--line);border-radius:99px" }, el("div", { style: "height:100%;border-radius:99px;background:var(--blue);width:" + Math.round(n / rows.length * 100) + "%" })))))  : null,
+    rows.length ? el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" },
+      el("button", { class: "btn sm", disabled: !optIns, onclick: () => svCsv(rows, "email") }, "Export email list (" + optIns + ")"),
+      el("button", { class: "btn sm", onclick: () => svCsv(rows, "all") }, "Export all data (" + rows.length + ")")) : null,
+    rows.length ? el("input", { type: "search", placeholder: "Search by name, email or phone", "aria-label": "Search surveys", value: v.q, oninput: e => { v.q = e.target.value; drawList(); } }) : null,
+    listBox,
+    el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
+}
+function svField(f, form, flagged) {
+  const set = (val, re) => { form[f.k] = val; if (re) render(); };
+  let body;
+  if (f.t === "radio") body = el("div", { class: "seg", role: "group", "aria-label": f.l, style: "flex-wrap:wrap" }, f.o.map(([val, lab]) => el("button", { "aria-pressed": String(form[f.k] === val), onclick: () => set(form[f.k] === val ? "" : val, true) }, lab)));
+  else if (f.t === "check") body = f.o.map(([val, lab]) => el("button", { class: "opt multi", style: "margin-bottom:6px;min-height:48px", "aria-pressed": String((form[f.k] || []).includes(val)), onclick: () => { const c = form[f.k] || []; form[f.k] = c.includes(val) ? c.filter(x => x !== val) : c.concat(val); render(); } }, el("span", { class: "dot" }), el("span", null, lab)));
+  else if (f.t === "bool") body = el("button", { class: "opt multi", "aria-pressed": String(form[f.k] === true), onclick: () => { form[f.k] = !form[f.k]; render(); } }, el("span", { class: "dot" }), el("span", null, f.l));
+  else if (f.t === "area") body = el("textarea", { rows: "3", style: "min-height:90px", "aria-label": f.l, oninput: e => { form[f.k] = e.target.value; } }, form[f.k] || "");
+  else body = el("input", { type: f.t || "text", value: form[f.k] || "", placeholder: f.ph || "", "aria-label": f.l, oninput: e => { form[f.k] = e.target.value; } });
+  return el("div", { style: "margin:0 0 12px;" + (flagged ? "background:#FFFBEB;border:2px solid #F59E0B;border-radius:12px;padding:10px" : "") },
+    f.t === "bool" ? null : el("label", { style: "display:block;font-weight:700;margin:0 0 4px" }, f.l, flagged ? el("span", { style: "color:#B45309;font-size:13px;margin-left:8px" }, "⚠ double-check") : null),
+    body, f.t === "bool" && flagged ? el("small", { style: "color:#B45309" }, "⚠ double-check") : null);
+}
+function svReviewBlock() {
+  const v = svState(), form = v.form, flagged = Array.isArray(form.low_confidence_fields) ? form.low_confidence_fields : [];
+  const multi = v.items.length > 1, last = v.idx + 1 >= v.items.length;
+  return [
+    multi ? el("div", { class: "note", role: "status" }, "Survey " + (v.idx + 1) + " of " + v.items.length + ": " + ([form.first_name, form.last_name].filter(Boolean).join(" ") || "Unknown")) : null,
+    el("div", { class: "note", role: "status" }, "Review the fields below against the paper form, correct anything needed, then save."),
+    flagged.length ? el("div", { class: "note warn", role: "alert" }, "Not fully confident on " + flagged.length + " field" + (flagged.length > 1 ? "s" : "") + " (highlighted): " + flagged.map(k => SV_LABELS[k] || k).join(", ")) : null,
+    v.err ? el("div", { class: "err", role: "alert" }, v.err) : null,
+    SV_SECTIONS.map(sec => el("div", { class: "card" }, el("h2", { style: "margin-top:0;font-size:18px" }, sec.title), sec.f.map(f => svField(f, form, flagged.includes(f.k))))),
+    el("button", { class: "btn primary", disabled: v.stage === "saving", onclick: svSave }, v.stage === "saving" ? "Saving..." : multi ? "Save & " + (last ? "finish" : "next (" + (v.idx + 1) + "/" + v.items.length + ")") : "Save survey"),
+    el("button", { class: "btn link", onclick: () => { if (confirm("Discard this survey without saving?")) { v.stage = "start"; v.err = ""; render(); window.scrollTo(0, 0); } } }, "Discard and start over")];
+}
+async function svSave() {
+  const v = svState(), f = v.form;
+  if (!String(f.first_name || "").trim() && !String(f.email || "").trim()) { v.err = "Please fill in at least a name or email before saving."; render(); return; }
+  v.stage = "saving"; v.err = ""; render();
+  const row = {}; SV_COLS.forEach(k => { if (k in f) row[k] = f[k]; });
+  row.manually_reviewed = true; row.topics = f.topics || []; row.ongoing_support = f.ongoing_support || [];
+  ["workshop_date"].forEach(k => { if (!row[k]) row[k] = null; });
+  const r = await sbReq("POST", "survey_responses", [row], "return=minimal");
+  if (!r.ok) { v.err = svErr(r); v.stage = "review"; render(); return; }
+  v.rows = null; v.status = "idle";
+  if (v.idx + 1 < v.items.length) { v.idx++; v.form = v.items[v.idx]; v.stage = "review"; v.err = ""; render(); window.scrollTo(0, 0); return; }
+  v.msg = v.items.length > 1 ? "Saved " + v.items.length + " surveys." : "Survey saved."; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad();
+}
+function svStart(items, name) { const v = svState(); v.items = items.map(x => svMerge(x, name)); v.idx = 0; v.form = v.items[0]; v.stage = "review"; v.err = ""; render(); window.scrollTo(0, 0); }
+function svAddScreen() {
+  const v = svState(), key = (() => { try { return localStorage.getItem("gemini_api_key") || ""; } catch (e) { return ""; } })();
+  let body;
+  if (v.stage === "review" || v.stage === "saving") body = svReviewBlock();
+  else if (v.stage === "extracting") body = el("div", { class: "card", style: "text-align:center" }, el("p", { style: "font-weight:700" }, "Reading the survey..."), el("p", { class: "muted" }, v.log));
+  else if (v.stage === "staged") body = el("div", { class: "card" }, el("h2", { style: "margin-top:0;font-size:18px" }, "Ready to read"),
+    v.err ? el("div", { class: "err", role: "alert" }, v.err) : null,
+    v.files.map((f, i) => el("div", { style: "display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)" }, el("span", { style: "word-break:break-all" }, (i + 1) + ". " + f.name), el("button", { class: "btn sm", onclick: () => { v.files = v.files.filter((_, j) => j !== i); if (!v.files.length) v.stage = "start"; render(); } }, "Remove"))),
+    v.files.length < 2 ? el("button", { class: "btn", style: "margin-top:10px", onclick: () => svPick(false, fl => { if (fl[0]) { v.files = v.files.concat(fl[0]).slice(0, 2); render(); } }) }, "+ Add second photo (e.g. back of the form)") : el("p", { class: "muted" }, "Both photos are read together as one survey."),
+    el("button", { class: "btn primary", onclick: svRun }, v.files.length > 1 ? "Read both photos" : "Read the survey"),
+    el("button", { class: "btn link", onclick: () => { v.files = []; v.stage = "start"; v.err = ""; render(); } }, "Start over"));
+  else if (v.stage === "paste") body = el("div", { class: "card" }, el("h2", { style: "margin-top:0;font-size:18px" }, "Use a free chatbot (no API key)"),
+    el("ol", { style: "padding-left:20px;line-height:1.6" }, el("li", null, "Tap Copy the prompt."), el("li", null, "Open any chatbot that accepts photos (ChatGPT, Gemini, Claude). Paste the prompt and attach the photo(s) of the survey, front and back."), el("li", null, "Copy its whole reply and paste it below.")),
+    el("button", { class: "btn", onclick: async () => { v.msg = (await copyText(SV_PROMPT)) ? "Prompt copied." : "Could not copy."; v.err = ""; render(); } }, "Copy the prompt"),
+    v.msg ? el("div", { class: "note", role: "status" }, v.msg) : null,
+    v.err ? el("div", { class: "err", role: "alert" }, v.err) : null,
+    el("textarea", { placeholder: "Paste the chatbot's reply here", "aria-label": "Chatbot reply", oninput: e => { v.paste = e.target.value; } }, v.paste),
+    el("button", { class: "btn primary", onclick: () => { try { svStart(svParse(v.paste), "pasted reply"); } catch (e) { v.err = e.message; render(); } } }, "Check and continue"),
+    el("button", { class: "btn link", onclick: () => { v.stage = "start"; v.err = ""; v.msg = ""; render(); } }, "Back"));
+  else body = el("div", null,
+    v.keyOpen || !key ? el("div", { class: "card" }, el("h2", { style: "margin-top:0;font-size:18px" }, "Gemini key (optional, one time)"),
+      el("p", { class: "muted" }, "Only needed for reading photos automatically. Free key at aistudio.google.com/app/apikey. Stored in this browser only and sent only to Google."),
+      el("input", { type: "password", id: "svkey", placeholder: "AIza...", "aria-label": "Gemini API key", value: key }),
+      el("button", { class: "btn", style: "margin-top:8px", onclick: () => { const x = document.getElementById("svkey").value.trim(); if (x) { try { localStorage.setItem("gemini_api_key", x); } catch (e) {} } v.keyOpen = false; render(); } }, "Save key")) : null,
+    el("button", { class: "btn primary", disabled: !key, onclick: () => svPick(true, fl => { if (fl.length) { v.files = fl.slice(0, 2); v.stage = "staged"; v.err = ""; render(); } }) }, "Read a photo or PDF with Gemini"),
+    !key ? el("p", { class: "muted" }, "Save a Gemini key above to use this.") : el("button", { class: "btn link", onclick: () => { v.keyOpen = true; render(); } }, "Change Gemini key"),
+    el("button", { class: "btn", onclick: () => { v.stage = "paste"; v.err = ""; v.msg = ""; render(); } }, "Paste a chatbot's reply instead (no API key)"));
+  return shell(el("h1", null, "Add a survey"), body, el("button", { class: "btn link", onclick: () => { S.screen = "surveys"; render(); window.scrollTo(0, 0); } }, "Back to Surveys"));
+}
+async function svRun() {
+  const v = svState(); let key = ""; try { key = localStorage.getItem("gemini_api_key") || ""; } catch (e) {}
+  if (!key) { v.stage = "start"; v.keyOpen = true; render(); return; }
+  v.stage = "extracting"; v.err = ""; v.log = v.files.length > 1 ? "Sending both photos to Gemini..." : "Sending to Gemini..."; render();
+  try { const items = await svGemini(v.files, key); const nm = v.files.map(f => f.name).join(" + "); v.files = []; svStart(items, nm); }
+  catch (e) { v.err = e.message || "Something went wrong."; v.stage = "staged"; render(); }
+}
+
 function render() {
   document.documentElement.lang = S.ui;
   document.title = BRANDING.appName;
@@ -2483,8 +2779,8 @@ function render() {
   const root = document.getElementById("root");
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
-  if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); inqLoad(); }, 900); }
-  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, leads: leadsScreen, cap: capScreen, wait: waitScreen, inq: inqScreen };
+  if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); inqLoad(); svLoad(); }, 900); }
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, leads: leadsScreen, cap: capScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
 }
 

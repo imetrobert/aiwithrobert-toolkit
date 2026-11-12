@@ -78,3 +78,7 @@ Hi [name], thank you for the detail. I checked your list against [plan]. [Items 
 
 ### D. (FR)
 Bonjour [nom], merci pour les détails. J'ai comparé votre liste à [forfait]. [Éléments réalisables] fonctionnent bien. [Élément] ne peut pas être réalisé de façon fiable avec ce forfait, et je préfère vous le dire maintenant plutôt que de le promettre. Options : (1) [autre forfait] le couvre pour environ [coût], (2) une solution sur mesure, soumissionnée séparément, (3) nous commençons par ce qui fonctionne et revoyons cela plus tard. Vous trouverez ci-joint le détail. Quelle option préférez-vous? Robert
+
+## Surveys (workshop feedback forms)
+
+Home > **Surveys** shows the saved responses (totals, most requested topics, search, CSV exports for the newsletter list and all data, delete). **Add a survey** reads a paper form two ways: a photo or PDF sent to Gemini (optional one-time key, stored in this browser only), or **no API key**: copy the prompt, attach the photo(s) in any free chatbot, paste its reply back. Either way you review and correct every field before saving. Data lives in `survey_responses` (`migration/survey_responses.sql`); the invoicing app no longer holds this feature.
