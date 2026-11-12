@@ -1697,7 +1697,7 @@ function render() {
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
   if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); }
   const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen };
-  root.replaceChildren((screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null);
+  root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
 }
 
 bootAuth();
