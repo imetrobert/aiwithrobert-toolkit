@@ -609,6 +609,17 @@ Object.keys(BASE).forEach(br => {
   }
 });
 
+/* Client documents built locally from a saved Feasibility check (no AI step). Business only. */
+const LOCAL_DOCS = {
+  assessment: { label: { en: "Feasibility assessment", fr: "\u00C9valuation de faisabilit\u00E9" }, desc: { en: "What the client's plan can and cannot do", fr: "Ce que le forfait du client peut et ne peut pas faire" } },
+  workflow_doc: { label: { en: "Workflow document", fr: "Document de flux de travail" }, desc: { en: "One workflow per need, ready to tailor", fr: "Un flux de travail par besoin, pr\u00EAt \u00E0 adapter" } },
+  proposal: { label: { en: "Proposal", fr: "Proposition" }, desc: { en: "Scope, investment and next steps", fr: "Port\u00E9e, investissement et prochaines \u00E9tapes" } }
+};
+for (const [a, def] of Object.entries(LOCAL_DOCS)) {
+  const id = "business_" + a;
+  OUTPUT_TYPES[id] = { id, enabled: true, local: true, sessionType: "business", outputType: a, art: a, label: def.label, desc: def.desc, requiredBlocks: ["section"], allowed: ["section", "steps", "comparison_table", "workflow", "tip", "next_steps", "disclaimer"], questions: [] };
+}
+
 /* ==========================================================================
    UI strings (interface language, EN / FR Quebec)
    ========================================================================== */
@@ -1024,7 +1035,7 @@ function cloudLine() {
 function reuseInputs(rec) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
   const r = c.rec, a = Object.assign({}, r.answers); delete a.transcript;
-  S.brand = r.brand; S.sel = r.sel.slice(); S.lang = r.lang; S.answers = a; S.name = ""; S.results = {}; S.pastes = {}; S.typeId = S.sel[0]; S.result = null; S.paste = ""; S.errors = [];
+  S.brand = r.brand; S.sel = r.sel.filter(id => !OUTPUT_TYPES[id].local); if (!S.sel.length) S.sel = [BASE[r.brand]]; S.lang = r.lang; S.answers = a; S.name = ""; S.results = {}; S.pastes = {}; S.typeId = S.sel[0]; S.result = null; S.paste = ""; S.errors = [];
   S.sid = newId(); S.name = ""; S.feasSaved = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.step = 0; S.screen = "intake"; render(); window.scrollTo(0, 0);
 }
 const STORE_KEY = "awr_toolkit_sessions";
@@ -1321,6 +1332,142 @@ function fxRefreshPrompt(caps) {
     "Current table for reference:", JSON.stringify({ verified: caps.verified, fx: caps.fx, tools: caps.tools, cells: caps.cells })
   ].join("\n");
 }
+const FXD = {
+  en: {
+    res: { yes: "Included", partial: "Included with conditions", no: "Not included", unknown: "To be confirmed" }, req: {},
+    assessT: "AI Feasibility Assessment", workT: "Your AI Workflows", propT: "Proposal: AI Workflows for Your Business",
+    forName: n => n ? "Prepared for " + n + ". " : "",
+    assessIntro: (tool, d) => "This checks what you asked for against " + tool + ", using vendor information checked on " + d + ".",
+    workIntro: tool => "Practical workflows for the needs we discussed, designed to run on " + tool + ". Each one can be tailored to your business.",
+    propIntro: tool => "A proposal for the AI workflows we discussed, built to run on " + tool + ".",
+    askH: "What you asked for", noAsk: "The needs listed below.",
+    tableH: tool => "What works on " + tool, cols: ["Need", "Result", "Conditions"],
+    summaryH: "Summary",
+    summary: { yes: "Everything you listed can be delivered on this plan.", partial: "Everything you listed can be delivered on this plan, with the conditions shown above.", no: "Some items cannot be delivered on this plan alone. They need extra tools or custom development and would be quoted separately." },
+    planH: "What you need",
+    plan: (tool, price, cost) => "An active paid " + tool + " account for each person who will use the workflows" + (price ? " (" + price + ")" : "") + ". The subscription is bought and paid by you directly from the vendor." + (cost ? " " + cost : ""),
+    costLine: (lo, hi, n) => "Estimated subscription cost: about " + (lo === hi ? lo : lo + " to " + hi) + " CAD per month for " + n + (n === 1 ? " person" : " people") + ", before tax.",
+    nextA: ["Confirm the needs above are right.", "Choose which workflows to start with.", "Receive a proposal with scope and price."],
+    discA: d => "Plans and features change. This was checked against vendor information on " + d + " and deliverables are limited to what your plan offers at the time of delivery.",
+    howH: "Your plan", steps: "Steps", purposeNo: "Not included on this plan (extra tools or custom development, quoted separately):",
+    privTip: "Before using personal information of your clients or customers in an AI tool, check the plan's privacy settings and your own obligations under Quebec Law 25.",
+    nextW: ["Pick the first workflow to set up.", "Replace the [placeholders] with your real details.", "Test it on one real example, then reuse it."],
+    scopeH: "Scope", deliverH: "What I will deliver", deliverIntro: "Each workflow is set up, tested on your real example, and documented so your team can reuse it.",
+    investH: "Investment", invCols: ["Item", "Amount"],
+    rowBase: (n, per) => n + (n === 1 ? " workflow" : " workflows") + " at " + per, rowCond: (k, per) => "Conditions to configure: " + k + " at " + per, rowTotal: "Total (before tax)",
+    rowSub: "Your AI subscription", rowSubVal: c => (c || "Paid directly by you to the vendor"),
+    notInH: "Not included", notIn: "These need extra tools or custom development and would be quoted separately:",
+    nextP: ["Confirm the scope above.", "We agree the final price and schedule in writing.", "Work starts once you confirm."],
+    discP: d => "This is an estimate based on the information received and on " + d + " vendor information. Final scope and price are confirmed in writing before work begins."
+  },
+  fr: {
+    res: { yes: "Inclus", partial: "Inclus sous conditions", no: "Non inclus", unknown: "\u00C0 confirmer" },
+    req: { write: "R\u00E9diger, reformuler et r\u00E9sumer des textes", files: "Lire des PDF, documents et chiffriers t\u00E9l\u00E9vers\u00E9s", reuse: "Instructions enregistr\u00E9es r\u00E9utilisables", own: "Travailler avec les courriels, l'agenda et les documents du client", sched: "Ex\u00E9cuter une t\u00E2che selon un horaire", auto: "S'ex\u00E9cuter automatiquement lors d'un \u00E9v\u00E9nement", img: "Cr\u00E9er des images", office: "Cr\u00E9er des fichiers Word, Excel ou PowerPoint termin\u00E9s", web: "Rechercher sur le Web avec sources", team: "Plusieurs employ\u00E9s avec des r\u00E9glages partag\u00E9s", priv: "Traite des renseignements personnels de clients", cost: "Environ 30 $ par utilisateur par mois" },
+    assessT: "\u00C9valuation de faisabilit\u00E9 de l'IA", workT: "Vos flux de travail IA", propT: "Proposition : flux de travail IA pour votre entreprise",
+    forName: n => n ? "Pr\u00E9par\u00E9 pour " + n + ". " : "",
+    assessIntro: (tool, d) => "Ce document compare votre demande \u00E0 " + tool + ", selon les renseignements des fournisseurs v\u00E9rifi\u00E9s le " + d + ".",
+    workIntro: tool => "Des flux de travail pratiques pour les besoins discut\u00E9s, con\u00E7us pour fonctionner avec " + tool + ". Chacun peut \u00EAtre adapt\u00E9 \u00E0 votre entreprise.",
+    propIntro: tool => "Une proposition pour les flux de travail IA discut\u00E9s, con\u00E7us pour fonctionner avec " + tool + ".",
+    askH: "Votre demande", noAsk: "Les besoins list\u00E9s ci-dessous.",
+    tableH: tool => "Ce qui fonctionne avec " + tool, cols: ["Besoin", "R\u00E9sultat", "Conditions"],
+    summaryH: "Sommaire",
+    summary: { yes: "Tout ce que vous avez list\u00E9 peut \u00EAtre r\u00E9alis\u00E9 avec ce forfait.", partial: "Tout ce que vous avez list\u00E9 peut \u00EAtre r\u00E9alis\u00E9 avec ce forfait, sous les conditions indiqu\u00E9es ci-dessus.", no: "Certains \u00E9l\u00E9ments ne peuvent pas \u00EAtre r\u00E9alis\u00E9s avec ce forfait seul. Ils exigent des outils suppl\u00E9mentaires ou du d\u00E9veloppement sur mesure et seraient soumissionn\u00E9s s\u00E9par\u00E9ment." },
+    planH: "Ce dont vous avez besoin",
+    plan: (tool, price, cost) => "Un abonnement payant actif \u00E0 " + tool + " pour chaque personne qui utilisera les flux de travail" + (price ? " (" + price + ")" : "") + ". L'abonnement est achet\u00E9 et pay\u00E9 par vous directement aupr\u00E8s du fournisseur." + (cost ? " " + cost : ""),
+    costLine: (lo, hi, n) => "Co\u00FBt d'abonnement estim\u00E9 : environ " + (lo === hi ? lo : lo + " \u00E0 " + hi) + " CAD par mois pour " + n + (n === 1 ? " personne" : " personnes") + ", avant taxes.",
+    nextA: ["Confirmer que les besoins ci-dessus sont justes.", "Choisir les flux de travail \u00E0 d\u00E9marrer en premier.", "Recevoir une proposition avec la port\u00E9e et le prix."],
+    discA: d => "Les forfaits et fonctions changent. Ce document est bas\u00E9 sur les renseignements des fournisseurs v\u00E9rifi\u00E9s le " + d + "; les livrables se limitent \u00E0 ce que votre forfait offre au moment de la livraison.",
+    howH: "Votre forfait", steps: "\u00C9tapes", purposeNo: "Non inclus avec ce forfait (outils suppl\u00E9mentaires ou d\u00E9veloppement sur mesure, soumissionn\u00E9s s\u00E9par\u00E9ment) :",
+    privTip: "Avant d'utiliser des renseignements personnels de vos clients dans un outil d'IA, v\u00E9rifiez les r\u00E9glages de confidentialit\u00E9 du forfait et vos obligations en vertu de la Loi 25 du Qu\u00E9bec.",
+    nextW: ["Choisir le premier flux de travail \u00E0 mettre en place.", "Remplacer les [\u00E9l\u00E9ments entre crochets] par vos vraies donn\u00E9es.", "Le tester sur un exemple r\u00E9el, puis le r\u00E9utiliser."],
+    scopeH: "Port\u00E9e", deliverH: "Ce que je livrerai", deliverIntro: "Chaque flux de travail est mis en place, test\u00E9 sur votre exemple r\u00E9el et document\u00E9 pour que votre \u00E9quipe puisse le r\u00E9utiliser.",
+    investH: "Investissement", invCols: ["\u00C9l\u00E9ment", "Montant"],
+    rowBase: (n, per) => n + (n === 1 ? " flux de travail" : " flux de travail") + " \u00E0 " + per, rowCond: (k, per) => "Conditions \u00E0 configurer : " + k + " \u00E0 " + per, rowTotal: "Total (avant taxes)",
+    rowSub: "Votre abonnement IA", rowSubVal: c => (c || "Pay\u00E9 directement par vous au fournisseur"),
+    notInH: "Non inclus", notIn: "Ces \u00E9l\u00E9ments exigent des outils suppl\u00E9mentaires ou du d\u00E9veloppement sur mesure et seraient soumissionn\u00E9s s\u00E9par\u00E9ment :",
+    nextP: ["Confirmer la port\u00E9e ci-dessus.", "Nous convenons par \u00E9crit du prix et de l'\u00E9ch\u00E9ancier.", "Le travail d\u00E9bute d\u00E8s votre confirmation."],
+    discP: d => "Ceci est une estimation fond\u00E9e sur les renseignements re\u00E7us et sur ceux des fournisseurs au " + d + ". La port\u00E9e et le prix finaux sont confirm\u00E9s par \u00E9crit avant le d\u00E9but du travail."
+  }
+};
+/* One reusable workflow template per need (placeholders in [brackets] are for Robert and the client to fill in). */
+const NEED_WF = {
+  write: { en: { purpose: "Turn rough notes into a polished email, quote or summary in your voice.", steps: ["Open your saved instructions for [document type].", "Paste your rough notes and the key facts: [client], [dates], [amounts].", "Ask for a first draft, then ask for one change at a time.", "Read it, correct any fact, and send it yourself."], reuse: "Reuse for every [weekly or monthly] document of this kind." },
+    fr: { purpose: "Transformer des notes brutes en courriel, soumission ou r\u00E9sum\u00E9 soign\u00E9 dans votre ton.", steps: ["Ouvrez vos instructions enregistr\u00E9es pour [type de document].", "Collez vos notes brutes et les faits cl\u00E9s : [client], [dates], [montants].", "Demandez une premi\u00E8re version, puis une modification \u00E0 la fois.", "Relisez, corrigez tout fait et envoyez-le vous-m\u00EAme."], reuse: "\u00C0 r\u00E9utiliser pour chaque document de ce genre, [chaque semaine ou chaque mois]." } },
+  files: { en: { purpose: "Get answers and summaries from PDFs, contracts and spreadsheets you upload.", steps: ["Upload the file: [file name].", "Ask for a short summary and the 5 most important points.", "Ask specific questions: [question 1], [question 2].", "Check anything important against the original file."], reuse: "Reuse whenever a new [report or contract] arrives." },
+    fr: { purpose: "Obtenir des r\u00E9ponses et des r\u00E9sum\u00E9s \u00E0 partir de PDF, contrats et chiffriers t\u00E9l\u00E9vers\u00E9s.", steps: ["T\u00E9l\u00E9versez le fichier : [nom du fichier].", "Demandez un court r\u00E9sum\u00E9 et les 5 points les plus importants.", "Posez des questions pr\u00E9cises : [question 1], [question 2].", "V\u00E9rifiez tout point important dans le fichier d'origine."], reuse: "\u00C0 r\u00E9utiliser \u00E0 l'arriv\u00E9e de chaque nouveau [rapport ou contrat]." } },
+  reuse: { en: { purpose: "Save your best instructions once so your team gets the same quality every time.", steps: ["Write the instructions: role, tone, what to include, what to avoid.", "Save them as a project, custom assistant or saved instruction set.", "Add 2 or 3 good examples: [example 1], [example 2].", "Share the setup with your team and review it every [month]."], reuse: "One setup serves every person and every chat." },
+    fr: { purpose: "Enregistrer une fois vos meilleures instructions pour que l'\u00E9quipe obtienne la m\u00EAme qualit\u00E9 \u00E0 chaque fois.", steps: ["R\u00E9digez les instructions : r\u00F4le, ton, quoi inclure, quoi \u00E9viter.", "Enregistrez-les comme projet, assistant personnalis\u00E9 ou ensemble d'instructions.", "Ajoutez 2 ou 3 bons exemples : [exemple 1], [exemple 2].", "Partagez la configuration avec votre \u00E9quipe et r\u00E9visez-la chaque [mois]."], reuse: "Une seule configuration sert chaque personne et chaque conversation." } },
+  own: { en: { purpose: "Let the AI work with your own email, calendar and documents.", steps: ["Connect only the accounts needed: [email], [calendar], [drive].", "Start with read-only questions, such as 'What needs my reply this week?'", "Add actions one at a time, such as drafting replies for you to approve.", "Review what is connected every [month]."], reuse: "Run it each [morning or week] as a routine." },
+    fr: { purpose: "Laisser l'IA travailler avec vos courriels, votre agenda et vos documents.", steps: ["Connectez seulement les comptes n\u00E9cessaires : [courriel], [agenda], [stockage].", "Commencez par des questions en lecture seule, comme \u00AB Qu'est-ce qui exige ma r\u00E9ponse cette semaine? \u00BB", "Ajoutez les actions une \u00E0 la fois, par exemple r\u00E9diger des r\u00E9ponses \u00E0 approuver.", "V\u00E9rifiez ce qui est connect\u00E9 chaque [mois]."], reuse: "\u00C0 ex\u00E9cuter comme routine chaque [matin ou semaine]." } },
+  sched: { en: { purpose: "Get a recurring task done automatically at a set time, such as a weekly summary.", steps: ["Describe the task and what the result should look like.", "Choose the day and time: [day], [time].", "Choose where the result arrives: [email or app].", "Check the first two results, then adjust the instructions."], reuse: "Runs on its own every [week]." },
+    fr: { purpose: "Faire ex\u00E9cuter automatiquement une t\u00E2che r\u00E9currente \u00E0 heure fixe, par exemple un r\u00E9sum\u00E9 hebdomadaire.", steps: ["D\u00E9crivez la t\u00E2che et \u00E0 quoi doit ressembler le r\u00E9sultat.", "Choisissez le jour et l'heure : [jour], [heure].", "Choisissez o\u00F9 arrive le r\u00E9sultat : [courriel ou application].", "V\u00E9rifiez les deux premiers r\u00E9sultats, puis ajustez les instructions."], reuse: "S'ex\u00E9cute seul chaque [semaine]." } },
+  auto: { en: { purpose: "Have something happen on its own when an event occurs, such as a new form or invoice.", steps: ["Name the trigger: [new email, form or invoice].", "Describe what should happen next: [action].", "Decide what a person must approve before anything is sent.", "Test with a sample, then switch it on."], reuse: "Runs each time the trigger happens." },
+    fr: { purpose: "Faire d\u00E9clencher une action automatiquement lors d'un \u00E9v\u00E9nement, comme un nouveau formulaire ou une facture.", steps: ["Nommez le d\u00E9clencheur : [nouveau courriel, formulaire ou facture].", "D\u00E9crivez ce qui doit se produire ensuite : [action].", "D\u00E9cidez ce qu'une personne doit approuver avant tout envoi.", "Testez avec un exemple, puis activez."], reuse: "S'ex\u00E9cute \u00E0 chaque d\u00E9clenchement." } },
+  img: { en: { purpose: "Create consistent images for posts, products and presentations.", steps: ["Describe the image: [subject], [style], [colours].", "Add your brand details: [logo rules], [fonts].", "Generate 3 options and pick one.", "Ask for one change at a time until it is right."], reuse: "Save the winning description for the next image." },
+    fr: { purpose: "Cr\u00E9er des images coh\u00E9rentes pour publications, produits et pr\u00E9sentations.", steps: ["D\u00E9crivez l'image : [sujet], [style], [couleurs].", "Ajoutez vos \u00E9l\u00E9ments de marque : [r\u00E8gles du logo], [polices].", "G\u00E9n\u00E9rez 3 options et choisissez-en une.", "Demandez une modification \u00E0 la fois jusqu'\u00E0 ce qu'elle soit parfaite."], reuse: "Conservez la description gagnante pour la prochaine image." } },
+  office: { en: { purpose: "Produce a finished Word, Excel or PowerPoint file you can open and send.", steps: ["Give the content and the format wanted: [Word, Excel or PowerPoint].", "Ask for the file and download it.", "Open it and check layout, numbers and names.", "Ask for fixes, then save the final version."], reuse: "Reuse for each [report, tracker or deck]." },
+    fr: { purpose: "Produire un fichier Word, Excel ou PowerPoint termin\u00E9, pr\u00EAt \u00E0 ouvrir et envoyer.", steps: ["Donnez le contenu et le format voulu : [Word, Excel ou PowerPoint].", "Demandez le fichier et t\u00E9l\u00E9chargez-le.", "Ouvrez-le et v\u00E9rifiez la mise en page, les chiffres et les noms.", "Demandez des corrections, puis enregistrez la version finale."], reuse: "\u00C0 r\u00E9utiliser pour chaque [rapport, suivi ou pr\u00E9sentation]." } },
+  web: { en: { purpose: "Research a market, competitor or supplier and get an answer with sources.", steps: ["State the question: [question].", "Ask for sources and the date of each.", "Open the key sources and confirm them.", "Ask for a one-page summary with the sources listed."], reuse: "Repeat for each new [supplier or competitor]." },
+    fr: { purpose: "Rechercher un march\u00E9, un concurrent ou un fournisseur et obtenir une r\u00E9ponse avec sources.", steps: ["\u00C9noncez la question : [question].", "Demandez les sources et la date de chacune.", "Ouvrez les sources cl\u00E9s et confirmez-les.", "Demandez un r\u00E9sum\u00E9 d'une page avec les sources list\u00E9es."], reuse: "\u00C0 r\u00E9p\u00E9ter pour chaque nouveau [fournisseur ou concurrent]." } }
+};
+function fxDocBuild(kind, lang) {
+  const f = S.feasSaved, caps = loadCaps(), tool = f && caps.tools.find(x => x.id === f.tool);
+  if (!tool) return null;
+  const X = FXD[lang], ev = fxEval(caps, tool.id, f.reqs), name = (S.name || "").trim(), rate = (caps.fx && caps.fx.rate) || 1.4;
+  const mny = n => lang === "fr" ? Math.round(n).toLocaleString("fr-CA") + " $" : "$" + Math.round(n).toLocaleString("en-CA");
+  const lab = r => (lang === "fr" && X.req[r.id]) || r.label, res = v => X.res[v] || v;
+  const cost = fxCost(tool, f.users, rate), costLine = cost ? X.costLine(mny(cost.lo), mny(cost.hi), f.users) : "";
+  const doc = { schema_version: 1, session_type: "business", output_type: kind, language: lang, title: "", intro: "", blocks: [] }, B = doc.blocks;
+  const asked = (f.request ? f.request + "\n" : "") + ev.rows.map(x => "- " + lab(x.req)).join("\n");
+  if (kind === "assessment") {
+    doc.title = X.assessT; doc.intro = X.forName(name) + X.assessIntro(tool.name, caps.verified);
+    B.push({ type: "section", heading: X.askH, body: asked.trim() || X.noAsk },
+      { type: "comparison_table", heading: X.tableH(tool.name), columns: X.cols, rows: ev.rows.map(x => [lab(x.req), res(x.cell.v), x.cell.n || "-"]) },
+      { type: "section", heading: X.summaryH, body: X.summary[ev.overall] || X.summary.partial },
+      { type: "section", heading: X.planH, body: X.plan(tool.name, tool.price, costLine) },
+      { type: "next_steps", items: X.nextA }, { type: "disclaimer", body: X.discA(caps.verified) });
+  } else if (kind === "workflow_doc") {
+    doc.title = X.workT; doc.intro = X.forName(name) + X.workIntro(tool.name);
+    B.push({ type: "section", heading: X.howH, body: X.plan(tool.name, tool.price, costLine) });
+    ev.rows.forEach(x => { const w = NEED_WF[x.req.id]; if (!w || x.cell.v === "no") return; const d = w[lang];
+      B.push({ type: "workflow", heading: lab(x.req), purpose: d.purpose + (x.cell.v === "yes" ? "" : " (" + res(x.cell.v) + (x.cell.n ? ": " + x.cell.n : "") + ")"), steps: d.steps, reuse: d.reuse }); });
+    const no = ev.rows.filter(x => x.cell.v === "no");
+    if (no.length) B.push({ type: "tip", style: "safety", body: X.purposeNo + " " + no.map(x => lab(x.req)).join("; ") });
+    if (f.reqs.includes("priv")) B.push({ type: "tip", style: "safety", body: X.privTip });
+    B.push({ type: "next_steps", items: X.nextW }, { type: "disclaimer", body: X.discA(caps.verified) });
+  } else {
+    const fee = fxFee(ev, f.flows), base = FX_PRICE.workflow * f.flows, condAmt = FX_PRICE.partialAdd * fee.n * f.flows;
+    doc.title = X.propT; doc.intro = X.forName(name) + X.propIntro(tool.name);
+    const deliver = ev.rows.filter(x => x.cell.v !== "no" && NEED_WF[x.req.id]).map(x => lab(x.req) + (x.cell.v === "yes" ? "" : " (" + res(x.cell.v) + ")"));
+    B.push({ type: "section", heading: X.scopeH, body: asked.trim() || X.noAsk });
+    if (deliver.length) B.push({ type: "section", heading: X.deliverH, body: X.deliverIntro }, { type: "steps", heading: X.steps, items: deliver });
+    const rows = [[X.rowBase(f.flows, mny(FX_PRICE.workflow)), mny(base)]];
+    if (fee.n) rows.push([X.rowCond(fee.n * f.flows, mny(FX_PRICE.partialAdd)), mny(condAmt)]);
+    rows.push([X.rowTotal, mny(base + condAmt)], [X.rowSub, X.rowSubVal(costLine.replace(/^[^:]+: /, ""))]);
+    B.push({ type: "comparison_table", heading: X.investH, columns: X.invCols, rows });
+    const no = ev.rows.filter(x => x.cell.v === "no");
+    if (no.length) B.push({ type: "section", heading: X.notInH, body: X.notIn + "\n" + no.map(x => "- " + lab(x.req)).join("\n") });
+    B.push({ type: "next_steps", items: X.nextP }, { type: "disclaimer", body: X.discP(caps.verified) });
+  }
+  return doc;
+}
+function fxMakeDoc(kind) {
+  const id = "business_" + kind, ty = OUTPUT_TYPES[id], lang = S.lang === "fr" ? "fr" : "en";
+  const d = fxDocBuild(kind, lang);
+  if (!d) { S.fx.msg = "Choose one plan (not Compare all four), save the check, then build."; render(); return; }
+  const r = validateText(JSON.stringify(d), ty, lang);
+  if (r.errors.length) { S.fx.msg = "Could not build: " + r.errors[0]; render(); return; }
+  syncCur();
+  if (!S.sel.includes(id)) S.sel = S.sel.concat(id);
+  S.results[id] = r.data; S.typeId = id; S.result = r.data; S.paste = ""; S.errors = []; S.tab = "preview"; S.screen = "edit";
+  lastSaved = ""; render(); window.scrollTo(0, 0);
+}
+function fxSetLang(lang) {
+  S.lang = lang;
+  Object.keys(S.results).forEach(id => { if (OUTPUT_TYPES[id] && OUTPUT_TYPES[id].local) delete S.results[id]; });
+  if (S.result && S.typeId && OUTPUT_TYPES[S.typeId].local) S.result = null;
+  lastSaved = ""; render();
+}
 function openFeas(rec) {
   openSession(rec);
   const f = S.feasSaved; if (!f) return;
@@ -1396,6 +1543,12 @@ function feasScreen() {
     result,
     el("button", { class: "btn primary", onclick: () => fxSave(caps) }, S.feasSaved ? "Update saved check" : "Save this check"),
     el("p", { class: "muted" }, S.feasSaved ? "Saved with this client under Saved materials." : "Saves the client name, needs, plan and result so you can reopen it before the call."),
+    S.feasSaved && S.feasSaved.tool !== "all" ? el("div", { class: "card" },
+      el("h2", { style: "margin-top:0" }, "Client documents"),
+      el("p", { class: "muted" }, "Built from the saved check, no AI step. Edit, preview and export like your other materials. Conditions text comes from the capability table (English)."),
+      el("div", { class: "seg", role: "group", "aria-label": "Document language", style: "margin-bottom:10px" }, [["en", "English"], ["fr", "Fran\u00E7ais"]].map(([k, n]) => el("button", { "aria-pressed": String(S.lang === k), onclick: () => fxSetLang(k) }, n))),
+      [["assessment", "Assessment report"], ["workflow_doc", "Workflow document"], ["proposal", "Proposal"]].map(([k, n]) => el("button", { class: "btn sm" + (S.results["business_" + k] ? "" : " primary"), onclick: () => fxMakeDoc(k) }, (S.results["business_" + k] ? "Rebuild " : "Build ") + n)),
+      Object.keys(S.results).some(id => OUTPUT_TYPES[id] && OUTPUT_TYPES[id].local) ? el("button", { class: "btn sm", onclick: () => { S.screen = "hub"; render(); window.scrollTo(0, 0); } }, "Open my materials") : null) : null,
     el("h2", null, "Keep the table current"),
     el("p", { class: "muted" }, "Plans change often. Once a month, copy this prompt into a free AI chat with web search turned on, then paste its JSON reply below. Check key entries against the vendor pages before relying on them."),
     el("button", { class: "btn", onclick: async () => say(await copyText(fxRefreshPrompt(caps)) ? "Refresh prompt copied. Paste it into an AI chat with web search." : "Could not copy.") }, "Copy refresh prompt"),
@@ -1501,8 +1654,8 @@ function hubScreen() {
       el("span", { class: "pill" }, done ? t("hubDone") : t("hubTodo")),
       el("p", { style: "margin:8px 0 2px;font-weight:700;color:var(--navy)" }, L(ty.label)),
       el("p", { class: "muted", style: "margin:0 0 6px" }, L(ty.desc)),
-      el("button", { class: "btn sm primary", onclick: go(id, done ? "edit" : "composer") }, done ? t("hubOpen") : t("hubPrompt")),
-      done ? el("button", { class: "btn sm", onclick: go(id, "composer") }, t("hubPromptAgain")) : null);
+      el("button", { class: "btn sm primary", onclick: go(id, done ? "edit" : (ty.local ? "feas" : "composer")) }, done ? t("hubOpen") : (ty.local ? "Build it on the Feasibility screen" : t("hubPrompt"))),
+      done && !ty.local ? el("button", { class: "btn sm", onclick: go(id, "composer") }, t("hubPromptAgain")) : null);
   });
   return shell(el("h1", null, t("hubTitle")), el("p", { class: "muted" }, t("hubSub")), cards,
     el("button", { class: "btn", onclick: () => { S.step = visibleQs(S.brand, S.sel).length - 1; S.screen = "intake"; render(); window.scrollTo(0, 0); } }, t("hubEditAns")),
@@ -1623,8 +1776,8 @@ const DOC_L_BIZ = {
   fr: { tryIt: "Requ\u00EAte pr\u00EAte \u00E0 l'emploi", tip: "Astuce", safety: "S\u00E9curit\u00E9 des donn\u00E9es", workflow: "Flux de travail r\u00E9utilisable", purpose: "\u00C0 quoi \u00E7a sert", reuse: "Comment le r\u00E9utiliser", next: "Prochaines \u00E9tapes sugg\u00E9r\u00E9es" }
 };
 const DOC_X = {
-  en: { k_handout: "Your session handout", k_session_pack: "Your session pack", k_workbook: "In-session workbook", k_survey: "Feedback and interest survey", k_deck: "Session presentation", prepared: "Prepared for your session", atVenue: "Prepared for your session at", yourNotes: "Your notes", scaleLo: "Not at all", scaleHi: "Very much", pickOne: "Choose one", pickAny: "Choose all that apply", thanks: "Thank you" },
-  fr: { k_handout: "Votre aide-m\u00E9moire de s\u00E9ance", k_session_pack: "Votre trousse de s\u00E9ance", k_workbook: "Cahier de s\u00E9ance", k_survey: "Sondage de r\u00E9troaction et d'int\u00E9r\u00EAt", k_deck: "Pr\u00E9sentation de la s\u00E9ance", prepared: "Pr\u00E9par\u00E9 pour votre s\u00E9ance", atVenue: "Pr\u00E9par\u00E9 pour votre s\u00E9ance :", yourNotes: "Vos notes", scaleLo: "Pas du tout", scaleHi: "Beaucoup", pickOne: "Choisissez-en un", pickAny: "Choisissez tout ce qui s'applique", thanks: "Merci" }
+  en: { k_handout: "Your session handout", k_session_pack: "Your session pack", k_workbook: "In-session workbook", k_survey: "Feedback and interest survey", k_deck: "Session presentation", k_assessment: "Feasibility assessment", k_workflow_doc: "Workflow document", k_proposal: "Proposal", prepared: "Prepared for your session", atVenue: "Prepared for your session at", yourNotes: "Your notes", scaleLo: "Not at all", scaleHi: "Very much", pickOne: "Choose one", pickAny: "Choose all that apply", thanks: "Thank you" },
+  fr: { k_handout: "Votre aide-m\u00E9moire de s\u00E9ance", k_session_pack: "Votre trousse de s\u00E9ance", k_workbook: "Cahier de s\u00E9ance", k_survey: "Sondage de r\u00E9troaction et d'int\u00E9r\u00EAt", k_deck: "Pr\u00E9sentation de la s\u00E9ance", k_assessment: "\u00C9valuation de faisabilit\u00E9", k_workflow_doc: "Document de flux de travail", k_proposal: "Proposition", prepared: "Pr\u00E9par\u00E9 pour votre s\u00E9ance", atVenue: "Pr\u00E9par\u00E9 pour votre s\u00E9ance :", yourNotes: "Vos notes", scaleLo: "Pas du tout", scaleHi: "Beaucoup", pickOne: "Choisissez-en un", pickAny: "Choisissez tout ce qui s'applique", thanks: "Merci" }
 };
 const docL = d => Object.assign({}, DOC_L[d.language] || DOC_L.en, (d.session_type === "business" ? DOC_L_BIZ : {})[d.language] || {}, DOC_X[d.language] || DOC_X.en);
 const DOC_L = {
@@ -1928,9 +2081,9 @@ function editScreen() {
     : [previewOf(d), exportPanel(d)];
   return shell(saveBar(), nameField(), tabs, body,
     el("button", { class: "btn primary", onclick: saveNow }, "Save to library"),
-    el("button", { class: "btn", onclick: () => { S.screen = "import"; S.errors = []; render(); window.scrollTo(0, 0); } }, t("newImport")),
+    currentType().local ? el("button", { class: "btn", onclick: () => { S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Back to the Feasibility check") : el("button", { class: "btn", onclick: () => { S.screen = "import"; S.errors = []; render(); window.scrollTo(0, 0); } }, t("newImport")),
     el("button", { class: "btn", onclick: () => { S.screen = "hub"; render(); window.scrollTo(0, 0); } }, t("hubBack")),
-    el("button", { class: "btn link", onclick: () => { S.screen = "composer"; render(); window.scrollTo(0, 0); } }, t("backPrompt")));
+    currentType().local ? null : el("button", { class: "btn link", onclick: () => { S.screen = "composer"; render(); window.scrollTo(0, 0); } }, t("backPrompt")));
 }
 
 function render() {
