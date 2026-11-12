@@ -177,8 +177,8 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
 .modal{position:fixed;inset:0;background:rgba(10,25,40,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}.mbox{background:#fff;border-radius:18px;padding:18px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35)}
 @media print{.actbar,.modal{display:none!important}}
 .row2{display:flex;gap:12px}.row2 label{flex:1}.row2 input{width:100%;font:inherit;font-size:17px;padding:10px 12px;border:2px solid var(--line);border-radius:12px;box-sizing:border-box}
-.vd{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700;white-space:nowrap;border:1.5px solid}.vd.yes{background:#E7F6EC;color:#14632F;border-color:#14632F}.vd.partial{background:#FFF6E0;color:#7A5400;border-color:#B07A00}.vd.no{background:#FDECEC;color:#9A1C1C;border-color:#9A1C1C}.vd.unknown{background:#EEF1F5;color:#41505F;border-color:#41505F}
-.verdict.yes{border-left:8px solid #14632F}.verdict.partial{border-left:8px solid #B07A00}.verdict.no{border-left:8px solid #9A1C1C}
+.vd{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700;white-space:nowrap;border:1.5px solid}.vd.yes{background:#E7F6EC;color:#14632F;border-color:#14632F}.vd.partial{background:#FFF1EB;color:#9A3412;border-color:#C2410C}.vd.no{background:#FDECEC;color:#9A1C1C;border-color:#9A1C1C}.vd.unknown{background:#EEF1F5;color:#41505F;border-color:#41505F}
+.verdict.yes{border-left:8px solid #14632F}.verdict.partial{border-left:8px solid #C2410C}.verdict.no{border-left:8px solid #9A1C1C}
 </style>
 </head>
 <body>
@@ -2709,9 +2709,9 @@ function svField(f, form, flagged) {
   else if (f.t === "bool") body = el("button", { class: "opt multi", "aria-pressed": String(form[f.k] === true), onclick: () => { form[f.k] = !form[f.k]; render(); } }, el("span", { class: "dot" }), el("span", null, f.l));
   else if (f.t === "area") body = el("textarea", { rows: "3", style: "min-height:90px", "aria-label": f.l, oninput: e => { form[f.k] = e.target.value; } }, form[f.k] || "");
   else body = el("input", { type: f.t || "text", value: form[f.k] || "", placeholder: f.ph || "", "aria-label": f.l, oninput: e => { form[f.k] = e.target.value; } });
-  return el("div", { style: "margin:0 0 12px;" + (flagged ? "background:#FFFBEB;border:2px solid #F59E0B;border-radius:12px;padding:10px" : "") },
-    f.t === "bool" ? null : el("label", { style: "display:block;font-weight:700;margin:0 0 4px" }, f.l, flagged ? el("span", { style: "color:#B45309;font-size:13px;margin-left:8px" }, "⚠ double-check") : null),
-    body, f.t === "bool" && flagged ? el("small", { style: "color:#B45309" }, "⚠ double-check") : null);
+  return el("div", { style: "margin:0 0 12px;" + (flagged ? "background:#FFF1EB;border:2px solid #C2410C;border-radius:12px;padding:10px" : "") },
+    f.t === "bool" ? null : el("label", { style: "display:block;font-weight:700;margin:0 0 4px" }, f.l, flagged ? el("span", { style: "color:#C2410C;font-size:13px;margin-left:8px" }, "⚠ double-check") : null),
+    body, f.t === "bool" && flagged ? el("small", { style: "color:#C2410C" }, "⚠ double-check") : null);
 }
 function svReviewBlock() {
   const v = svState(), form = v.form, flagged = Array.isArray(form.low_confidence_fields) ? form.low_confidence_fields : [];
