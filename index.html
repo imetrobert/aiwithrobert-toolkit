@@ -762,7 +762,7 @@ const S = {
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
   auth: { status: "out", msg: "", email: "", busy: false },
-  saveMsg: "", feasSaved: null, fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
+  saveMsg: "", feasSaved: null, lead: null, lFilter: "active", fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -1036,7 +1036,7 @@ function reuseInputs(rec) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
   const r = c.rec, a = Object.assign({}, r.answers); delete a.transcript;
   S.brand = r.brand; S.sel = r.sel.filter(id => !OUTPUT_TYPES[id].local); if (!S.sel.length) S.sel = [BASE[r.brand]]; S.lang = r.lang; S.answers = a; S.name = ""; S.results = {}; S.pastes = {}; S.typeId = S.sel[0]; S.result = null; S.paste = ""; S.errors = [];
-  S.sid = newId(); S.name = ""; S.feasSaved = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.step = 0; S.screen = "intake"; render(); window.scrollTo(0, 0);
+  S.sid = newId(); S.name = ""; S.feasSaved = null; S.lead = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.step = 0; S.screen = "intake"; render(); window.scrollTo(0, 0);
 }
 const STORE_KEY = "awr_toolkit_sessions";
 const Store = {
@@ -1051,8 +1051,8 @@ const newId = () => "s" + Date.now().toString(36) + Math.random().toString(36).s
 function persist() {
   if (!S.sid || S.auth.status !== "in" || !["intake", "hub", "composer", "import", "edit", "feas"].includes(S.screen)) return;
   syncCur();
-  if (!Object.keys(S.answers).length && !Object.keys(S.results).length && !Object.keys(S.pastes).length && !S.feasSaved) return;
-  const rec = { id: S.sid, brand: S.brand, sel: S.sel.slice(), typeId: S.typeId, lang: S.lang, name: S.name || "", created: S.created || Date.now(), updated: Date.now(), step: S.step, answers: S.answers, pastes: S.pastes, results: S.results, feas: S.feasSaved || null };
+  if (!Object.keys(S.answers).length && !Object.keys(S.results).length && !Object.keys(S.pastes).length && !S.feasSaved && !S.lead) return;
+  const rec = { id: S.sid, brand: S.brand, sel: S.sel.slice(), typeId: S.typeId, lang: S.lang, name: S.name || "", created: S.created || Date.now(), updated: Date.now(), step: S.step, answers: S.answers, pastes: S.pastes, results: S.results, feas: S.feasSaved || null, lead: S.lead || null };
   const sig = JSON.stringify(Object.assign({}, rec, { updated: 0 }));
   if (sig === lastSaved) return;
   if (Store.upsert(rec)) { lastSaved = sig; Cloud.push(rec); }
@@ -1060,6 +1060,14 @@ function persist() {
 const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 /* Rebuild a clean session from untrusted data (a backup file or storage). Accepts the old
    single-artifact shape (typeId/paste/result) and the current multi-artifact shape. */
+/* Optional lead-tracking fields on a saved profile (status, contact, follow-up date, note). */
+const LEAD_ST = ["new", "contacted", "booked", "proposal", "won", "lost"];
+const LEAD_LABEL = { new: "New", contacted: "Contacted", booked: "Call booked", proposal: "Proposal sent", won: "Won", lost: "Lost" };
+function cleanLead(l) {
+  if (!l || typeof l !== "object" || Array.isArray(l)) return null;
+  return { status: LEAD_ST.includes(l.status) ? l.status : "new", contact: isStr(l.contact) ? l.contact.trim().slice(0, 120) : "",
+    follow: isStr(l.follow) && /^\d{4}-\d{2}-\d{2}$/.test(l.follow) ? l.follow : "", note: isStr(l.note) ? l.note.slice(0, 500) : "" };
+}
 /* A saved Feasibility check attached to a saved profile (optional). */
 function cleanFeas(f) {
   if (!f || typeof f !== "object" || Array.isArray(f)) return null;
@@ -1103,7 +1111,7 @@ function cleanSession(raw) {
     if (isStr(rp[id]) && rp[id]) pastes[id] = rp[id].slice(0, LIMITS.bytes);
   }
   const step = Number.isInteger(raw.step) ? Math.min(Math.max(raw.step, 0), base.questions.length - 1) : 0, num = v => Number.isFinite(v) ? v : Date.now();
-  return { rec: { id: raw.id, brand, sel, typeId, lang: raw.lang, name: isStr(raw.name) ? raw.name.trim().slice(0, 80) : "", created: num(raw.created), updated: num(raw.updated), step, answers, pastes, results, feas: cleanFeas(raw.feas) } };
+  return { rec: { id: raw.id, brand, sel, typeId, lang: raw.lang, name: isStr(raw.name) ? raw.name.trim().slice(0, 80) : "", created: num(raw.created), updated: num(raw.updated), step, answers, pastes, results, feas: cleanFeas(raw.feas), lead: cleanLead(raw.lead) } };
 }
 function backupText(list) { return JSON.stringify({ app: "awr-toolkit", backup_version: 2, exported_at: new Date().toISOString(), sessions: list }, null, 1); }
 function importBackup(text) {
@@ -1140,7 +1148,7 @@ function openSession(rec, openId) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
   const r = c.rec, base = OUTPUT_TYPES[BASE[r.brand]];
   S.brand = r.brand; S.sel = r.sel; S.results = r.results; S.pastes = r.pastes; S.typeId = r.typeId; S.result = r.results[r.typeId] || null; S.paste = r.pastes[r.typeId] || "";
-  S.saveMsg = ""; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.name = r.name; S.feasSaved = r.feas; S.created = r.created; S.tab = "edit";
+  S.saveMsg = ""; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.name = r.name; S.feasSaved = r.feas; S.lead = r.lead; S.created = r.created; S.tab = "edit";
   lastSaved = ""; S.libSig = JSON.stringify([S.name, S.brand, S.sel, S.answers, S.results, S.pastes]);
   const done = visibleQs(r.brand, r.sel).every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
   S.screen = done ? "hub" : "intake";
@@ -1157,6 +1165,46 @@ function pickBackup(afterImport) {
     fr.readAsText(f);
   } });
   document.body.append(inp); inp.click(); setTimeout(() => inp.remove(), 60000);
+}
+const todayStr = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+function saveLead(r, patch) {
+  const nr = Object.assign({}, r, { lead: Object.assign({ status: "new", contact: "", follow: "", note: "" }, r.lead || {}, patch), updated: Date.now() });
+  if (Store.upsert(nr)) { Cloud.push(nr); if (S.sid === r.id) S.lead = nr.lead; }
+  render();
+}
+function newLead(name) {
+  name = (name || "").trim().slice(0, 80); if (!name) return;
+  const rec = { id: newId(), brand: "business", sel: [BASE.business], typeId: BASE.business, lang: "en", name, created: Date.now(), updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {}, feas: null, lead: { status: "new", contact: "", follow: "", note: "" } };
+  if (Store.upsert(rec)) Cloud.push(rec);
+  render();
+}
+function leadsScreen() {
+  const today = todayStr();
+  const all = Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).filter(r => r.lead || r.feas);
+  const st = r => (r.lead && r.lead.status) || "new", open = r => st(r) !== "won" && st(r) !== "lost";
+  const due = r => open(r) && r.lead && r.lead.follow && r.lead.follow <= today;
+  const F = { active: r => open(r), due, won: r => st(r) === "won", lost: r => st(r) === "lost", all: () => true };
+  const list = all.filter(F[S.lFilter] || F.active).sort((a, b) => ((a.lead && a.lead.follow) || "9999") < ((b.lead && b.lead.follow) || "9999") ? -1 : 1);
+  const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter leads", style: "margin:0 0 12px" },
+    [["active", "Active"], ["due", "Follow up"], ["won", "Won"], ["lost", "Lost"], ["all", "All"]].map(([k, n]) => el("button", { "aria-pressed": String(S.lFilter === k), onclick: () => { S.lFilter = k; render(); } }, n + " (" + all.filter(F[k]).length + ")")));
+  const nameIn = el("input", { type: "text", maxlength: "80", placeholder: "New lead: business, library or club name", "aria-label": "New lead name" });
+  const cards = list.map(r => {
+    const l = r.lead || { status: "new", contact: "", follow: "", note: "" };
+    return el("div", { class: "card", style: "border-left:8px solid " + (due(r) ? "#b45309" : brandFor(r.brand).colors.blue) },
+      el("p", { style: "margin:0 0 6px;font-weight:700;color:var(--navy)" }, r.name || sessionTitle(r), due(r) ? el("span", { class: "pill", style: "margin-left:8px" }, "Follow up") : null),
+      el("div", { class: "seg", role: "group", "aria-label": "Status", style: "margin-bottom:8px;flex-wrap:wrap" }, LEAD_ST.map(k => el("button", { "aria-pressed": String(st(r) === k), onclick: () => saveLead(r, { status: k }) }, LEAD_LABEL[k]))),
+      el("label", { class: "muted", style: "display:block;margin:0 0 2px" }, "Follow-up date"),
+      el("input", { type: "date", value: l.follow, "aria-label": "Follow-up date", onchange: e => saveLead(r, { follow: e.target.value }) }),
+      el("input", { type: "text", maxlength: "120", value: l.contact, placeholder: "Contact (name, phone or email)", "aria-label": "Contact", style: "margin-top:6px", onchange: e => saveLead(r, { contact: e.target.value }) }),
+      el("textarea", { maxlength: "500", rows: "2", "aria-label": "Note", placeholder: "Note (where you met, what they need)", style: "margin-top:6px", onchange: e => saveLead(r, { note: e.target.value }) }, l.note),
+      r.feas ? el("button", { class: "btn sm primary", onclick: () => openFeas(r) }, "Open feasibility check") : null);
+  });
+  return shell(el("h1", null, "Leads"),
+    el("p", { class: "muted" }, "Track venues and businesses from first contact to won or lost. Syncs with your other saved profiles. Saved Feasibility checks appear here too."),
+    el("div", { class: "card" }, nameIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => newLead(nameIn.value) }, "Add lead")),
+    all.length ? filt : null,
+    cards.length ? cards : el("p", { class: "muted" }, all.length ? "Nothing in this view." : "No leads yet. Add one above or save a Feasibility check."),
+    el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
 }
 function sessionsScreen() {
   const all = Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).sort((a, b) => b.updated - a.updated);
@@ -1589,10 +1637,11 @@ function homeScreen() {
       el("button", { class: "btn primary", disabled: !S.sel.length, onclick: () => {
         if (!S.sel.length) return;
         S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; S.typeId = S.sel[0];
-        S.sid = newId(); S.name = ""; S.feasSaved = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
+        S.sid = newId(); S.name = ""; S.feasSaved = null; S.lead = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
       } }, t("start"))),
+    el("button", { class: "btn", onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost"))).length + " active)"),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
-    el("button", { class: "btn", onclick: () => { S.sid = null; S.name = ""; S.feasSaved = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
+    el("button", { class: "btn", onclick: () => { S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
     cloudLine(),
     el("div", { class: "note" }, t("standing")),
@@ -2095,7 +2144,7 @@ function render() {
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
   if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); }
-  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen };
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, leads: leadsScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
 }
 
