@@ -2391,7 +2391,9 @@ function deckHtml(d) {
 }
 
 /* ---- Export ------------------------------------------------------------- */
-const STANDALONE_CSS = "body{margin:0 auto;padding:12px;max-width:760px}@page{margin:14mm}";
+/* Printing: @page margin 0 stops the phone/browser from stamping the page address, date and page number in the margins. The page margins are rebuilt
+   with side padding on the body plus a spacer header and footer row that repeat on every printed page. */
+const STANDALONE_CSS = "body{margin:0 auto;padding:12px;max-width:760px}table.pg{width:100%;border-collapse:collapse}table.pg td{padding:0;display:block}table.pg thead,table.pg tfoot{display:none}@media print{@page{margin:0}body{max-width:none;padding:0 14mm}table.pg{display:table}table.pg td{display:table-cell}table.pg thead{display:table-header-group}table.pg tfoot{display:table-footer-group}table.pg thead td,table.pg tfoot td{height:14mm}}";
 function slug(s) { return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50) || "handout"; }
 function standaloneHtml(d) {
   if (d.output_type === "deck") return deckHtml(d);
@@ -2402,7 +2404,9 @@ function standaloneHtml(d) {
   const c = brandFor(d.session_type).colors, st = doc.createElement("style");
   st.textContent = ":root{--navy:" + c.navy + ";--blue:" + c.blue + ";--light:" + c.light + ";--sky:" + c.sky + ";--onblue:" + (c.onAccent || "#fff") + ";--blue-text:" + (c.accentText || c.blue) + "}" + document.getElementById("appcss").textContent.replace(/^:root\{[^}]*\}/m, "") + STANDALONE_CSS;
   doc.head.append(st);
-  doc.body.append(doc.importNode(renderDeliverable(d), true));
+  const tb = doc.createElement("table"), cell = (tag) => { const g = doc.createElement(tag), r = doc.createElement("tr"), td = doc.createElement("td"); r.append(td); g.append(r); return [g, td]; };
+  const [th] = cell("thead"), [tf] = cell("tfoot"), [tbd, bc] = cell("tbody");
+  tb.className = "pg"; bc.append(doc.importNode(renderDeliverable(d), true)); tb.append(th, tf, tbd); doc.body.append(tb);
   return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
 }
 function plainText(d) {
