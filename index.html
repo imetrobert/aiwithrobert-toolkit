@@ -1550,6 +1550,42 @@ async function fxSave(caps) {
   f.msg = (c === "ok" ? "Check saved to your library and cloud account." : "Check saved on this device. Cloud copy: " + (c === "setup" ? "not set up yet." : c === "offline" ? "offline, will retry." : "problem, will retry.")) + " Find it under Saved materials.";
   render();
 }
+/* Paste the formsubmit.co email from the Business contact form to fill a Feasibility check and a lead. Field names are fixed by the form (see the biz repo CLAUDE.md). */
+const INQ_NEED = { need_writing: "write", need_documents: "files", need_reuse: "reuse", need_own_data: "own", need_schedule: "sched", need_automatic: "auto", need_images: "img", need_office_files: "office", need_research: "web" };
+const INQ_KEYS = ["name", "email", "phone", "company", "team_size", "personal_info", "message", "tool_chatgpt", "tool_claude", "tool_gemini", "tool_copilot", "tool_none", "tool_unsure"].concat(Object.keys(INQ_NEED));
+function parseInquiry(text) {
+  const lines = String(text || "").replace(/\r/g, "").split("\n").map(x => x.replace(/ /g, " ").trim());
+  const out = {}; let cur = null, hits = 0;
+  const push = v => { if (cur === null || v === "") return; out[cur] = out[cur] ? out[cur] + "\n" + v : v; };
+  for (const ln of lines) {
+    if (/powered by|formsubmit|unsubscribe|^_(subject|template|captcha|next)/i.test(ln)) { cur = null; continue; }
+    const m = ln.match(/^([a-z_]+)\s*(?::|\t)\s*(.*)$/i), bare = INQ_KEYS.includes(ln.toLowerCase()) ? ln.toLowerCase() : null;
+    if (m && INQ_KEYS.includes(m[1].toLowerCase())) { cur = m[1].toLowerCase(); if (!(cur in out)) out[cur] = ""; hits++; push(m[2].trim()); }
+    else if (bare) { cur = bare; if (!(cur in out)) out[cur] = ""; hits++; }
+    else push(ln);
+  }
+  if (hits < 2) return null;
+  const on = k => k in out && !/^(off|no|false|0)$/i.test(out[k].trim());
+  const ts = (out.team_size || "").replace(/\s/g, "");
+  const users = ts === "1" ? 1 : ts === "2-5" ? 5 : ts === "6-20" ? 20 : /^21/.test(ts) ? 21 : 0;
+  const pi = (out.personal_info || "").trim().toLowerCase();
+  return { name: (out.name || "").split("\n")[0].slice(0, 80), company: (out.company || "").split("\n")[0].slice(0, 80), email: (out.email || "").split("\n")[0], phone: (out.phone || "").split("\n")[0],
+    message: (out.message || "").trim().slice(0, 600), users, teamSet: ts !== "", personal: /^(yes|oui)/.test(pi) || /not|sure/.test(pi),
+    tools: ["chatgpt", "claude", "gemini", "copilot"].filter(t => on("tool_" + t)), reqs: Object.keys(INQ_NEED).filter(k => on(k)).map(k => INQ_NEED[k]) };
+}
+function applyInquiry(o) {
+  if (S.feasSaved) { S.sid = null; S.feasSaved = null; S.lead = null; lastSaved = ""; }
+  const f = S.fx;
+  S.name = (o.company || o.name || "").slice(0, 80);
+  f.request = o.message;
+  const reqs = o.reqs.slice();
+  if (o.personal) reqs.push("priv");
+  if (o.users >= 2) reqs.push("team");
+  f.reqs = CAPS_BUILTIN.reqs.map(r => r.id).filter(id => reqs.includes(id));
+  if (o.users) f.users = o.users;
+  if (o.tools.length === 1) f.tool = o.tools[0]; else if (o.tools.length > 1) f.tool = "all";
+  S.lead = { status: "new", contact: [o.company && o.name ? o.name : "", o.email, o.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: "From the contact form." + (o.tools.length ? " Pays for: " + o.tools.join(", ") + "." : "") };
+}
 function feasScreen() {
   const caps = loadCaps(), f = S.fx, age = fxAge(caps);
   if (f.tool !== "all" && !caps.tools.some(t => t.id === f.tool)) f.tool = caps.tools[0].id;
@@ -1594,12 +1630,17 @@ function feasScreen() {
         el("button", { class: "btn primary", onclick: async () => say(await copyText(fxWording(caps, tool, ev, f.request, f.users)) ? "Proposal wording copied." : "Could not copy. Select the text manually.") }, "Copy proposal wording"));
     }
   }
+  const inq = el("textarea", { "aria-label": "Contact form email", placeholder: "Paste the email here", style: "min-height:110px", oninput: e => { f.inq = e.target.value; } }); inq.value = f.inq || "";
   const imp = el("textarea", { "aria-label": "Updated capability table JSON", placeholder: "Paste the updated table here", style: "min-height:120px", oninput: e => { f.imp = e.target.value; } }); imp.value = f.imp || "";
   return shell(
     el("h1", null, "Feasibility check"),
     el("div", { class: "note" }, "Check whether a job can be delivered with the client's own paid AI plan before you promise it. Results come from a dated table, not guesses."),
     age > 60 ? el("div", { class: "note warn", role: "alert" }, "This table was last verified " + caps.verified + " (" + age + " days ago). Re-verify with the Refresh prompt below before relying on it.") : el("p", { class: "muted" }, "Table verified " + caps.verified + (caps.custom ? " (your imported version)." : " (built in).")),
     f.msg ? el("div", { class: "note", role: "status" }, f.msg) : null,
+    el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Start from a contact-form email"),
+      el("p", { class: "muted" }, "Open the email from the Business form, select all, copy, and paste it here. The name, needs, plan and team size are filled in for you, and the contact details go to the lead."),
+      inq,
+      el("button", { class: "btn primary", onclick: () => { const o = parseInquiry(f.inq); if (!o) { say("I could not find the form fields in that text. Copy the whole email, including the lines such as team_size and need_writing."); return; } applyInquiry(o); f.inq = ""; say("Filled from the email. Check it below, then tap Save this check to add it to Leads. Ticked tools: " + (o.tools.length ? o.tools.join(", ") : "none") + "."); window.scrollTo(0, 0); } }, "Fill from email")),
     el("label", { class: "namef" }, el("span", { class: "muted", style: "display:block;margin:0 0 4px" }, "Client or business name (optional)"),
       el("input", { type: "text", maxlength: "80", value: S.name || "", placeholder: "e.g. Tremblay Plumbing", "aria-label": "Client or business name", oninput: e => { S.name = e.target.value.slice(0, 80); } })),
     el("h2", null, "1. What does the client want?"),

@@ -11,6 +11,7 @@ Tools: Google Calendar booking page, formsubmit email, the toolkit (Leads, Feasi
 - Booking with no prep info: send template A below.
 
 ## 2. Evaluate (10 minutes, before the call)
+0. Shortcut for contact-form leads: open the formsubmit email, select all, copy, then in Toolkit > Feasibility check paste it under "Start from a contact-form email" and tap Fill from email. It fills the name, needs, plan and team size, and the contact details go to the lead. Check it, then Save this check. (Booking-page requests have no form fields; use steps 1 to 3.)
 1. Toolkit > Feasibility check. Enter the client name.
 2. Tick the needs they listed (or that you inferred from their message). Tick "personal information" if they handle client data.
 3. Pick the plan they already pay for. If none or unsure, tap Compare all four.
