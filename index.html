@@ -1207,7 +1207,7 @@ function leadsScreen() {
         el("button", { class: "btn sm", onclick: () => saveLead(r, { archived: !arch(r) }) }, arch(r) ? "Restore" : "Archive"),
         el("button", { class: "btn sm danger", onclick: () => { if (confirm("Delete this lead from this device and your cloud account? Any saved profile or feasibility check on it is deleted too. This cannot be undone. Use Archive to keep it.")) { Store.remove(r.id); if (S.sid === r.id) { S.sid = null; S.lead = null; S.feasSaved = null; lastSaved = ""; } render(); } } }, "Delete (tests only)")));
   });
-  const sfl = searchable("leads", list, cards, r => [r.name, r.lead && r.lead.contact, r.lead && r.lead.note, r.lead && r.lead.status, r.feas && r.feas.name].join(" "), r => r.created, r => r.brand);
+  const sfl = searchable("leads", list, cards, r => [r.name, r.lead && r.lead.contact, r.lead && r.lead.note, r.lead && r.lead.status, r.feas && r.feas.name].join(" "), r => r.created, r => r.brand, ["lead", "leads"]);
   return shell(el("h1", null, "Leads"),
     el("p", { class: "muted" }, "Track venues and businesses from first contact to won or lost. Syncs with your other saved profiles. Saved Feasibility checks appear here too."),
     el("div", { class: "card" }, nameIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => newLead(nameIn.value) }, "Add lead")),
@@ -1695,19 +1695,19 @@ function wlToLead(x) {
 }
 /* Search + "date captured" filter for the Leads, Inquiries and Waitlist lists. Cards are built once; typing only shows or hides them,
    so the keyboard stays open. Returns {bar, box}. match(item) is also kept in S.sfMatch[key] (used by "Copy these emails"). */
-function searchable(key, list, cards, textOf, tsOf, siteOf) {
+function searchable(key, list, cards, textOf, tsOf, siteOf, noun) {
   const f = S.sf || (S.sf = {}), st = f[key] || (f[key] = { q: "", range: "all", from: "", to: "", sort: "default", site: "all" });
   const day = 86400000, d0 = new Date(); d0.setHours(0, 0, 0, 0); const s0 = d0.getTime();
   const span = () => st.range === "today" ? [s0, Infinity] : st.range === "7" ? [s0 - 6 * day, Infinity] : st.range === "30" ? [s0 - 29 * day, Infinity]
     : st.range === "custom" ? [st.from ? new Date(st.from + "T00:00:00").getTime() : 0, st.to ? new Date(st.to + "T23:59:59.999").getTime() : Infinity] : [0, Infinity];
   const match = x => { const [a, b] = span(), t = tsOf(x) || 0, q = st.q.trim().toLowerCase(); return (!q || String(textOf(x) || "").toLowerCase().includes(q)) && (st.site === "all" || siteOf(x) === st.site) && (st.range === "all" || (t >= a && t <= b)); };
   (S.sfMatch || (S.sfMatch = {}))[key] = match;
-  const none = el("p", { class: "muted", style: "display:none" }, "No matches. Clear the search or widen the dates."), count = el("p", { class: "muted", style: "margin:0 0 8px;font-size:14px" });
+  const none = el("p", { class: "muted", style: "display:none" }, "No matches. Clear the search or widen the dates."), count = el("p", { style: "margin:4px 0 10px;font-size:19px;font-weight:700;color:var(--navy)", role: "status" });
   const wrap = el("div"), order = list.map((x, i) => i);
   const place = () => { const idx = order.slice(); if (st.sort !== "default") idx.sort((a, b) => (st.sort === "new" ? 1 : -1) * ((tsOf(list[b]) || 0) - (tsOf(list[a]) || 0)) || a - b);
     idx.forEach(i => wrap.append(cards[i])); wrap.append(none); };
   const apply = () => { let n = 0; list.forEach((x, i) => { const ok = match(x); cards[i].style.display = ok ? "" : "none"; if (ok) n++; });
-    none.style.display = list.length && !n ? "" : "none"; place(); count.textContent = n === list.length ? list.length + " shown" : n + " of " + list.length + " shown"; };
+    none.style.display = list.length && !n ? "" : "none"; place(); count.textContent = n + " " + (n === 1 ? noun[0] : noun[1]) + (n === list.length ? "" : " (of " + list.length + " in this view)"); };
   const q = el("input", { type: "search", placeholder: "Search name, email, phone, notes", "aria-label": "Search", value: st.q, style: "margin-bottom:8px", oninput: e => { st.q = e.target.value; apply(); } });
   const seg = el("div", { class: "seg dark", role: "group", "aria-label": "Date captured", style: "margin:0 0 8px;flex-wrap:wrap" },
     [["all", "Any date"], ["today", "Today"], ["7", "7 days"], ["30", "30 days"], ["custom", "Custom"]].map(([k, n]) => el("button", { "aria-pressed": String(st.range === k), onclick: () => { st.range = k; render(); } }, n)));
@@ -1735,7 +1735,7 @@ function waitScreen() {
       x.status !== "contacted" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "contacted") }, "Mark contacted") : null,
       x.status !== "archived" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "archived") }, "Archive") : el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "new") }, "Restore"),
       el("button", { class: "btn sm", style: "margin:0;width:auto;color:#9A1C1C;border-color:#9A1C1C", onclick: () => wlDelete(x) }, "Delete (tests only)"))));
-  const sfw = searchable("wait", list, cards, x => [x.name, x.organization, x.email, x.phone, (x.services || []).join(" "), x.site].join(" "), x => ts(x), x => x.site);
+  const sfw = searchable("wait", list, cards, x => [x.name, x.organization, x.email, x.phone, (x.services || []).join(" "), x.site].join(" "), x => ts(x), x => x.site, ["waitlist entry", "waitlist entries"]);
   return shell(el("h1", null, "Waitlist"),
     el("div", { class: "note" }, "People who asked to be contacted while a site was at capacity. Make a lead to follow up in the Leads tracker. Archive hides an entry and keeps it. Delete erases it for good, so use it only for test entries."),
     S.cap.wlMsg ? el("div", { class: "note", role: "status" }, S.cap.wlMsg) : null,
@@ -1799,7 +1799,7 @@ function inqScreen() {
         x.status !== "archived" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => inqSet(x.id, "archived") }, "Archive") : el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => inqSet(x.id, "new") }, "Restore"),
         el("button", { class: "btn sm", style: "margin:0;width:auto;color:#9A1C1C;border-color:#9A1C1C", onclick: () => inqDelete(x) }, "Delete (tests only)")));
   });
-  const sfi = searchable("inq", list, cards, x => [x.name, x.organization, x.email, x.phone, x.message, x.site, Object.values(x.extra || {}).join(" ")].join(" "), x => ts(x), x => x.site);
+  const sfi = searchable("inq", list, cards, x => [x.name, x.organization, x.email, x.phone, x.message, x.site, Object.values(x.extra || {}).join(" ")].join(" "), x => ts(x), x => x.site, ["inquiry", "inquiries"]);
   return shell(el("h1", null, "Inquiries"),
     el("div", { class: "note" }, "Contact-form submissions from both sites (a copy of what is emailed to you). Archive hides an entry and keeps it. Delete erases it for good, so use it only for test entries."),
     S.cap.inqMsg ? el("div", { class: "note", role: "status" }, S.cap.inqMsg) : null,
