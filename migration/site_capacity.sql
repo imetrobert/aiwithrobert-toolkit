@@ -37,6 +37,7 @@ create policy "site_status update" on public.site_status
   using (public.has_app_access('toolkit')) with check (public.has_app_access('toolkit'));
 
 revoke all on public.site_status from anon;
+revoke delete on public.site_status from authenticated;  -- Supabase default privileges also grant it; no policy allows it anyway
 grant select, insert, update on public.site_status to authenticated;
 revoke truncate, references, trigger, maintain on public.site_status from authenticated;
 grant all on public.site_status to service_role;
@@ -73,6 +74,7 @@ create policy "waitlist delete" on public.waitlist_requests
   for delete to authenticated using (public.has_app_access('toolkit'));
 
 revoke all on public.waitlist_requests from anon;
+revoke insert on public.waitlist_requests from authenticated;  -- inserts only happen through join_waitlist()
 grant select, update, delete on public.waitlist_requests to authenticated;
 revoke truncate, references, trigger, maintain on public.waitlist_requests from authenticated;
 grant all on public.waitlist_requests to service_role;
