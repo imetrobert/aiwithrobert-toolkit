@@ -762,7 +762,7 @@ const S = {
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
   auth: { status: "out", msg: "", email: "", busy: false },
-  saveMsg: "", feasSaved: null, lead: null, lFilter: "active", fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
+  saveMsg: "", cap: { rows: null, status: "idle", msg: "", wl: null, wlStatus: "idle", wlMsg: "", wlFilter: "new" }, feasSaved: null, lead: null, lFilter: "active", fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -1550,6 +1550,121 @@ async function fxSave(caps) {
   f.msg = (c === "ok" ? "Check saved to your library and cloud account." : "Check saved on this device. Cloud copy: " + (c === "setup" ? "not set up yet." : c === "offline" ? "offline, will retry." : "problem, will retry.")) + " Find it under Saved materials.";
   render();
 }
+/* "At capacity" mode for the public sites + their waitlist. Tables and functions: migration/site_capacity.sql.
+   The sites only call site_capacity(); this screen writes site_status. Times are entered in this device's clock (Montreal). */
+const CAP_SITES = [{ id: "seniors", name: "Seniors site", url: "aiwithrobert.com" }, { id: "business", name: "Business site", url: "biz.aiwithrobert.com" }];
+async function sbReq(method, path, body, prefer) {
+  const k = await Cloud.tok(); if (!k) return { ok: false, status: 401, json: null };
+  const c = new AbortController(), to = setTimeout(() => c.abort(), 20000);
+  try {
+    const r = await fetch(AUTH.url + "/rest/v1/" + path, { method, signal: c.signal, body: body ? JSON.stringify(body) : undefined,
+      headers: Object.assign({ apikey: AUTH.key, Authorization: "Bearer " + k.access, "Content-Type": "application/json" }, prefer ? { Prefer: prefer } : {}) });
+    let j = null; try { j = await r.json(); } catch (e) {}
+    return { ok: r.ok, status: r.status, json: j };
+  } catch (e) { return { ok: false, status: 0, json: null }; } finally { clearTimeout(to); }
+}
+function capErr(r) { return r.status === 401 ? "Sign in again." : r.status === 404 || (r.json && /does not exist|schema cache|PGRST20/i.test(JSON.stringify(r.json))) ? "Run migration/site_capacity.sql in Supabase first." : r.status === 0 ? "Offline. Try again." : "Problem (HTTP " + r.status + ")."; }
+/* "on" = at capacity now; "scheduled" = a window starts later; "off" = open. Same rule as the site_capacity() function. */
+function capState(r, now) {
+  if (!r) return { k: "off" };
+  const st = r.start_at ? Date.parse(r.start_at) : null, en = r.end_at ? Date.parse(r.end_at) : null;
+  if (r.manual_on) return { k: "on", why: "Switched on by hand" };
+  if (st !== null && st <= now && (en === null || now < en)) return { k: "on", why: "Scheduled window is active" + (en ? " until " + capFmt(r.end_at) : "") };
+  if (st !== null && st > now) return { k: "scheduled", why: "Starts " + capFmt(r.start_at) + (en ? ", ends " + capFmt(r.end_at) : "") };
+  return { k: "off" };
+}
+function capFmt(iso) { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" }); }
+function capLocal(iso) { if (!iso) return ""; const d = new Date(iso); if (isNaN(d)) return ""; const z = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "T" + z(d.getHours()) + ":" + z(d.getMinutes()); }
+async function capLoad() {
+  if (S.auth.status !== "in" || S.cap.status === "loading") return; S.cap.status = "loading";
+  const r = await sbReq("GET", "site_status?select=*");
+  if (r.ok && Array.isArray(r.json)) { S.cap.rows = {}; r.json.forEach(x => { S.cap.rows[x.site] = x; }); S.cap.status = "ok"; S.cap.msg = ""; }
+  else { S.cap.status = "error"; S.cap.msg = capErr(r); }
+  if (["home", "cap"].includes(S.screen)) render();
+}
+async function capSave(site, patch) {
+  const cur = (S.cap.rows && S.cap.rows[site]) || {};
+  const row = Object.assign({ site, manual_on: false, start_at: null, end_at: null, reopen_date: null }, cur, patch, { updated_at: new Date().toISOString() });
+  S.cap.msg = "Saving...", render();
+  const r = await sbReq("POST", "site_status?on_conflict=site", [row], "resolution=merge-duplicates,return=representation");
+  if (r.ok && Array.isArray(r.json) && r.json[0]) { S.cap.rows[site] = r.json[0]; S.cap.msg = CAP_SITES.find(x => x.id === site).name + " saved. It shows on the live site within seconds."; }
+  else S.cap.msg = "Not saved. " + capErr(r);
+  render();
+}
+function capScreen() {
+  const now = Date.now(), rows = S.cap.rows || {};
+  const cards = CAP_SITES.map(site => {
+    const r = rows[site.id] || null, st = capState(r, now), col = { on: "#B42318", scheduled: "#B45309", off: "#14632F" }[st.k];
+    const label = { on: "AT CAPACITY", scheduled: "SCHEDULED", off: "OPEN FOR REQUESTS" }[st.k];
+    const sIn = el("input", { type: "datetime-local", "aria-label": site.name + " start", value: capLocal(r && r.start_at) }),
+      eIn = el("input", { type: "datetime-local", "aria-label": site.name + " end", value: capLocal(r && r.end_at) }),
+      dIn = el("input", { type: "date", "aria-label": site.name + " expected reopening date", value: (r && r.reopen_date) || "" });
+    return el("div", { class: "card", style: "border-left:10px solid " + col },
+      el("div", { style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap" }, el("h2", { style: "margin:0;flex:1" }, site.name),
+        el("span", { class: "vd", style: "background:" + col + ";color:#fff;border-color:" + col }, label)),
+      el("p", { class: "muted", style: "margin:4px 0 8px" }, site.url + (st.why ? " · " + st.why : "")),
+      st.k === "on" ? el("div", { class: "note warn" }, "Phone number, discovery and booking buttons are hidden. Visitors see the fully booked notice and the waitlist form. Also pause your Google booking page: its link still works for anyone who has it.") : null,
+      st.k === "on" || st.k === "scheduled"
+        ? el("button", { class: "btn", onclick: () => capSave(site.id, { manual_on: false, start_at: null, end_at: null }) }, "Open for requests now (clears the schedule)")
+        : el("button", { class: "btn primary", onclick: () => capSave(site.id, { manual_on: true }) }, "Set to at capacity now"),
+      el("h3", null, "Schedule (optional)"),
+      el("label", null, el("span", { class: "muted", style: "display:block" }, "Starts"), sIn),
+      el("label", null, el("span", { class: "muted", style: "display:block" }, "Ends (leave empty to stay at capacity until you open it)"), eIn),
+      el("label", null, el("span", { class: "muted", style: "display:block" }, "Expected reopening date shown to visitors (optional)"), dIn),
+      el("button", { class: "btn", onclick: () => {
+        const sv = sIn.value, ev = eIn.value;
+        if (ev && !sv) { S.cap.msg = "Add a start time or clear the end time."; render(); return; }
+        if (sv && ev && new Date(ev) <= new Date(sv)) { S.cap.msg = "The end must be after the start."; render(); return; }
+        capSave(site.id, { start_at: sv ? new Date(sv).toISOString() : null, end_at: ev ? new Date(ev).toISOString() : null, reopen_date: dIn.value || null });
+      } }, "Save schedule and date"));
+  });
+  return shell(el("h1", null, "Site availability"),
+    el("div", { class: "note" }, "Turn \"At capacity\" mode on or off for each site on its own. Times use this device's clock (Montreal). The site switches by itself at the scheduled times."),
+    S.cap.msg ? el("div", { class: "note", role: "status" }, S.cap.msg) : null,
+    S.cap.status === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
+    S.cap.status === "error" ? el("button", { class: "btn", onclick: () => { S.cap.status = "idle"; capLoad(); } }, "Try again") : null,
+    S.cap.rows ? cards : null,
+    el("button", { class: "btn", onclick: () => { S.screen = "wait"; render(); window.scrollTo(0, 0); } }, "Open the waitlist"),
+    el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
+}
+async function wlLoad() {
+  if (S.auth.status !== "in" || S.cap.wlStatus === "loading") return; S.cap.wlStatus = "loading";
+  const r = await sbReq("GET", "waitlist_requests?select=*&order=created_at.desc&limit=300");
+  if (r.ok && Array.isArray(r.json)) { S.cap.wl = r.json; S.cap.wlStatus = "ok"; S.cap.wlMsg = ""; } else { S.cap.wlStatus = "error"; S.cap.wlMsg = capErr(r); }
+  if (["wait", "home"].includes(S.screen)) render();
+}
+async function wlSet(id, status) {
+  const r = await sbReq("PATCH", "waitlist_requests?id=eq." + encodeURIComponent(id), { status }, "return=minimal");
+  if (r.ok) { const x = (S.cap.wl || []).find(y => y.id === id); if (x) x.status = status; } else S.cap.wlMsg = "Not saved. " + capErr(r);
+  render();
+}
+function wlToLead(x) {
+  const brand = x.site === "seniors" ? "seniors" : "business";
+  const rec = { id: newId(), brand, sel: [BASE[brand]], typeId: BASE[brand], lang: x.language === "fr" ? "fr" : "en", name: (x.organization || x.name).slice(0, 80), created: Date.now(), updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {}, feas: null,
+    lead: { status: "new", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("From the waitlist" + (x.services && x.services.length ? ". Interested in: " + x.services.join(", ") : "") + ".").slice(0, 500) } };
+  if (Store.upsert(rec)) { Cloud.push(rec); S.cap.wlMsg = "Lead created for " + rec.name + ". Find it under Leads."; wlSet(x.id, "contacted"); } else { S.cap.wlMsg = "Could not save the lead on this device."; render(); }
+}
+function waitScreen() {
+  const all = S.cap.wl || [], f = S.cap.wlFilter, list = all.filter(x => f === "all" ? x.status !== "archived" : x.status === "new");
+  const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter waitlist", style: "margin:0 0 12px" }, [["new", "New (" + all.filter(x => x.status === "new").length + ")"], ["all", "All"]].map(([k, n]) => el("button", { "aria-pressed": String(f === k), onclick: () => { S.cap.wlFilter = k; render(); } }, n)));
+  const cards = list.map(x => el("div", { class: "card", style: "border-left:8px solid " + (x.site === "seniors" ? brandFor("seniors").colors.blue : brandFor("business").colors.blue) },
+    el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, el("strong", { style: "flex:1" }, x.name + (x.organization ? " · " + x.organization : "")), el("span", { class: "vd " + (x.status === "new" ? "partial" : "unknown") }, x.status)),
+    el("p", { class: "muted", style: "margin:2px 0" }, (x.site === "seniors" ? "Seniors" : "Business") + " · " + capFmt(x.created_at) + " · " + x.language.toUpperCase()),
+    el("p", { style: "margin:4px 0" }, el("a", { href: "mailto:" + x.email }, x.email), x.phone ? [" · ", el("a", { href: "tel:" + x.phone }, x.phone)] : null),
+    x.services && x.services.length ? el("p", { class: "muted", style: "margin:2px 0" }, "Interested in: " + x.services.join(", ")) : null,
+    el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" },
+      el("button", { class: "btn sm primary", style: "margin:0;width:auto", onclick: () => wlToLead(x) }, "Make a lead"),
+      x.status !== "contacted" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "contacted") }, "Mark contacted") : null,
+      el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "archived") }, "Archive"))));
+  return shell(el("h1", null, "Waitlist"),
+    el("div", { class: "note" }, "People who asked to be contacted while a site was at capacity. Make a lead to follow up in the Leads tracker."),
+    S.cap.wlMsg ? el("div", { class: "note", role: "status" }, S.cap.wlMsg) : null,
+    S.cap.wlStatus === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
+    S.cap.wlStatus === "error" ? el("button", { class: "btn", onclick: () => { S.cap.wlStatus = "idle"; wlLoad(); } }, "Try again") : null,
+    filt, cards.length ? cards : (S.cap.wlStatus === "ok" ? el("p", { class: "muted" }, "Nothing here.") : null),
+    list.length ? el("button", { class: "btn", onclick: async () => { S.cap.wlMsg = (await copyText(list.map(x => x.email).join(", ")) ? "Emails copied (" + list.length + ")." : "Could not copy."); render(); } }, "Copy these emails") : null,
+    el("button", { class: "btn link", onclick: () => { S.screen = "cap"; render(); window.scrollTo(0, 0); } }, "Back to Site availability"));
+}
 /* Paste the formsubmit.co email from the Business contact form to fill a Feasibility check and a lead. Field names are fixed by the form (see the biz repo CLAUDE.md). */
 const INQ_NEED = { need_writing: "write", need_documents: "files", need_reuse: "reuse", need_own_data: "own", need_schedule: "sched", need_automatic: "auto", need_images: "img", need_office_files: "office", need_research: "web" };
 const INQ_KEYS = ["name", "email", "phone", "company", "team_size", "personal_info", "message", "tool_chatgpt", "tool_claude", "tool_gemini", "tool_copilot", "tool_none", "tool_unsure"].concat(Object.keys(INQ_NEED));
@@ -1748,6 +1863,8 @@ function homeScreen() {
         S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; S.typeId = S.sel[0];
         S.sid = newId(); S.name = ""; S.feasSaved = null; S.lead = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
       } }, t("start"))),
+    el("button", { class: "btn", style: S.cap.rows ? "border-left:10px solid " + (CAP_SITES.some(x => capState(S.cap.rows[x.id], Date.now()).k === "on") ? "#B42318" : CAP_SITES.some(x => capState(S.cap.rows[x.id], Date.now()).k === "scheduled") ? "#B45309" : "#14632F") : "", onclick: () => { S.cap.status = "idle"; S.cap.msg = ""; S.screen = "cap"; render(); window.scrollTo(0, 0); capLoad(); } }, "Site availability" + (S.cap.rows ? ": " + CAP_SITES.map(x => x.name.split(" ")[0] + " " + ({ on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[capState(S.cap.rows[x.id], Date.now()).k])).join(" \u00B7 ") : "")),
+    el("button", { class: "btn", onclick: () => { S.cap.wlStatus = "idle"; S.cap.wlMsg = ""; S.screen = "wait"; render(); window.scrollTo(0, 0); wlLoad(); } }, "Waitlist" + (S.cap.wl ? " (" + S.cap.wl.filter(x => x.status === "new").length + " new)" : "")),
     el("button", { class: "btn", onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost"))).length + " active)"),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
     el("button", { class: "btn", onclick: () => { S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
@@ -2252,8 +2369,8 @@ function render() {
   const root = document.getElementById("root");
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
-  if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); }
-  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, leads: leadsScreen };
+  if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); }, 900); }
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, leads: leadsScreen, cap: capScreen, wait: waitScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
 }
 
