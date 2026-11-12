@@ -762,7 +762,7 @@ const S = {
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
   auth: { status: "out", msg: "", email: "", busy: false },
-  saveMsg: "", feasSaved: null, lead: null, lFilter: "active", fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
+  saveMsg: "", feasSaved: null, lead: null, lFilter: "active", fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -1074,7 +1074,7 @@ function cleanFeas(f) {
   const ids = CAPS_BUILTIN.reqs.map(r => r.id);
   const reqs = Array.isArray(f.reqs) ? f.reqs.filter((x, i, a) => isStr(x) && ids.includes(x) && a.indexOf(x) === i) : [];
   const int = (v, lo, hi, d) => Number.isInteger(v) ? Math.min(hi, Math.max(lo, v)) : d;
-  return { tool: isStr(f.tool) && /^[a-z0-9_]{1,20}$/.test(f.tool) ? f.tool : "all", reqs, users: int(f.users, 1, 300, 1), flows: int(f.flows, 0, 50, 1),
+  return { tool: isStr(f.tool) && /^[a-z0-9_]{1,20}$/.test(f.tool) ? f.tool : "all", reqs, users: int(f.users, 1, 300, 1), flows: int(f.flows, 0, 50, 1), assess: f.assess === true, train: int(f.train, 0, 300, 0),
     request: isStr(f.request) ? f.request.slice(0, 600) : "", verdict: FX_V.includes(f.verdict) ? f.verdict : "", verified: isStr(f.verified) && /^\d{4}-\d{2}-\d{2}$/.test(f.verified) ? f.verified : "", saved: Number.isFinite(f.saved) ? f.saved : Date.now() };
 }
 function cleanSession(raw) {
@@ -1342,7 +1342,18 @@ function fxEval(caps, toolId, reqIds) {
   return { rows, overall: has("no") ? "no" : (has("partial") || has("unknown")) ? "partial" : "yes" };
 }
 const fxAge = caps => { const d = Date.parse(caps.verified + "T00:00:00"); return Number.isFinite(d) ? Math.floor((Date.now() - d) / 86400000) : 999; };
-const FX_PRICE = { assessment: [1500, 2500], workflow: 2000, partialAdd: 500, training: 1200 };
+const FX_PRICE = { assessSmall: 900, assessLarge: 1800, assessSmallMax: 5, workflow: 2000, partialAdd: 500, training: 1500, trainingIncluded: 10, trainingExtra: 100, bundleOff: 0.1 };
+/* Price lines for a proposal: optional assessment, workflows (+ conditions), optional training, and the bundle saving
+   (assessment + 1 workflow + training together get bundleOff, rounded to $50). */
+function fxLines(f, ev) {
+  const n = ev.rows.filter(x => x.cell.v === "partial" || x.cell.v === "unknown").length;
+  const L = { assess: f.assess ? (f.users <= FX_PRICE.assessSmallMax ? FX_PRICE.assessSmall : FX_PRICE.assessLarge) : 0,
+    wf: FX_PRICE.workflow * f.flows, cond: FX_PRICE.partialAdd * n * f.flows, n,
+    train: f.train > 0 ? FX_PRICE.training + FX_PRICE.trainingExtra * Math.max(0, f.train - FX_PRICE.trainingIncluded) : 0, saving: 0 };
+  if (f.assess && f.flows >= 1 && f.train > 0) { const sum = L.assess + FX_PRICE.workflow + L.train; L.saving = sum - Math.round(sum * (1 - FX_PRICE.bundleOff) / 50) * 50; }
+  L.total = L.assess + L.wf + L.cond + L.train - L.saving;
+  return L;
+}
 const money = n => "$" + Math.round(n).toLocaleString("en-CA") + " CAD";
 function fxCost(tool, users, rate) {
   if (!tool.usd) return null;
@@ -1403,7 +1414,7 @@ const FXD = {
     scopeH: "Scope", deliverH: "What I will deliver", deliverIntro: "Each workflow is set up, tested on your real example, and documented so your team can reuse it.",
     investH: "Investment", invCols: ["Item", "Amount"],
     rowBase: (n, per) => n + (n === 1 ? " workflow" : " workflows") + " at " + per, rowCond: (k, per) => "Conditions to configure: " + k + " at " + per, rowTotal: "Total (before tax)",
-    rowSub: "Your AI subscription", rowSubVal: c => (c || "Paid directly by you to the vendor"),
+    rowSub: "Your AI subscription", rowAssess: small => "AI Opportunity Assessment (" + (small ? "up to 5 people" : "6 to 20 people") + ")", rowTrain: n => "Team training session (" + n + (n === 1 ? " person" : " people") + ")", rowBundle: "Bundle saving", delAssess: "AI Opportunity Assessment: written assessment, workflow shortlist and proposal", delTrain: n => "Team training session for " + n + (n === 1 ? " person" : " people") + ": workbook, slides, handout and feedback survey", rowSubVal: c => (c || "Paid directly by you to the vendor"),
     notInH: "Not included", notIn: "These need extra tools or custom development and would be quoted separately:",
     nextP: ["Confirm the scope above.", "We agree the final price and schedule in writing.", "Work starts once you confirm."],
     discP: d => "This is an estimate based on the information received and on " + d + " vendor information. Final scope and price are confirmed in writing before work begins."
@@ -1431,7 +1442,7 @@ const FXD = {
     scopeH: "Port\u00E9e", deliverH: "Ce que je livrerai", deliverIntro: "Chaque flux de travail est mis en place, test\u00E9 sur votre exemple r\u00E9el et document\u00E9 pour que votre \u00E9quipe puisse le r\u00E9utiliser.",
     investH: "Investissement", invCols: ["\u00C9l\u00E9ment", "Montant"],
     rowBase: (n, per) => n + (n === 1 ? " flux de travail" : " flux de travail") + " \u00E0 " + per, rowCond: (k, per) => "Conditions \u00E0 configurer : " + k + " \u00E0 " + per, rowTotal: "Total (avant taxes)",
-    rowSub: "Votre abonnement IA", rowSubVal: c => (c || "Pay\u00E9 directement par vous au fournisseur"),
+    rowSub: "Votre abonnement IA", rowAssess: small => "\u00C9valuation des occasions d'IA (" + (small ? "jusqu'\u00E0 5 personnes" : "6 \u00E0 20 personnes") + ")", rowTrain: n => "S\u00E9ance de formation d'\u00E9quipe (" + n + (n === 1 ? " personne" : " personnes") + ")", rowBundle: "Rabais forfait", delAssess: "\u00C9valuation des occasions d'IA : \u00E9valuation \u00E9crite, liste de flux de travail et proposition", delTrain: n => "S\u00E9ance de formation pour " + n + (n === 1 ? " personne" : " personnes") + " : cahier, diapositives, aide-m\u00E9moire et sondage de r\u00E9troaction", rowSubVal: c => (c || "Pay\u00E9 directement par vous au fournisseur"),
     notInH: "Non inclus", notIn: "Ces \u00E9l\u00E9ments exigent des outils suppl\u00E9mentaires ou du d\u00E9veloppement sur mesure et seraient soumissionn\u00E9s s\u00E9par\u00E9ment :",
     nextP: ["Confirmer la port\u00E9e ci-dessus.", "Nous convenons par \u00E9crit du prix et de l'\u00E9ch\u00E9ancier.", "Le travail d\u00E9bute d\u00E8s votre confirmation."],
     discP: d => "Ceci est une estimation fond\u00E9e sur les renseignements re\u00E7us et sur ceux des fournisseurs au " + d + ". La port\u00E9e et le prix finaux sont confirm\u00E9s par \u00E9crit avant le d\u00E9but du travail."
@@ -1484,14 +1495,19 @@ function fxDocBuild(kind, lang) {
     if (f.reqs.includes("priv")) B.push({ type: "tip", style: "safety", body: X.privTip });
     B.push({ type: "next_steps", items: X.nextW }, { type: "disclaimer", body: X.discA(caps.verified) });
   } else {
-    const fee = fxFee(ev, f.flows), base = FX_PRICE.workflow * f.flows, condAmt = FX_PRICE.partialAdd * fee.n * f.flows;
+    const fee = fxFee(ev, f.flows), Q = fxLines(f, ev);
     doc.title = X.propT; doc.intro = X.forName(name) + X.propIntro(tool.name);
     const deliver = ev.rows.filter(x => x.cell.v !== "no" && NEED_WF[x.req.id]).map(x => lab(x.req) + (x.cell.v === "yes" ? "" : " (" + res(x.cell.v) + ")"));
+    const items = [].concat(f.assess ? [X.delAssess] : [], f.flows ? deliver : [], f.train > 0 ? [X.delTrain(f.train)] : []);
     B.push({ type: "section", heading: X.scopeH, body: asked.trim() || X.noAsk });
-    if (deliver.length) B.push({ type: "section", heading: X.deliverH, body: X.deliverIntro }, { type: "steps", heading: X.steps, items: deliver });
-    const rows = [[X.rowBase(f.flows, mny(FX_PRICE.workflow)), mny(base)]];
-    if (fee.n) rows.push([X.rowCond(fee.n * f.flows, mny(FX_PRICE.partialAdd)), mny(condAmt)]);
-    rows.push([X.rowTotal, mny(base + condAmt)], [X.rowSub, X.rowSubVal(costLine.replace(/^[^:]+: /, ""))]);
+    if (items.length) B.push({ type: "section", heading: X.deliverH, body: X.deliverIntro }, { type: "steps", heading: X.steps, items });
+    const rows = [];
+    if (f.assess) rows.push([X.rowAssess(f.users <= FX_PRICE.assessSmallMax), mny(Q.assess)]);
+    if (f.flows) rows.push([X.rowBase(f.flows, mny(FX_PRICE.workflow)), mny(Q.wf)]);
+    if (Q.cond) rows.push([X.rowCond(Q.n * f.flows, mny(FX_PRICE.partialAdd)), mny(Q.cond)]);
+    if (f.train > 0) rows.push([X.rowTrain(f.train), mny(Q.train)]);
+    if (Q.saving) rows.push([X.rowBundle, "-" + mny(Q.saving)]);
+    rows.push([X.rowTotal, mny(Q.total)], [X.rowSub, X.rowSubVal(costLine.replace(/^[^:]+: /, ""))]);
     B.push({ type: "comparison_table", heading: X.investH, columns: X.invCols, rows });
     const no = ev.rows.filter(x => x.cell.v === "no");
     if (no.length) B.push({ type: "section", heading: X.notInH, body: X.notIn + "\n" + no.map(x => "- " + lab(x.req)).join("\n") });
@@ -1519,7 +1535,7 @@ function fxSetLang(lang) {
 function openFeas(rec) {
   openSession(rec);
   const f = S.feasSaved; if (!f) return;
-  S.fx = { tool: f.tool, reqs: f.reqs.slice(), request: f.request, msg: "", imp: "", users: f.users, flows: f.flows };
+  S.fx = { tool: f.tool, reqs: f.reqs.slice(), request: f.request, msg: "", imp: "", users: f.users, flows: f.flows, assess: !!f.assess, train: f.train || 0 };
   S.screen = "feas"; render(); window.scrollTo(0, 0);
 }
 async function fxSave(caps) {
@@ -1527,7 +1543,7 @@ async function fxSave(caps) {
   if (!f.reqs.length && !(f.request || "").trim()) { f.msg = "Tick at least one need or add notes before saving."; render(); return; }
   if (!S.sid) { S.brand = "business"; S.sel = [BASE.business]; S.typeId = BASE.business; S.sid = newId(); S.created = Date.now(); S.answers = {}; S.results = {}; S.pastes = {}; S.result = null; S.paste = ""; S.step = 0; S.lang = S.lang || "en"; }
   const tool = f.tool === "all" ? null : caps.tools.find(t => t.id === f.tool);
-  S.feasSaved = { tool: f.tool, reqs: f.reqs.slice(), users: f.users, flows: f.flows, request: (f.request || "").trim(), verdict: tool ? fxEval(caps, tool.id, f.reqs).overall : "", verified: caps.verified, saved: Date.now() };
+  S.feasSaved = { tool: f.tool, reqs: f.reqs.slice(), users: f.users, flows: f.flows, assess: !!f.assess, train: f.train || 0, request: (f.request || "").trim(), verdict: tool ? fxEval(caps, tool.id, f.reqs).overall : "", verified: caps.verified, saved: Date.now() };
   lastSaved = ""; persist(); f.msg = "Saving..."; render();
   await Cloud.flush();
   const c = S.cloud.status;
@@ -1565,8 +1581,15 @@ function feasScreen() {
           return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Estimate"),
             c ? el("p", { style: "margin:0 0 6px" }, el("strong", null, "Client's subscription: "), costText(c, f.users) + ". ", c.note) : null,
             el("p", { class: "muted", style: "margin:8px 0 0" }, "Internal, not for clients:"),
-            f.flows === 0 ? el("p", { style: "margin:4px 0" }, "No workflow yet. Start with an AI Opportunity Assessment: " + money(FX_PRICE.assessment[0]) + " to " + money(FX_PRICE.assessment[1]) + ".")
-              : el("p", { style: "margin:4px 0" }, "Suggested project fee: ", el("strong", null, money(fee.total)), " (" + f.flows + " \u00D7 " + money(fee.per) + "). Base " + money(FX_PRICE.workflow) + " per workflow plus " + money(FX_PRICE.partialAdd) + " for each Partly or Unknown need (" + fee.n + " here). Adjust to your judgment."),
+            (() => { const Q = fxLines(f, ev), row = (a, b) => el("div", { style: "display:flex;justify-content:space-between;gap:10px;margin:2px 0" }, el("span", null, a), el("strong", null, b));
+              return el("div", { style: "margin:4px 0" },
+                f.assess ? row("Assessment (" + (f.users <= FX_PRICE.assessSmallMax ? "up to " + FX_PRICE.assessSmallMax : "6 to 20") + " people)", money(Q.assess)) : null,
+                f.flows ? row(f.flows + " \u00D7 workflow at " + money(FX_PRICE.workflow), money(Q.wf)) : null,
+                Q.cond ? row(Q.n * f.flows + " \u00D7 conditions at " + money(FX_PRICE.partialAdd), money(Q.cond)) : null,
+                f.train > 0 ? row("Training (" + f.train + " people)", money(Q.train)) : null,
+                Q.saving ? row("Bundle saving", "-" + money(Q.saving)) : null,
+                !f.assess && !f.flows && !(f.train > 0) ? el("p", { style: "margin:4px 0" }, "Nothing priced yet. Tick the Assessment, add workflows or add training people.") : row("Total, before tax", money(Q.total)),
+                el("p", { class: "muted", style: "margin:6px 0 0" }, "Estimates you can adjust. Included in the Proposal when you build it.")); })(),
             fee.hasNo ? el("p", { style: "margin:4px 0;color:#9A1C1C;font-weight:700" }, "Some needs are a No on this plan. Price only what the plan can do; quote extras separately or decline them.") : null); })(),
         el("button", { class: "btn primary", onclick: async () => say(await copyText(fxWording(caps, tool, ev, f.request, f.users)) ? "Proposal wording copied." : "Could not copy. Select the text manually.") }, "Copy proposal wording"));
     }
@@ -1587,6 +1610,9 @@ function feasScreen() {
     el("div", { class: "row2" },
       el("label", null, el("span", { class: "muted", style: "display:block" }, "People who will use it"), el("input", { type: "number", inputmode: "numeric", min: "1", max: "300", value: String(f.users), "aria-label": "Number of users", onchange: e => { f.users = Math.min(300, Math.max(1, parseInt(e.target.value, 10) || 1)); render(); } })),
       el("label", null, el("span", { class: "muted", style: "display:block" }, "Separate workflows"), el("input", { type: "number", inputmode: "numeric", min: "0", max: "50", value: String(f.flows), "aria-label": "Number of workflows", onchange: e => { f.flows = Math.min(50, Math.max(0, parseInt(e.target.value, 10) || 0)); render(); } }))),
+    el("div", { class: "row2" },
+      el("label", { class: "ck", style: "display:flex;gap:8px;align-items:center" }, el("input", { type: "checkbox", checked: !!f.assess, "aria-label": "Include an AI Opportunity Assessment", onchange: e => { f.assess = e.target.checked; render(); } }), el("span", null, "Include the Assessment")),
+      el("label", null, el("span", { class: "muted", style: "display:block" }, "People in a training session (0 = none)"), el("input", { type: "number", inputmode: "numeric", min: "0", max: "300", value: String(f.train || 0), "aria-label": "People in training session", onchange: e => { f.train = Math.min(300, Math.max(0, parseInt(e.target.value, 10) || 0)); render(); } }))),
     f.reqs.length ? el("button", { class: "btn link", onclick: () => { f.reqs = []; render(); } }, "Clear selections") : el("p", { class: "muted" }, "Pick at least one need to see the result."),
     result,
     el("button", { class: "btn primary", onclick: () => fxSave(caps) }, S.feasSaved ? "Update saved check" : "Save this check"),
@@ -1641,7 +1667,7 @@ function homeScreen() {
       } }, t("start"))),
     el("button", { class: "btn", onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost"))).length + " active)"),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
-    el("button", { class: "btn", onclick: () => { S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
+    el("button", { class: "btn", onclick: () => { S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
     cloudLine(),
     el("div", { class: "note" }, t("standing")),
