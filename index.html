@@ -1638,6 +1638,12 @@ async function wlSet(id, status) {
   if (r.ok) { const x = (S.cap.wl || []).find(y => y.id === id); if (x) x.status = status; } else S.cap.wlMsg = "Not saved. " + capErr(r);
   render();
 }
+async function wlDelete(x) {
+  if (!confirm("Delete this entry permanently? Use this only for test entries. For real people, use Archive.\n\n" + x.name + (x.organization ? " (" + x.organization + ")" : ""))) return;
+  const r = await sbReq("DELETE", "waitlist_requests?id=eq." + encodeURIComponent(x.id), null, "return=minimal");
+  if (r.ok) { S.cap.wl = (S.cap.wl || []).filter(y => y.id !== x.id); S.cap.wlMsg = "Entry deleted."; } else S.cap.wlMsg = "Not deleted. " + capErr(r);
+  render();
+}
 function wlToLead(x) {
   const brand = x.site === "seniors" ? "seniors" : "business";
   const rec = { id: newId(), brand, sel: [BASE[brand]], typeId: BASE[brand], lang: x.language === "fr" ? "fr" : "en", name: (x.organization || x.name).slice(0, 80), created: Date.now(), updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {}, feas: null,
@@ -1645,8 +1651,8 @@ function wlToLead(x) {
   if (Store.upsert(rec)) { Cloud.push(rec); S.cap.wlMsg = "Lead created for " + rec.name + ". Find it under Leads."; wlSet(x.id, "contacted"); } else { S.cap.wlMsg = "Could not save the lead on this device."; render(); }
 }
 function waitScreen() {
-  const all = S.cap.wl || [], f = S.cap.wlFilter, list = all.filter(x => f === "all" ? x.status !== "archived" : x.status === "new");
-  const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter waitlist", style: "margin:0 0 12px" }, [["new", "New (" + all.filter(x => x.status === "new").length + ")"], ["all", "All"]].map(([k, n]) => el("button", { "aria-pressed": String(f === k), onclick: () => { S.cap.wlFilter = k; render(); } }, n)));
+  const all = S.cap.wl || [], f = S.cap.wlFilter, list = all.filter(x => f === "all" ? x.status !== "archived" : f === "archived" ? x.status === "archived" : x.status === "new");
+  const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter waitlist", style: "margin:0 0 12px" }, [["new", "New (" + all.filter(x => x.status === "new").length + ")"], ["all", "All"], ["archived", "Archived"]].map(([k, n]) => el("button", { "aria-pressed": String(f === k), onclick: () => { S.cap.wlFilter = k; render(); } }, n)));
   const cards = list.map(x => el("div", { class: "card", style: "border-left:8px solid " + (x.site === "seniors" ? brandFor("seniors").colors.blue : brandFor("business").colors.blue) },
     el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, el("strong", { style: "flex:1" }, x.name + (x.organization ? " · " + x.organization : "")), el("span", { class: "vd " + (x.status === "new" ? "partial" : "unknown") }, x.status)),
     el("p", { class: "muted", style: "margin:2px 0" }, (x.site === "seniors" ? "Seniors" : "Business") + " · " + capFmt(x.created_at) + " · " + x.language.toUpperCase()),
@@ -1655,9 +1661,10 @@ function waitScreen() {
     el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" },
       el("button", { class: "btn sm primary", style: "margin:0;width:auto", onclick: () => wlToLead(x) }, "Make a lead"),
       x.status !== "contacted" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "contacted") }, "Mark contacted") : null,
-      el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "archived") }, "Archive"))));
+      x.status !== "archived" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "archived") }, "Archive") : el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "new") }, "Restore"),
+      el("button", { class: "btn sm", style: "margin:0;width:auto;color:#9A1C1C;border-color:#9A1C1C", onclick: () => wlDelete(x) }, "Delete (tests only)"))));
   return shell(el("h1", null, "Waitlist"),
-    el("div", { class: "note" }, "People who asked to be contacted while a site was at capacity. Make a lead to follow up in the Leads tracker."),
+    el("div", { class: "note" }, "People who asked to be contacted while a site was at capacity. Make a lead to follow up in the Leads tracker. Archive hides an entry and keeps it. Delete erases it for good, so use it only for test entries."),
     S.cap.wlMsg ? el("div", { class: "note", role: "status" }, S.cap.wlMsg) : null,
     S.cap.wlStatus === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
     S.cap.wlStatus === "error" ? el("button", { class: "btn", onclick: () => { S.cap.wlStatus = "idle"; wlLoad(); } }, "Try again") : null,
