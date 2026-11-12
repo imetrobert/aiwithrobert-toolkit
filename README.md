@@ -9,3 +9,7 @@ AI-reply import/validation, editor and branded client deliverable. One static fi
 - **AI step:** manual copy/paste into a free AI tool; no API keys.
 - **Branding and output types:** `BRANDING` and `OUTPUT_TYPES` sections at the top of the script in `index.html`.
 - **Data:** session data stays in the phone's browser; nothing client-related is sent to a server.
+
+## Cloud sync
+
+Saved sessions also sync to `public.toolkit_sessions` in the shared Supabase project. Run `migration/toolkit_sessions.sql` once in the Supabase SQL editor. Until then the app works as before and shows "Cloud sync is not set up yet".
