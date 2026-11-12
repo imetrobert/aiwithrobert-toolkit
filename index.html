@@ -1067,7 +1067,7 @@ const LEAD_LABEL = { new: "New", contacted: "Contacted", booked: "Call booked", 
 function cleanLead(l) {
   if (!l || typeof l !== "object" || Array.isArray(l)) return null;
   return { status: LEAD_ST.includes(l.status) ? l.status : "new", contact: isStr(l.contact) ? l.contact.trim().slice(0, 120) : "",
-    follow: isStr(l.follow) && /^\d{4}-\d{2}-\d{2}$/.test(l.follow) ? l.follow : "", note: isStr(l.note) ? l.note.slice(0, 500) : "" };
+    follow: isStr(l.follow) && /^\d{4}-\d{2}-\d{2}$/.test(l.follow) ? l.follow : "", note: isStr(l.note) ? l.note.slice(0, 500) : "", archived: l.archived === true };
 }
 /* A saved Feasibility check attached to a saved profile (optional). */
 function cleanFeas(f) {
@@ -1183,11 +1183,12 @@ function leadsScreen() {
   const today = todayStr();
   const all = Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).filter(r => r.lead || r.feas);
   const st = r => (r.lead && r.lead.status) || "new", open = r => st(r) !== "won" && st(r) !== "lost";
-  const due = r => open(r) && r.lead && r.lead.follow && r.lead.follow <= today;
-  const F = { active: r => open(r), due, won: r => st(r) === "won", lost: r => st(r) === "lost", all: () => true };
+  const arch = r => !!(r.lead && r.lead.archived), live = r => !arch(r);
+  const due = r => live(r) && open(r) && r.lead && r.lead.follow && r.lead.follow <= today;
+  const F = { active: r => live(r) && open(r), due, won: r => live(r) && st(r) === "won", lost: r => live(r) && st(r) === "lost", all: live, archived: arch };
   const list = all.filter(F[S.lFilter] || F.active).sort((a, b) => ((a.lead && a.lead.follow) || "9999") < ((b.lead && b.lead.follow) || "9999") ? -1 : 1);
   const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter leads", style: "margin:0 0 12px" },
-    [["active", "Active"], ["due", "Follow up"], ["won", "Won"], ["lost", "Lost"], ["all", "All"]].map(([k, n]) => el("button", { "aria-pressed": String(S.lFilter === k), onclick: () => { S.lFilter = k; render(); } }, n + " (" + all.filter(F[k]).length + ")")));
+    [["active", "Active"], ["due", "Follow up"], ["won", "Won"], ["lost", "Lost"], ["all", "All"], ["archived", "Archived"]].map(([k, n]) => el("button", { "aria-pressed": String(S.lFilter === k), onclick: () => { S.lFilter = k; render(); } }, n + " (" + all.filter(F[k]).length + ")")));
   const nameIn = el("input", { type: "text", maxlength: "80", placeholder: "New lead: business, library or club name", "aria-label": "New lead name" });
   const cards = list.map(r => {
     const l = r.lead || { status: "new", contact: "", follow: "", note: "" };
@@ -1198,7 +1199,10 @@ function leadsScreen() {
       el("input", { type: "date", value: l.follow, "aria-label": "Follow-up date", onchange: e => saveLead(r, { follow: e.target.value }) }),
       el("input", { type: "text", maxlength: "120", value: l.contact, placeholder: "Contact (name, phone or email)", "aria-label": "Contact", style: "margin-top:6px", onchange: e => saveLead(r, { contact: e.target.value }) }),
       el("textarea", { maxlength: "500", rows: "2", "aria-label": "Note", placeholder: "Note (where you met, what they need)", style: "margin-top:6px", onchange: e => saveLead(r, { note: e.target.value }) }, l.note),
-      r.feas ? el("button", { class: "btn sm primary", onclick: () => openFeas(r) }, "Open feasibility check") : null);
+      r.feas ? el("button", { class: "btn sm primary", onclick: () => openFeas(r) }, "Open feasibility check") : null,
+      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" },
+        el("button", { class: "btn sm", onclick: () => saveLead(r, { archived: !arch(r) }) }, arch(r) ? "Restore" : "Archive"),
+        el("button", { class: "btn sm danger", onclick: () => { if (confirm("Delete this lead from this device and your cloud account? Any saved profile or feasibility check on it is deleted too. This cannot be undone. Use Archive to keep it.")) { Store.remove(r.id); if (S.sid === r.id) { S.sid = null; S.lead = null; S.feasSaved = null; lastSaved = ""; } render(); } } }, "Delete (tests only)")));
   });
   return shell(el("h1", null, "Leads"),
     el("p", { class: "muted" }, "Track venues and businesses from first contact to won or lost. Syncs with your other saved profiles. Saved Feasibility checks appear here too."),
@@ -1951,7 +1955,7 @@ function homeScreen() {
     el("button", { class: "btn", style: S.cap.rows ? "border-left:10px solid " + (CAP_SITES.some(x => capState(S.cap.rows[x.id], Date.now()).k === "on") ? "#B42318" : CAP_SITES.some(x => capState(S.cap.rows[x.id], Date.now()).k === "scheduled") ? "#B45309" : "#14632F") : "", onclick: () => { S.cap.status = "idle"; S.cap.msg = ""; S.screen = "cap"; render(); window.scrollTo(0, 0); capLoad(); } }, "Site availability" + (S.cap.rows ? ": " + CAP_SITES.map(x => x.name.split(" ")[0] + " " + ({ on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[capState(S.cap.rows[x.id], Date.now()).k])).join(" \u00B7 ") : "")),
     el("button", { class: "btn", onclick: () => { S.cap.inqStatus = "idle"; S.cap.inqMsg = ""; S.screen = "inq"; render(); window.scrollTo(0, 0); inqLoad(); } }, "Inquiries" + (S.cap.inq ? " (" + S.cap.inq.filter(x => x.status === "new").length + " new)" : "")),
     el("button", { class: "btn", onclick: () => { S.cap.wlStatus = "idle"; S.cap.wlMsg = ""; S.screen = "wait"; render(); window.scrollTo(0, 0); wlLoad(); } }, "Waitlist" + (S.cap.wl ? " (" + S.cap.wl.filter(x => x.status === "new").length + " new)" : "")),
-    el("button", { class: "btn", onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost"))).length + " active)"),
+    el("button", { class: "btn", onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost" || x.lead.archived))).length + " active)"),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
     el("button", { class: "btn", onclick: () => { S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
