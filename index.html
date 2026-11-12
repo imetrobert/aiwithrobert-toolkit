@@ -751,7 +751,7 @@ const S = {
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
   auth: { status: "out", msg: "", email: "", busy: false },
-  saveMsg: "", fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
+  saveMsg: "", feasSaved: null, fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -1025,7 +1025,7 @@ function reuseInputs(rec) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
   const r = c.rec, a = Object.assign({}, r.answers); delete a.transcript;
   S.brand = r.brand; S.sel = r.sel.slice(); S.lang = r.lang; S.answers = a; S.name = ""; S.results = {}; S.pastes = {}; S.typeId = S.sel[0]; S.result = null; S.paste = ""; S.errors = [];
-  S.sid = newId(); S.name = ""; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.step = 0; S.screen = "intake"; render(); window.scrollTo(0, 0);
+  S.sid = newId(); S.name = ""; S.feasSaved = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.step = 0; S.screen = "intake"; render(); window.scrollTo(0, 0);
 }
 const STORE_KEY = "awr_toolkit_sessions";
 const Store = {
@@ -1038,10 +1038,10 @@ const Store = {
 let lastSaved = "";
 const newId = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 function persist() {
-  if (!S.sid || S.auth.status !== "in" || !["intake", "hub", "composer", "import", "edit"].includes(S.screen)) return;
+  if (!S.sid || S.auth.status !== "in" || !["intake", "hub", "composer", "import", "edit", "feas"].includes(S.screen)) return;
   syncCur();
-  if (!Object.keys(S.answers).length && !Object.keys(S.results).length && !Object.keys(S.pastes).length) return;
-  const rec = { id: S.sid, brand: S.brand, sel: S.sel.slice(), typeId: S.typeId, lang: S.lang, name: S.name || "", created: S.created || Date.now(), updated: Date.now(), step: S.step, answers: S.answers, pastes: S.pastes, results: S.results };
+  if (!Object.keys(S.answers).length && !Object.keys(S.results).length && !Object.keys(S.pastes).length && !S.feasSaved) return;
+  const rec = { id: S.sid, brand: S.brand, sel: S.sel.slice(), typeId: S.typeId, lang: S.lang, name: S.name || "", created: S.created || Date.now(), updated: Date.now(), step: S.step, answers: S.answers, pastes: S.pastes, results: S.results, feas: S.feasSaved || null };
   const sig = JSON.stringify(Object.assign({}, rec, { updated: 0 }));
   if (sig === lastSaved) return;
   if (Store.upsert(rec)) { lastSaved = sig; Cloud.push(rec); }
@@ -1049,6 +1049,15 @@ function persist() {
 const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 /* Rebuild a clean session from untrusted data (a backup file or storage). Accepts the old
    single-artifact shape (typeId/paste/result) and the current multi-artifact shape. */
+/* A saved Feasibility check attached to a saved profile (optional). */
+function cleanFeas(f) {
+  if (!f || typeof f !== "object" || Array.isArray(f)) return null;
+  const ids = CAPS_BUILTIN.reqs.map(r => r.id);
+  const reqs = Array.isArray(f.reqs) ? f.reqs.filter((x, i, a) => isStr(x) && ids.includes(x) && a.indexOf(x) === i) : [];
+  const int = (v, lo, hi, d) => Number.isInteger(v) ? Math.min(hi, Math.max(lo, v)) : d;
+  return { tool: isStr(f.tool) && /^[a-z0-9_]{1,20}$/.test(f.tool) ? f.tool : "all", reqs, users: int(f.users, 1, 300, 1), flows: int(f.flows, 0, 50, 1),
+    request: isStr(f.request) ? f.request.slice(0, 600) : "", verdict: FX_V.includes(f.verdict) ? f.verdict : "", verified: isStr(f.verified) && /^\d{4}-\d{2}-\d{2}$/.test(f.verified) ? f.verified : "", saved: Number.isFinite(f.saved) ? f.saved : Date.now() };
+}
 function cleanSession(raw) {
   const bad = m => ({ error: m });
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return bad(t("b_obj"));
@@ -1083,7 +1092,7 @@ function cleanSession(raw) {
     if (isStr(rp[id]) && rp[id]) pastes[id] = rp[id].slice(0, LIMITS.bytes);
   }
   const step = Number.isInteger(raw.step) ? Math.min(Math.max(raw.step, 0), base.questions.length - 1) : 0, num = v => Number.isFinite(v) ? v : Date.now();
-  return { rec: { id: raw.id, brand, sel, typeId, lang: raw.lang, name: isStr(raw.name) ? raw.name.trim().slice(0, 80) : "", created: num(raw.created), updated: num(raw.updated), step, answers, pastes, results } };
+  return { rec: { id: raw.id, brand, sel, typeId, lang: raw.lang, name: isStr(raw.name) ? raw.name.trim().slice(0, 80) : "", created: num(raw.created), updated: num(raw.updated), step, answers, pastes, results, feas: cleanFeas(raw.feas) } };
 }
 function backupText(list) { return JSON.stringify({ app: "awr-toolkit", backup_version: 2, exported_at: new Date().toISOString(), sessions: list }, null, 1); }
 function importBackup(text) {
@@ -1120,7 +1129,7 @@ function openSession(rec, openId) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
   const r = c.rec, base = OUTPUT_TYPES[BASE[r.brand]];
   S.brand = r.brand; S.sel = r.sel; S.results = r.results; S.pastes = r.pastes; S.typeId = r.typeId; S.result = r.results[r.typeId] || null; S.paste = r.pastes[r.typeId] || "";
-  S.saveMsg = ""; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.name = r.name; S.created = r.created; S.tab = "edit";
+  S.saveMsg = ""; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.name = r.name; S.feasSaved = r.feas; S.created = r.created; S.tab = "edit";
   lastSaved = ""; S.libSig = JSON.stringify([S.name, S.brand, S.sel, S.answers, S.results, S.pastes]);
   const done = visibleQs(r.brand, r.sel).every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
   S.screen = done ? "hub" : "intake";
@@ -1151,6 +1160,10 @@ function sessionsScreen() {
     el("p", { class: "muted", style: "margin:0 0 6px" }, when(r.updated) + (r.name ? " \u00B7 " + sessionTitle(r) : "")),
     el("input", { type: "text", maxlength: "80", value: r.name || "", placeholder: "Name (optional)", "aria-label": "Name for this saved profile", style: "margin:0 0 6px",
       onchange: e => { const nr = Object.assign({}, r, { name: e.target.value.trim().slice(0, 80), updated: Date.now() }); if (Store.upsert(nr)) { Cloud.push(nr); if (S.sid === r.id) S.name = nr.name; } render(); } }),
+    r.feas ? el("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)" },
+      el("div", { style: "flex:1;min-width:0" }, el("div", { style: "font-weight:700" }, "Feasibility check"),
+        el("div", { class: "muted", style: "margin:0" }, [(CAPS_BUILTIN.tools.find(t => t.id === r.feas.tool) || { name: "All plans" }).name, r.feas.users + " " + (r.feas.users === 1 ? "person" : "people"), r.feas.reqs.length + " needs", r.feas.verdict ? FX_LABEL[r.feas.verdict] : ""].filter(Boolean).join(" \u00B7 "))),
+      el("button", { class: "btn sm primary", style: "width:auto;margin:0", onclick: () => openFeas(r) }, "Open")) : null,
     r.sel.map(id => el("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)" },
       el("div", { style: "flex:1;min-width:0" }, el("div", { style: "font-weight:700" }, L(OUTPUT_TYPES[id].label)),
         el("div", { class: "muted", style: "margin:0" }, r.results[id] ? "Ready \u00B7 " + r.results[id].title : "Not built yet")),
@@ -1308,6 +1321,24 @@ function fxRefreshPrompt(caps) {
     "Current table for reference:", JSON.stringify({ verified: caps.verified, fx: caps.fx, tools: caps.tools, cells: caps.cells })
   ].join("\n");
 }
+function openFeas(rec) {
+  openSession(rec);
+  const f = S.feasSaved; if (!f) return;
+  S.fx = { tool: f.tool, reqs: f.reqs.slice(), request: f.request, msg: "", imp: "", users: f.users, flows: f.flows };
+  S.screen = "feas"; render(); window.scrollTo(0, 0);
+}
+async function fxSave(caps) {
+  const f = S.fx;
+  if (!f.reqs.length && !(f.request || "").trim()) { f.msg = "Tick at least one need or add notes before saving."; render(); return; }
+  if (!S.sid) { S.brand = "business"; S.sel = [BASE.business]; S.typeId = BASE.business; S.sid = newId(); S.created = Date.now(); S.answers = {}; S.results = {}; S.pastes = {}; S.result = null; S.paste = ""; S.step = 0; S.lang = S.lang || "en"; }
+  const tool = f.tool === "all" ? null : caps.tools.find(t => t.id === f.tool);
+  S.feasSaved = { tool: f.tool, reqs: f.reqs.slice(), users: f.users, flows: f.flows, request: (f.request || "").trim(), verdict: tool ? fxEval(caps, tool.id, f.reqs).overall : "", verified: caps.verified, saved: Date.now() };
+  lastSaved = ""; persist(); f.msg = "Saving..."; render();
+  await Cloud.flush();
+  const c = S.cloud.status;
+  f.msg = (c === "ok" ? "Check saved to your library and cloud account." : "Check saved on this device. Cloud copy: " + (c === "setup" ? "not set up yet." : c === "offline" ? "offline, will retry." : "problem, will retry.")) + " Find it under Saved materials.";
+  render();
+}
 function feasScreen() {
   const caps = loadCaps(), f = S.fx, age = fxAge(caps);
   if (f.tool !== "all" && !caps.tools.some(t => t.id === f.tool)) f.tool = caps.tools[0].id;
@@ -1351,6 +1382,8 @@ function feasScreen() {
     el("div", { class: "note" }, "Check whether a job can be delivered with the client's own paid AI plan before you promise it. Results come from a dated table, not guesses."),
     age > 60 ? el("div", { class: "note warn", role: "alert" }, "This table was last verified " + caps.verified + " (" + age + " days ago). Re-verify with the Refresh prompt below before relying on it.") : el("p", { class: "muted" }, "Table verified " + caps.verified + (caps.custom ? " (your imported version)." : " (built in).")),
     f.msg ? el("div", { class: "note", role: "status" }, f.msg) : null,
+    el("label", { class: "namef" }, el("span", { class: "muted", style: "display:block;margin:0 0 4px" }, "Client or business name (optional)"),
+      el("input", { type: "text", maxlength: "80", value: S.name || "", placeholder: "e.g. Tremblay Plumbing", "aria-label": "Client or business name", oninput: e => { S.name = e.target.value.slice(0, 80); } })),
     el("h2", null, "1. What does the client want?"),
     el("textarea", { "aria-label": "What the client wants", placeholder: "Optional notes, shown in the proposal wording", style: "min-height:90px", oninput: e => { f.request = e.target.value.slice(0, 600); } }, f.request || ""),
     el("h2", null, "2. Which paid plan will they use?"), toolOpts,
@@ -1361,6 +1394,8 @@ function feasScreen() {
       el("label", null, el("span", { class: "muted", style: "display:block" }, "Separate workflows"), el("input", { type: "number", inputmode: "numeric", min: "0", max: "50", value: String(f.flows), "aria-label": "Number of workflows", onchange: e => { f.flows = Math.min(50, Math.max(0, parseInt(e.target.value, 10) || 0)); render(); } }))),
     f.reqs.length ? el("button", { class: "btn link", onclick: () => { f.reqs = []; render(); } }, "Clear selections") : el("p", { class: "muted" }, "Pick at least one need to see the result."),
     result,
+    el("button", { class: "btn primary", onclick: () => fxSave(caps) }, S.feasSaved ? "Update saved check" : "Save this check"),
+    el("p", { class: "muted" }, S.feasSaved ? "Saved with this client under Saved materials." : "Saves the client name, needs, plan and result so you can reopen it before the call."),
     el("h2", null, "Keep the table current"),
     el("p", { class: "muted" }, "Plans change often. Once a month, copy this prompt into a free AI chat with web search turned on, then paste its JSON reply below. Check key entries against the vendor pages before relying on them."),
     el("button", { class: "btn", onclick: async () => say(await copyText(fxRefreshPrompt(caps)) ? "Refresh prompt copied. Paste it into an AI chat with web search." : "Could not copy.") }, "Copy refresh prompt"),
@@ -1401,10 +1436,10 @@ function homeScreen() {
       el("button", { class: "btn primary", disabled: !S.sel.length, onclick: () => {
         if (!S.sel.length) return;
         S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; S.typeId = S.sel[0];
-        S.sid = newId(); S.name = ""; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
+        S.sid = newId(); S.name = ""; S.feasSaved = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
       } }, t("start"))),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
-    el("button", { class: "btn", onclick: () => { S.fx.msg = ""; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
+    el("button", { class: "btn", onclick: () => { S.sid = null; S.name = ""; S.feasSaved = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
     cloudLine(),
     el("div", { class: "note" }, t("standing")),
