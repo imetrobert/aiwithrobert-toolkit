@@ -1191,6 +1191,7 @@ function shell(...content) {
 const CAPS_KEY = "awr_toolkit_caps";
 const CAPS_BUILTIN = {
   verified: "2026-11-11",
+  fx: { rate: 1.4, date: "2026-10-26" },
   tools: [
     { id: "chatgpt", name: "ChatGPT Plus", price: "$20 USD/mo (ChatGPT Team about $25 to $30 per user)", url: "https://chatgpt.com/pricing", usd: [25, 30], usdSolo: 20, usdNote: "Plus is $20 for one person; several staff need ChatGPT Team seats." },
     { id: "claude", name: "Claude Pro", price: "$20 USD/mo (Claude Team needs 5 or more seats)", url: "https://claude.com/pricing", usd: [20, 20], usdNote: "Claude Team pricing not confirmed here (5-seat minimum). Check the vendor." },
@@ -1252,11 +1253,12 @@ function cleanCaps(raw) {
       cells[r.id][t.id] = { v: c.v, n: isStr(c.n) ? c.n.trim().slice(0, 300) : "", s: okUrl(c.s) ? c.s : "", c: c.c === "sourced" ? "sourced" : "general" };
     }
   }
-  return { caps: { verified: raw.verified, tools, reqs: CAPS_BUILTIN.reqs, cells } };
+  const fx = raw.fx && Number.isFinite(raw.fx.rate) && raw.fx.rate >= 1 && raw.fx.rate <= 2 ? { rate: raw.fx.rate, date: isStr(raw.fx.date) ? raw.fx.date.slice(0, 10) : "" } : CAPS_BUILTIN.fx;
+  return { caps: { verified: raw.verified, fx, tools, reqs: CAPS_BUILTIN.reqs, cells } };
 }
 function normBuiltin() {
   const cells = {}; for (const r of CAPS_BUILTIN.reqs) { cells[r.id] = {}; for (const t of CAPS_BUILTIN.tools) { const c = CAPS_BUILTIN.cells[r.id][t.id]; cells[r.id][t.id] = { v: c.v, n: c.n || "", s: c.s || "", c: c.c || "general" }; } }
-  return { verified: CAPS_BUILTIN.verified, tools: CAPS_BUILTIN.tools, reqs: CAPS_BUILTIN.reqs, cells };
+  return { verified: CAPS_BUILTIN.verified, fx: CAPS_BUILTIN.fx, tools: CAPS_BUILTIN.tools, reqs: CAPS_BUILTIN.reqs, cells };
 }
 function loadCaps() {
   try { const r = JSON.parse(localStorage.getItem(CAPS_KEY) || "null"); if (r) { const c = cleanCaps(r); if (c.caps) return Object.assign(c.caps, { custom: true }); } } catch (e) {}
@@ -1269,14 +1271,14 @@ function fxEval(caps, toolId, reqIds) {
 }
 const fxAge = caps => { const d = Date.parse(caps.verified + "T00:00:00"); return Number.isFinite(d) ? Math.floor((Date.now() - d) / 86400000) : 999; };
 const FX_PRICE = { assessment: [1500, 2500], workflow: 2000, partialAdd: 500, training: 1200 };
-const money = n => "$" + Math.round(n).toLocaleString("en-CA");
-function fxCost(tool, users) {
+const money = n => "$" + Math.round(n).toLocaleString("en-CA") + " CAD";
+function fxCost(tool, users, rate) {
   if (!tool.usd) return null;
   let lo = tool.usd[0], hi = tool.usd[1];
   if (users === 1 && tool.usdSolo != null) { lo = hi = tool.usdSolo; }
-  return { lo: lo * users, hi: hi * users, note: tool.usdNote || "" };
+  return { lo: lo * users * rate, hi: hi * users * rate, rate, note: tool.usdNote || "" };
 }
-const costText = (c, users) => c ? (c.lo === c.hi ? "about " + money(c.lo) : "about " + money(c.lo) + " to " + money(c.hi)) + " USD per month for " + users + " " + (users === 1 ? "person" : "people") + ", before tax" : "";
+const costText = (c, users) => c ? (c.lo === c.hi ? "about " + money(c.lo) : "about " + money(c.lo).replace(" CAD", "") + " to " + money(c.hi)) + " per month for " + users + " " + (users === 1 ? "person" : "people") + ", before tax (vendor prices are in USD, converted at " + c.rate.toFixed(2) + ")" : "";
 function fxFee(ev, flows) {
   const n = ev.rows.filter(x => x.cell.v === "partial" || x.cell.v === "unknown").length, hasNo = ev.rows.some(x => x.cell.v === "no");
   const per = FX_PRICE.workflow + FX_PRICE.partialAdd * n;
@@ -1287,7 +1289,7 @@ function fxWording(caps, tool, ev, request, users) {
   const L = x => "- " + x.req.label + (x.cell.n ? " (" + x.cell.n + ")" : "");
   const out = [];
   if (request) out.push("REQUEST: " + request.trim(), "");
-  out.push("WHAT YOU NEED", "An active paid " + tool.name + " account for each person who will use the workflows" + (tool.price ? ", " + tool.price : "") + ". The subscription is bought and paid by you directly from the vendor." + (fxCost(tool, users) ? " Estimated subscription cost: " + costText(fxCost(tool, users), users) + "." : ""), "");
+  out.push("WHAT YOU NEED", "An active paid " + tool.name + " account for each person who will use the workflows" + (tool.price ? ", " + tool.price : "") + ". The subscription is bought and paid by you directly from the vendor." + (fxCost(tool, users, caps.fx.rate) ? " Estimated subscription cost: " + costText(fxCost(tool, users, caps.fx.rate), users) + "." : ""), "");
   if (by("yes").length) out.push("INCLUDED (works on this plan)", ...by("yes").map(x => "- " + x.req.label), "");
   const cond = by("partial").concat(by("unknown"));
   if (cond.length) out.push("INCLUDED WITH CONDITIONS", ...cond.map(L), "");
@@ -1302,8 +1304,8 @@ function fxRefreshPrompt(caps) {
     "Requirements (keys): " + caps.reqs.map(r => r.id + " = " + r.label).join("; ") + ".",
     "For every requirement and every plan give: v = yes, partial, no or unknown (use unknown when you cannot confirm; never guess), n = one short plain sentence of conditions or limits, s = one https source URL you actually read (or empty), c = \"sourced\" if a source supports it, otherwise \"general\".",
     "Also check whether any plan's price or name changed and update tools[].price, tools[].usd ([lowest, highest] USD per user per month), tools[].usdSolo (price for one person, or omit) and tools[].usdNote.",
-    "Set verified to today's date as YYYY-MM-DD. Reply with ONLY one JSON object in a single code block: {\"verified\":\"\",\"tools\":[{\"id\":\"\",\"name\":\"\",\"price\":\"\",\"url\":\"\",\"usd\":[0,0],\"usdNote\":\"\"}],\"cells\":{\"<requirement key>\":{\"<tool id>\":{\"v\":\"\",\"n\":\"\",\"s\":\"\",\"c\":\"\"}}}}",
-    "Current table for reference:", JSON.stringify({ verified: caps.verified, tools: caps.tools, cells: caps.cells })
+    "Also give fx: {rate, date} with today's Bank of Canada USD to CAD rate. Set verified to today's date as YYYY-MM-DD. Reply with ONLY one JSON object in a single code block: {\"verified\":\"\",\"fx\":{\"rate\":0,\"date\":\"\"},\"tools\":[{\"id\":\"\",\"name\":\"\",\"price\":\"\",\"url\":\"\",\"usd\":[0,0],\"usdNote\":\"\"}],\"cells\":{\"<requirement key>\":{\"<tool id>\":{\"v\":\"\",\"n\":\"\",\"s\":\"\",\"c\":\"\"}}}}",
+    "Current table for reference:", JSON.stringify({ verified: caps.verified, fx: caps.fx, tools: caps.tools, cells: caps.cells })
   ].join("\n");
 }
 function feasScreen() {
@@ -1333,7 +1335,7 @@ function feasScreen() {
           el("div", { style: "display:flex;gap:10px;align-items:flex-start" }, el("div", { style: "flex:1;font-weight:700" }, x.req.label), chip(x.cell.v)),
           x.cell.n ? el("div", { class: "muted", style: "margin:4px 0 0" }, x.cell.n) : null,
           el("div", { class: "muted", style: "margin:2px 0 0;font-size:13px" }, x.cell.c === "sourced" ? "Sourced" : "Not re-checked", x.cell.s ? [" · ", el("a", { href: x.cell.s, target: "_blank", rel: "noopener noreferrer" }, "source")] : null)))),
-        (() => { const c = fxCost(tool, f.users), fee = fxFee(ev, f.flows);
+        (() => { const c = fxCost(tool, f.users, caps.fx.rate), fee = fxFee(ev, f.flows);
           return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Estimate"),
             c ? el("p", { style: "margin:0 0 6px" }, el("strong", null, "Client's subscription: "), costText(c, f.users) + ". ", c.note) : null,
             el("p", { class: "muted", style: "margin:8px 0 0" }, "Internal, not for clients:"),
@@ -1366,7 +1368,7 @@ function feasScreen() {
     el("button", { class: "btn", onclick: () => {
       let o; try { o = JSON.parse((f.imp || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "")); } catch (e) { say("That is not valid JSON: " + shorten(e && e.message, 100)); return; }
       const c = cleanCaps(o); if (c.error) { say("Not imported. " + c.error); return; }
-      try { localStorage.setItem(CAPS_KEY, JSON.stringify({ verified: c.caps.verified, tools: c.caps.tools, cells: c.caps.cells })); } catch (e) { say("Could not save on this device."); return; }
+      try { localStorage.setItem(CAPS_KEY, JSON.stringify({ verified: c.caps.verified, fx: c.caps.fx, tools: c.caps.tools, cells: c.caps.cells })); } catch (e) { say("Could not save on this device."); return; }
       f.imp = ""; say("Imported. Table verified " + c.caps.verified + ". Saved on this device only.");
     } }, "Import updated table"),
     caps.custom ? el("button", { class: "btn link", onclick: () => { try { localStorage.removeItem(CAPS_KEY); } catch (e) {} say("Back to the built-in table."); } }, "Reset to built-in table") : null,
