@@ -1208,7 +1208,7 @@ function leadsScreen() {
         el("button", { class: "btn sm danger", onclick: () => { if (confirm("Delete this lead from this device and your cloud account? Any saved profile or feasibility check on it is deleted too. This cannot be undone. Use Archive to keep it.")) { Store.remove(r.id); if (S.sid === r.id) { S.sid = null; S.lead = null; S.feasSaved = null; lastSaved = ""; } render(); } } }, "Delete (tests only)")));
   });
   const sfl = searchable("leads", list, cards, r => [r.name, r.lead && r.lead.contact, r.lead && r.lead.note, r.lead && r.lead.status, r.feas && r.feas.name].join(" "), r => r.created, r => r.brand, ["lead", "leads"]);
-  return shell(el("h1", null, "Leads"),
+  return shell(inboxTabs("leads"), el("h1", null, "Leads"),
     el("p", { class: "muted" }, "Track venues and businesses from first contact to won or lost. Syncs with your other saved profiles. Saved Feasibility checks appear here too."),
     el("div", { class: "card" }, nameIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => newLead(nameIn.value) }, "Add lead")),
     all.length ? filt : null, sfl.bar,
@@ -1260,7 +1260,7 @@ function headerBack() {
   const sc = S.screen;
   const go = (to, pre) => () => { if (pre) pre(); S.screen = to; render(); window.scrollTo(0, 0); };
   let fn = null;
-  if (sc === "wait") fn = go("cap");
+  if (sc === "wait") fn = go("home");
   else if (sc === "intake") fn = () => { if (S.step > 0) S.step--; else S.screen = "home"; render(); window.scrollTo(0, 0); };
   else if (sc === "composer") fn = go("hub");
   else if (sc === "import") fn = go("composer");
@@ -1668,6 +1668,17 @@ function markSeenNow() {
   if (S.screen === "inq" && S.cap.inq) seenSet("inq", Math.max(0, ...S.cap.inq.map(ts)));
   if (S.screen === "leads" && unseenLeads().length) unseenLeadsSet([]);
 }
+/* One "Inbox & leads" place: Inquiries, Waitlist and Leads as tabs. */
+function openInbox(tab) {
+  if (tab === "inq") { S.cap.inqStatus = "idle"; S.cap.inqMsg = ""; S.screen = "inq"; render(); window.scrollTo(0, 0); inqLoad(); }
+  else if (tab === "wait") { S.cap.wlStatus = "idle"; S.cap.wlMsg = ""; S.screen = "wait"; render(); window.scrollTo(0, 0); wlLoad(); }
+  else { S.screen = "leads"; render(); window.scrollTo(0, 0); }
+}
+function inboxTabs(active) {
+  const NC = newCounts();
+  const tab = (id, label, n) => el("button", { "aria-pressed": String(active === id), onclick: () => { if (active !== id) openInbox(id); } }, label, n ? el("span", { style: "display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;background:#B42318;color:#fff;font-size:12px;font-weight:700" }, String(n)) : null);
+  return el("div", { class: "seg dark", role: "group", "aria-label": "Inbox and leads", style: "margin:0 0 12px" }, tab("inq", "Inquiries", NC.inq), tab("wait", "Waitlist", NC.wait), tab("leads", "Leads", NC.leads));
+}
 const newPill = n => n ? el("span", { style: "display:inline-block;margin-left:8px;padding:2px 10px;border-radius:999px;background:#B42318;color:#fff;font-weight:700;font-size:13px;vertical-align:middle" }, n + " NEW") : null;
 const newStyle = n => n ? "border-left:10px solid #B42318;background:#FEF3F2;font-weight:700" : "";
 async function wlLoad() {
@@ -1736,14 +1747,14 @@ function waitScreen() {
       x.status !== "archived" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "archived") }, "Archive") : el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => wlSet(x.id, "new") }, "Restore"),
       el("button", { class: "btn sm", style: "margin:0;width:auto;color:#9A1C1C;border-color:#9A1C1C", onclick: () => wlDelete(x) }, "Delete (tests only)"))));
   const sfw = searchable("wait", list, cards, x => [x.name, x.organization, x.email, x.phone, (x.services || []).join(" "), x.site].join(" "), x => ts(x), x => x.site, ["waitlist entry", "waitlist entries"]);
-  return shell(el("h1", null, "Waitlist"),
+  return shell(inboxTabs("wait"), el("h1", null, "Waitlist"),
     el("div", { class: "note" }, "People who asked to be contacted while a site was at capacity. Make a lead to follow up in the Leads tracker. Archive hides an entry and keeps it. Delete erases it for good, so use it only for test entries."),
     S.cap.wlMsg ? el("div", { class: "note", role: "status" }, S.cap.wlMsg) : null,
     S.cap.wlStatus === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
     S.cap.wlStatus === "error" ? el("button", { class: "btn", onclick: () => { S.cap.wlStatus = "idle"; wlLoad(); } }, "Try again") : null,
     filt, sfw.bar, cards.length ? sfw.box : (S.cap.wlStatus === "ok" ? el("p", { class: "muted" }, "Nothing here.") : null),
     list.length ? el("button", { class: "btn", onclick: async () => { S.cap.wlMsg = (await copyText(list.filter(S.sfMatch.wait).map(x => x.email).join(", ")) ? "Emails copied (" + list.filter(S.sfMatch.wait).length + ")." : "Could not copy."); render(); } }, "Copy these emails") : null,
-    el("button", { class: "btn link", onclick: () => { S.screen = "cap"; render(); window.scrollTo(0, 0); } }, "Back to Site availability"));
+    el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
 }
 /* Contact-form submissions saved by the sites (table site_inquiries, migration/site_inquiries.sql). The formsubmit.co email still arrives too. */
 const INQ_LABEL = { interest: "Interested in", team_size: "Team size", personal_info: "Handles personal info", "session-type": "Interested in", referral: "Heard about me via" };
@@ -1800,7 +1811,7 @@ function inqScreen() {
         el("button", { class: "btn sm", style: "margin:0;width:auto;color:#9A1C1C;border-color:#9A1C1C", onclick: () => inqDelete(x) }, "Delete (tests only)")));
   });
   const sfi = searchable("inq", list, cards, x => [x.name, x.organization, x.email, x.phone, x.message, x.site, Object.values(x.extra || {}).join(" ")].join(" "), x => ts(x), x => x.site, ["inquiry", "inquiries"]);
-  return shell(el("h1", null, "Inquiries"),
+  return shell(inboxTabs("inq"), el("h1", null, "Inquiries"),
     el("div", { class: "note" }, "Contact-form submissions from both sites (a copy of what is emailed to you). Archive hides an entry and keeps it. Delete erases it for good, so use it only for test entries."),
     S.cap.inqMsg ? el("div", { class: "note", role: "status" }, S.cap.inqMsg) : null,
     S.cap.inqStatus === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
@@ -2015,9 +2026,7 @@ function homeScreen() {
       S.cap.rows ? CAP_SITES.map(x => { const k = capState(S.cap.rows[x.id], Date.now()).k; return el("span", { style: "display:flex;align-items:center;gap:10px;margin-top:6px;font-weight:600" },
         el("span", { "aria-hidden": "true", style: "flex:none;width:16px;height:16px;border-radius:50%;background:" + { on: "#B42318", scheduled: "#B45309", off: "#14632F" }[k] }),
         el("span", null, x.name.split(" ")[0] + ": " + { on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[k])); }) : el("span", { class: "muted", style: "display:block;margin-top:4px;font-weight:400" }, "Loading...")),
-    el("button", { class: "btn", style: newStyle(NC.inq), onclick: () => { S.cap.inqStatus = "idle"; S.cap.inqMsg = ""; S.screen = "inq"; render(); window.scrollTo(0, 0); inqLoad(); } }, "Inquiries" + (S.cap.inq ? " (" + S.cap.inq.filter(x => x.status === "new").length + " new)" : ""), newPill(NC.inq)),
-    el("button", { class: "btn", style: newStyle(NC.wait), onclick: () => { S.cap.wlStatus = "idle"; S.cap.wlMsg = ""; S.screen = "wait"; render(); window.scrollTo(0, 0); wlLoad(); } }, "Waitlist" + (S.cap.wl ? " (" + S.cap.wl.filter(x => x.status === "new").length + " new)" : ""), newPill(NC.wait)),
-    el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost" || x.lead.archived))).length + " active)", newPill(NC.leads)),
+    el("button", { class: "btn", style: newStyle(NC.inq + NC.wait + NC.leads), onclick: () => openInbox(NC.inq ? "inq" : NC.wait ? "wait" : NC.leads ? "leads" : "inq") }, "Inbox & leads", newPill(NC.inq + NC.wait + NC.leads)),
     el("button", { class: "btn", disabled: S.brand === "business", "aria-disabled": String(S.brand === "business"), onclick: () => { if (S.brand === "business") return; svState().msg = ""; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad(); } }, "Surveys" + (S.sv && S.sv.rows ? " (" + S.sv.rows.length + ")" : "")),
     S.brand === "business" ? el("p", { class: "muted", style: "margin:-6px 2px 10px;font-size:13px" }, "Seniors workshops only. Choose AI with Robert for Seniors above to use it.") : null,
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
