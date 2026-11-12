@@ -655,8 +655,8 @@ const UI = {
     editAnswers: "Edit my answers", startOver: "Start over", confirmOver: "Discard this session and start over?",
     pasteReply: "Paste the AI's reply",
     langLabel: "Language",
-    exportTitle: "Export", shareFile: "Share / save file", downloadFile: "Download file (fallback link)", openPage: "Open printable page", copyText: "Copy handout text",
-    pdfBtn: "Save as PDF (print)", pdfDl: "Download PDF (no page stamps)", pdfBusy: "Building PDF", pdfReady: "PDF ready.", pdfShare: "Share / save PDF", pdfOpen: "Open PDF", pdfFail: "Could not build the PDF. Check your connection (the PDF tool loads from the internet the first time) and try again.", pdfShareFail: "Sharing is not available here. Use Open PDF, then the Share button.", pdfInfoLabel: "How to save as PDF", pdfTitle: "How to save a PDF on iPhone",
+    exportTitle: "Export", shareFile: "Share", downloadFile: "Download file (fallback link)", openPage: "Open printable page", copyText: "Copy handout text",
+    pdfBtn: "Print", pdfDl: "Download PDF (no page stamps)", pdfBusy: "Building PDF", popupBlocked: "The page was blocked from opening. Allow pop-ups for this site, then tap Print again.", pdfReady: "PDF ready.", pdfShare: "Share / save PDF", pdfOpen: "Open PDF", pdfFail: "Could not build the PDF. Check your connection (the PDF tool loads from the internet the first time) and try again.", pdfShareFail: "Sharing is not available here. Use Open PDF, then the Share button.", pdfInfoLabel: "How to save as PDF", pdfTitle: "How to save a PDF on iPhone",
     pdfSteps: ["Tap Save as PDF. The document opens on its own page.", "Tap the Share button in Safari (the square with an arrow).", "Scroll the share sheet and tap Print.", "On the Print screen, spread two fingers on the small page preview to enlarge it. It turns into a PDF.", "Tap Share again (top right), then choose Save to Files, Mail, Messages or AirDrop."],
     pdfTip: "To come back to the toolkit, close that page or tap Back.",
     shared: "Shared.", textCopied: "Handout text copied.", shareFail: "Sharing is not available here - use the download link.",
@@ -716,8 +716,8 @@ const UI = {
     editAnswers: "Modifier mes réponses", startOver: "Recommencer", confirmOver: "Abandonner cette séance et recommencer?",
     pasteReply: "Coller la réponse de l'IA",
     langLabel: "Langue",
-    exportTitle: "Exporter", shareFile: "Partager / enregistrer le fichier", downloadFile: "Télécharger le fichier (lien de secours)", openPage: "Ouvrir la page imprimable", copyText: "Copier le texte du document",
-    pdfBtn: "Enregistrer en PDF (impression)", pdfDl: "Télécharger le PDF (sans mentions)", pdfBusy: "Création du PDF", pdfReady: "PDF prêt.", pdfShare: "Partager / enregistrer le PDF", pdfOpen: "Ouvrir le PDF", pdfFail: "Impossible de créer le PDF. Vérifiez la connexion (l'outil PDF se charge depuis Internet la première fois) et réessayez.", pdfShareFail: "Le partage n'est pas disponible ici. Utilisez Ouvrir le PDF, puis le bouton Partager.", pdfInfoLabel: "Comment enregistrer en PDF", pdfTitle: "Comment enregistrer un PDF sur iPhone",
+    exportTitle: "Exporter", shareFile: "Partager", downloadFile: "Télécharger le fichier (lien de secours)", openPage: "Ouvrir la page imprimable", copyText: "Copier le texte du document",
+    pdfBtn: "Imprimer", pdfDl: "Télécharger le PDF (sans mentions)", pdfBusy: "Création du PDF", popupBlocked: "L'ouverture de la page a été bloquée. Autorisez les fenêtres contextuelles pour ce site, puis touchez Imprimer de nouveau.", pdfReady: "PDF prêt.", pdfShare: "Partager / enregistrer le PDF", pdfOpen: "Ouvrir le PDF", pdfFail: "Impossible de créer le PDF. Vérifiez la connexion (l'outil PDF se charge depuis Internet la première fois) et réessayez.", pdfShareFail: "Le partage n'est pas disponible ici. Utilisez Ouvrir le PDF, puis le bouton Partager.", pdfInfoLabel: "Comment enregistrer en PDF", pdfTitle: "Comment enregistrer un PDF sur iPhone",
     pdfSteps: ["Touchez Enregistrer en PDF. Le document s'ouvre sur sa propre page.", "Touchez le bouton Partager de Safari (le carré avec une flèche).", "Faites défiler la feuille de partage et touchez Imprimer.", "Sur l'écran Imprimer, écartez deux doigts sur le petit aperçu de la page pour l'agrandir. Il devient un PDF.", "Touchez Partager de nouveau (en haut à droite), puis choisissez Enregistrer dans Fichiers, Mail, Messages ou AirDrop."],
     pdfTip: "Pour revenir à la boîte à outils, fermez cette page ou touchez Retour.",
     shared: "Partagé.", textCopied: "Texte du document copié.", shareFail: "Le partage n'est pas disponible ici : utilisez le lien de téléchargement.",
@@ -2517,16 +2517,17 @@ function exportPanel(d) {
     pdfBtn2.disabled = false;
   } }, t("pdfDl"));
   const copy = el("button", { class: "btn", onclick: async () => { msg.textContent = (await copyText(plainText(d))) ? t("textCopied") : t("copyFail"); } }, t("copyText"));
-  const info = el("div", { class: "note", hidden: true }, el("b", null, t("pdfTitle")),
-    el("ol", { class: "how" }, UI[S.ui].pdfSteps.map(x => el("li", null, x))), el("div", { class: "muted" }, t("pdfTip")));
-  const ibtn = el("button", { class: "ibtn", "aria-label": t("pdfInfoLabel"), "aria-expanded": "false", onclick: () => { const open = info.hidden; info.hidden = !open; ibtn.setAttribute("aria-expanded", String(open)); } }, "i");
+  /* Print: opens the printable page in a new tab and starts the print dialog by itself. */
+  const printBtn = el("button", { class: "btn", onclick: () => {
+    const ph = html.replace("</body>", "<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},500)})<\/script></body>");
+    const pu = URL.createObjectURL(new Blob([ph], { type: "text/html" }));
+    if (!window.open(pu, "_blank")) msg.textContent = t("popupBlocked");
+  } }, t("pdfBtn"));
   return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, t("exportTitle")),
     isDeck ? el("a", { class: "btn primary", href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none" }, t("presentBtn")) : null,
     isDeck ? el("p", { class: "muted" }, t("presentTip")) : null,
     pdfBtn2, pdfBox,
-    el("div", { class: "prow" },
-      el("a", { class: "btn", href: blobUrl, target: "_blank", rel: "noopener", style: "text-decoration:none" }, t("pdfBtn")), ibtn),
-    info, share,
+    printBtn, share,
     copy, msg,
     el("a", { class: "btn link", href: blobUrl, download: name, style: "text-decoration:none;line-height:30px" }, t("downloadFile")));
 }
