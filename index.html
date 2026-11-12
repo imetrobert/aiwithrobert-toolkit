@@ -1586,6 +1586,39 @@ function applyInquiry(o) {
   if (o.tools.length === 1) f.tool = o.tools[0]; else if (o.tools.length > 1) f.tool = "all";
   S.lead = { status: "new", contact: [o.company && o.name ? o.name : "", o.email, o.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: "From the contact form." + (o.tools.length ? " Pays for: " + o.tools.join(", ") + "." : "") };
 }
+/* Optional: discovery-call transcript to a ready-made prompt for a free AI chat, then paste its JSON reply back to tick needs. No API; the AI step is copy/paste. */
+function fxCallPrompt(caps, transcript) {
+  return [
+    "You are helping a Montreal AI consultant prepare a quote after a 15-minute discovery call with a small business. Read the transcript at the end. Use ONLY what the client actually said or clearly implied. Never guess, never add needs they did not mention.",
+    "Reply with ONLY one JSON object in a single code block and no other text, in English even if the call was in French:",
+    '{"needs":["need ids"],"evidence":{"need id":"short quote or paraphrase, under 15 words"},"users":0,"workflows":0,"tools":["chatgpt|claude|gemini|copilot"],"summary":"two sentences on what the client wants","questions":["things still unclear or that must be confirmed"],"notes":"anything they asked for that a paid chat AI plan may not be able to do"}',
+    "Allowed need ids (use only these): " + caps.reqs.map(r => r.id + " = " + r.label).join("; ") + ".",
+    "Rules: users = how many people would use it (0 if not said). workflows = how many separate repeatable tasks they described (0 if not said). tools = paid AI plans they say they already have (chatgpt, claude, gemini, copilot), otherwise an empty list. Use the need priv only if they mention client or customer personal information. Do not mention prices.",
+    "TRANSCRIPT:",
+    transcript
+  ].join("\n\n");
+}
+function parseCallReply(text, caps) {
+  let o; try { o = JSON.parse(String(text || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); } catch (e) { return { error: "That is not valid JSON. Copy the whole reply from the AI chat, including the braces." }; }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return { error: "That reply is not the expected object." };
+  const ids = caps.reqs.map(r => r.id), arr = v => Array.isArray(v) ? v : [], str = (v, n) => typeof v === "string" ? v.trim().slice(0, n) : "", int = (v, max) => { const n = Math.round(Number(v)); return n > 0 && n <= max ? n : 0; };
+  const needs = arr(o.needs).filter(x => ids.includes(x)).filter((x, i, a) => a.indexOf(x) === i);
+  const ev = o.evidence && typeof o.evidence === "object" && !Array.isArray(o.evidence) ? o.evidence : {};
+  return { needs, evidence: needs.map(id => ({ id, label: caps.reqs.find(r => r.id === id).label, quote: str(ev[id], 120) })), users: int(o.users, 300), flows: int(o.workflows, 50),
+    tools: arr(o.tools).filter(t => ["chatgpt", "claude", "gemini", "copilot"].includes(t)).filter((x, i, a) => a.indexOf(x) === i), summary: str(o.summary, 300),
+    questions: arr(o.questions).map(q => str(q, 150)).filter(Boolean).slice(0, 5), notes: str(o.notes, 200) };
+}
+function applyCallReply(c) {
+  const f = S.fx, order = CAPS_BUILTIN.reqs.map(r => r.id);
+  f.reqs = order.filter(id => f.reqs.includes(id) || c.needs.includes(id));
+  if (c.users) f.users = c.users;
+  if (c.flows) f.flows = c.flows;
+  if (c.tools.length === 1) f.tool = c.tools[0]; else if (c.tools.length > 1) f.tool = "all";
+  if (c.summary) f.request = ((f.request ? f.request + "\n" : "") + "Call: " + c.summary).slice(0, 600);
+  const extra = c.questions.concat(c.notes ? ["Check: " + c.notes] : []);
+  if (extra.length) { S.lead = Object.assign({ status: "new", contact: "", follow: "", note: "" }, S.lead || {}); S.lead.note = ((S.lead.note ? S.lead.note + " " : "") + "Open after call: " + extra.join("; ")).slice(0, 500); }
+  f.callEv = c.evidence;
+}
 function feasScreen() {
   const caps = loadCaps(), f = S.fx, age = fxAge(caps);
   if (f.tool !== "all" && !caps.tools.some(t => t.id === f.tool)) f.tool = caps.tools[0].id;
@@ -1630,6 +1663,8 @@ function feasScreen() {
         el("button", { class: "btn primary", onclick: async () => say(await copyText(fxWording(caps, tool, ev, f.request, f.users)) ? "Proposal wording copied." : "Could not copy. Select the text manually.") }, "Copy proposal wording"));
     }
   }
+  const cta = el("textarea", { "aria-label": "Discovery call transcript", placeholder: "Paste the transcript here", style: "min-height:110px", oninput: e => { f.call = e.target.value; } }); cta.value = f.call || "";
+  const crp = el("textarea", { "aria-label": "AI reply with the call summary", placeholder: "Paste the AI reply here", style: "min-height:90px", oninput: e => { f.callReply = e.target.value; } }); crp.value = f.callReply || "";
   const inq = el("textarea", { "aria-label": "Contact form email", placeholder: "Paste the email here", style: "min-height:110px", oninput: e => { f.inq = e.target.value; } }); inq.value = f.inq || "";
   const imp = el("textarea", { "aria-label": "Updated capability table JSON", placeholder: "Paste the updated table here", style: "min-height:120px", oninput: e => { f.imp = e.target.value; } }); imp.value = f.imp || "";
   return shell(
@@ -1641,6 +1676,13 @@ function feasScreen() {
       el("p", { class: "muted" }, "Open the email from the Business form, select all, copy, and paste it here. The name, needs, plan and team size are filled in for you, and the contact details go to the lead."),
       inq,
       el("button", { class: "btn primary", onclick: () => { const o = parseInquiry(f.inq); if (!o) { say("I could not find the form fields in that text. Copy the whole email, including the lines such as team_size and need_writing."); return; } applyInquiry(o); f.inq = ""; say("Filled from the email. Check it below, then tap Save this check to add it to Leads. Ticked tools: " + (o.tools.length ? o.tools.join(", ") : "none") + "."); window.scrollTo(0, 0); } }, "Fill from email")),
+    el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "After the discovery call (optional)"),
+      el("p", { class: "muted" }, "Paste the call transcript (Voice Memos text, .vtt or plain). Emails and phone numbers are removed. Copy the prompt into a free AI chat, then paste its reply below to tick the needs the client mentioned. Check the quotes before you rely on them."),
+      cta,
+      el("button", { class: "btn", onclick: async () => { const r = cleanTranscript(f.call, 40000); if (!r.text) { say("Paste the transcript first."); return; } say((await copyText(fxCallPrompt(caps, r.text)) ? "Prompt copied" : "Could not copy") + (r.redacted ? " (" + r.redacted + " email or number removed)" : "") + (r.cut ? ". Transcript was cut at 40,000 characters." : ".") + " Paste it into a free AI chat, then paste the reply below."); } }, "Copy AI prompt"),
+      crp,
+      el("button", { class: "btn primary", onclick: () => { const c = parseCallReply(f.callReply, caps); if (c.error) { say(c.error); return; } applyCallReply(c); f.callReply = ""; say("Applied: " + c.needs.length + " need(s) ticked" + (c.questions.length ? ", " + c.questions.length + " open question(s) added to the lead note" : "") + ". Review below, then Save this check."); window.scrollTo(0, 0); } }, "Apply reply to this check"),
+      f.callEv && f.callEv.length ? el("div", { style: "margin-top:10px" }, el("div", { class: "muted", style: "font-weight:700" }, "What the AI heard"), f.callEv.map(x => el("div", { class: "muted", style: "margin:3px 0" }, "\u2713 " + x.label + (x.quote ? ": \u201C" + x.quote + "\u201D" : "")))) : null),
     el("label", { class: "namef" }, el("span", { class: "muted", style: "display:block;margin:0 0 4px" }, "Client or business name (optional)"),
       el("input", { type: "text", maxlength: "80", value: S.name || "", placeholder: "e.g. Tremblay Plumbing", "aria-label": "Client or business name", oninput: e => { S.name = e.target.value.slice(0, 80); } })),
     el("h2", null, "1. What does the client want?"),

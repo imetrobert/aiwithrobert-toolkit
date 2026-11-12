@@ -34,6 +34,7 @@ Tools: Google Calendar booking page, formsubmit email, the toolkit (Leads, Feasi
 6. Book the next step. Update lead: Call booked or Proposal.
 
 ## 5. After the call (within 1 business day)
+- Optional: if you have a transcript (Voice Memos text), paste it in Toolkit > Feasibility check under "After the discovery call", tap Copy AI prompt, paste it into a free AI chat, paste the JSON reply back and tap Apply. It ticks the needs the client mentioned (with quotes to verify), updates people and workflows, and adds open questions to the lead note. Then Save this check.
 1. Reopen the saved check, correct needs from the call, Update saved check.
 2. Build the Assessment report (EN or FR). Send it with a short email (templates B, C or D).
 3. If they proceed: build the Workflow document and the Proposal. Edit prices before sending (the built-in fees are estimates).
