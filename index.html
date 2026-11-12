@@ -630,7 +630,7 @@ const UI = {
     a_wrong: "Wrong email or password.", a_noaccess: "This account does not have access to the toolkit. Ask for access on the access page.",
     a_offline: "No internet connection. This tool needs to be online to open.", checking: "Checking access...", a_revoked: "Your session ended. Please sign in again.",
     a_error: "Could not reach the sign-in service. Try again.",
-    sessionsTitle: "Saved sessions", noSessions: "No saved sessions yet. Sessions save automatically on this device as you work.", open: "Open", exportOne: "Export", deleteOne: "Delete",
+    sessionsTitle: "Saved sessions", noSessions: "Nothing saved yet. Your work saves automatically, and the Save button on each material saves it to your library.", open: "Open", exportOne: "Export", deleteOne: "Delete",
     confirmDelete1: "Delete this saved session from this device and your cloud account? This cannot be undone.", exportAll: "Export backup of all sessions", deleteAll: "Delete all saved sessions",
     confirmDeleteAll: "Delete ALL saved sessions on this device AND in your cloud account? Export a backup first if you need one. This cannot be undone.", deletedAll: "All saved sessions were deleted.",
     importedN: "Imported: %s. Skipped (already have a newer copy): %s.", downloaded: "File downloaded.", saveErr: "Could not save to this device (storage full or blocked). Export a backup now.",
@@ -731,7 +731,7 @@ const S = {
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
   auth: { status: "out", msg: "", email: "", busy: false },
-  cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
+  saveMsg: "", cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -766,7 +766,7 @@ function syncCur() {
   if (S.result) S.results[S.typeId] = S.result; else delete S.results[S.typeId];
   if (S.paste) S.pastes[S.typeId] = S.paste; else delete S.pastes[S.typeId];
 }
-function switchTo(id) { syncCur(); S.typeId = id; S.result = S.results[id] || null; S.paste = S.pastes[id] || ""; S.errors = []; S.tab = "edit"; }
+function switchTo(id) { S.saveMsg = ""; syncCur(); S.typeId = id; S.result = S.results[id] || null; S.paste = S.pastes[id] || ""; S.errors = []; S.tab = "edit"; }
 
 /* ---- Prompt composer ---------------------------------------------------- */
 function optLabel(q, id) { const o = (q.options || []).find(x => x.id === id); return o ? o.en : ""; }
@@ -1095,14 +1095,15 @@ function sessionTitle(r) {
   const q = OUTPUT_TYPES[BASE[r.brand]].questions[0];
   return (r.answers[q.id] || "").trim().slice(0, 60) || brandFor(r.brand).name;
 }
-function openSession(rec) {
+function openSession(rec, openId) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
   const r = c.rec, base = OUTPUT_TYPES[BASE[r.brand]];
   S.brand = r.brand; S.sel = r.sel; S.results = r.results; S.pastes = r.pastes; S.typeId = r.typeId; S.result = r.results[r.typeId] || null; S.paste = r.pastes[r.typeId] || "";
-  S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.created = r.created; S.tab = "edit";
+  S.saveMsg = ""; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.created = r.created; S.tab = "edit";
   lastSaved = "";
   const done = visibleQs(r.brand, r.sel).every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
   S.screen = done ? "hub" : "intake";
+  if (openId && r.sel.includes(openId)) { S.typeId = openId; S.result = r.results[openId] || null; S.paste = r.pastes[openId] || ""; S.screen = S.result ? "edit" : "composer"; S.tab = "preview"; }
   render(); window.scrollTo(0, 0);
 }
 function pickBackup(afterImport) {
@@ -1123,12 +1124,16 @@ function sessionsScreen() {
     el("span", { class: "pill" }, brandFor(r.brand).name + " \u00B7 " + r.sel.length + " " + t("sessItems") + " \u00B7 " + r.lang.toUpperCase()),
     el("p", { style: "margin:8px 0 2px;font-weight:700;color:var(--navy)" }, sessionTitle(r)),
     el("p", { class: "muted", style: "margin:0 0 6px" }, when(r.updated)),
-    el("button", { class: "btn sm primary", onclick: () => openSession(r) }, t("open")),
+    r.sel.map(id => el("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)" },
+      el("div", { style: "flex:1;min-width:0" }, el("div", { style: "font-weight:700" }, L(OUTPUT_TYPES[id].label)),
+        el("div", { class: "muted", style: "margin:0" }, r.results[id] ? "Ready \u00B7 " + r.results[id].title : "Not built yet")),
+      el("button", { class: "btn sm" + (r.results[id] ? " primary" : ""), style: "width:auto;margin:0", onclick: () => openSession(r, id) }, r.results[id] ? "Open" : "Continue"))),
+    el("button", { class: "btn sm", style: "margin-top:10px", onclick: () => openSession(r) }, "Session overview"),
     el("button", { class: "btn sm", onclick: () => reuseInputs(r) }, "Reuse inputs"),
     el("button", { class: "btn sm", onclick: () => shareOrDownload("awr-session-" + slug(sessionTitle(r)) + "-" + dstr() + ".json", backupText([r]), "application/json", say) }, t("exportOne")),
     el("button", { class: "btn sm danger", onclick: () => { if (confirm(t("confirmDelete1"))) { Store.remove(r.id); if (S.sid === r.id) { S.sid = null; lastSaved = ""; } render(); } } }, t("deleteOne"))));
   return shell(
-    el("h1", null, t("sessionsTitle")),
+    el("h1", null, "Saved materials"),
     cloudLine(),
     S.sMsg ? el("div", { class: "note", role: "status" }, S.sMsg) : null,
     S.sErrs.length ? el("div", { class: "err", role: "alert" }, el("ul", null, S.sErrs.slice(0, 12).map(x => el("li", null, x)))) : null,
@@ -1177,7 +1182,7 @@ function homeScreen() {
         S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; S.typeId = S.sel[0];
         S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.screen = "intake"; render();
       } }, t("start"))),
-    el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, t("resume") + " (" + Store.all().length + ")"),
+    el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
     cloudLine(),
     el("div", { class: "note" }, t("standing")),
@@ -1624,6 +1629,19 @@ function blockEditor(b, i, all) {
       el("button", { class: "btn sm", disabled: i === all.length - 1, onclick: mv(1) }, t("down")),
       el("button", { class: "btn sm danger", onclick: () => { if (confirm(t("confirmRemove"))) { all.splice(i, 1); render(); } } }, t("remove"))));
 }
+async function saveNow() {
+  lastSaved = ""; persist(); S.saveMsg = "Saving..."; render();
+  await Cloud.flush();
+  const at = new Date().toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" }), c = S.cloud.status;
+  S.saveMsg = c === "ok" ? "Saved to your library on this device and in your cloud account at " + at + "." : "Saved on this device at " + at + ". Cloud copy: " + (c === "setup" ? "not set up yet" : c === "offline" ? "offline, will retry" : "problem, will retry") + ".";
+  render();
+}
+function saveBar() {
+  return el("div", { class: "card", style: "margin:0 0 12px" },
+    el("button", { class: "btn primary", style: "margin:0", onclick: saveNow }, "Save to library"),
+    el("p", { class: "muted", role: "status", style: "margin:8px 0 0" }, S.saveMsg || "Autosaves as you work. Tap Save to store this material now and sync it to your account."),
+    el("button", { class: "btn sm", style: "margin:8px 0 0", onclick: () => { S.saveMsg = ""; S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Open saved materials"));
+}
 function editScreen() {
   const d = S.result;
   const tabs = el("div", { class: "seg dark", role: "group", style: "margin-bottom:12px" },
@@ -1633,7 +1651,8 @@ function editScreen() {
        el("div", { class: "ed" }, textField(d, "title", t("title")), textField(d, "intro", t("intro"), { long: true })),
        d.blocks.map((b, i) => blockEditor(b, i, d.blocks))]
     : [previewOf(d), exportPanel(d)];
-  return shell(tabs, body,
+  return shell(saveBar(), tabs, body,
+    el("button", { class: "btn primary", onclick: saveNow }, "Save to library"),
     el("button", { class: "btn", onclick: () => { S.screen = "import"; S.errors = []; render(); window.scrollTo(0, 0); } }, t("newImport")),
     el("button", { class: "btn", onclick: () => { S.screen = "hub"; render(); window.scrollTo(0, 0); } }, t("hubBack")),
     el("button", { class: "btn link", onclick: () => { S.screen = "composer"; render(); window.scrollTo(0, 0); } }, t("backPrompt")));
