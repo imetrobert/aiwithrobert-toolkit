@@ -109,7 +109,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
 .sl .tag{align-self:flex-start;background:var(--light);color:var(--navy);border-radius:999px;padding:.5cqw 2cqw;font-size:2cqw;font-weight:700;margin-bottom:2cqw}
 .sl .pbox{background:var(--light);border-left:1cqw solid var(--blue);border-radius:1cqw;padding:2.4cqw 3cqw;font-size:3.1cqw;line-height:1.4;white-space:pre-wrap}.sl .pbox.sm{font-size:2.3cqw}
 .sl table{border-collapse:collapse;width:100%;font-size:2.4cqw}.sl th{background:var(--navy);color:#fff;text-align:left;padding:1.2cqw 1.6cqw}.sl td{border-bottom:1px solid #d9e2ee;padding:1.2cqw 1.6cqw}
-.sl.tipS{background:var(--light)}.sl.tipS.safe .tag{background:#fff3cd}
+.sl.tipS{background:var(--light)}.sl.tipS.safe .tag{background:#fff3cd}.deck.biz .sl.tipS.safe .tag{background:#FDECEA;color:#B42318}
 .sl .sf{position:absolute;left:8cqw;right:3cqw;bottom:1.8cqw;display:flex;justify-content:space-between;font-size:1.5cqw;color:#6b7a89}.sl .sf::after{content:counter(sl)}
 .sl .nt{display:none}
 .sl.tl,.sl.cl{background:var(--navy);color:#fff}.sl.tl .si,.sl.cl .si{padding-left:8cqw}.sl.tl p,.sl.cl p{font-size:2.8cqw;line-height:1.4;opacity:.92;white-space:pre-line}.sl .slogo{width:11cqw;height:11cqw;border-radius:2cqw;object-fit:contain}.sl.tl .sf,.sl.cl .sf{color:#b9c9da}
@@ -2280,7 +2280,7 @@ function deckHtml(d) {
   const c = brandFor(d.session_type).colors, st = doc.createElement("style");
   st.textContent = ":root{--navy:" + c.navy + ";--blue:" + c.blue + ";--light:" + c.light + ";--sky:" + c.sky + ";--onblue:" + (c.onAccent || "#fff") + ";--blue-text:" + (c.accentText || c.blue) + "}" + document.getElementById("appcss").textContent.replace(/^:root\{[^}]*\}/m, "") + DECK_PRESENT_CSS;
   doc.head.append(st);
-  const dk = doc.createElement("div"); dk.id = "deck"; dk.className = "deck";
+  const dk = doc.createElement("div"); dk.id = "deck"; dk.className = "deck" + (d.session_type === "business" ? " biz" : "");
   deckSlides(d).forEach(n => dk.append(doc.importNode(n, true)));
   const ctl = doc.createElement("div"); ctl.id = "ctl";
   [["bp", "‹"], ["bn", "›"], ["bt", "N"], ["bf", "⛶"]].forEach(([id, tx]) => { const b = doc.createElement("button"); b.id = id; b.type = "button"; b.textContent = tx; ctl.append(b); });
