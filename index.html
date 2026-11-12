@@ -860,6 +860,7 @@ function buildPrompt(type, lang, answers) {
     "- Required: at least one block of each of these types: " + req + ". Every other block type is optional. Blocks may appear in any order and any number.",
     "- Every string must be plain text: no HTML, no markdown, no emoji.",
     "- Reply with ONLY one JSON object, placed inside a single code block so it can be copied exactly. No commentary before or after the code block.",
+    "- " + JSON_RULES,
     '- Use straight double quotes (") for all JSON syntax, never curly quotes, and do not add backslashes.',
     ...voiceLines(type),
     ...(tr ? ["", "TRANSCRIPT RULES",
@@ -1413,6 +1414,7 @@ function fxRefreshPrompt(caps) {
     "For every requirement and every plan give: v = yes, partial, no or unknown (use unknown when you cannot confirm; never guess), n = one short plain sentence of conditions or limits, s = one https source URL you actually read (or empty), c = \"sourced\" if a source supports it, otherwise \"general\".",
     "Also check whether any plan's price or name changed and update tools[].price, tools[].usd ([lowest, highest] USD per user per month), tools[].usdSolo (price for one person, or omit) and tools[].usdNote.",
     "Also give fx: {rate, date} with today's Bank of Canada USD to CAD rate. Set verified to today's date as YYYY-MM-DD. Reply with ONLY one JSON object in a single code block: {\"verified\":\"\",\"fx\":{\"rate\":0,\"date\":\"\"},\"tools\":[{\"id\":\"\",\"name\":\"\",\"price\":\"\",\"url\":\"\",\"usd\":[0,0],\"usdNote\":\"\"}],\"cells\":{\"<requirement key>\":{\"<tool id>\":{\"v\":\"\",\"n\":\"\",\"s\":\"\",\"c\":\"\"}}}}",
+    JSON_RULES,
     "Current table for reference:", JSON.stringify({ verified: caps.verified, fx: caps.fx, tools: caps.tools, cells: caps.cells })
   ].join("\n");
 }
@@ -1891,7 +1893,7 @@ function applyInquiry(o) {
 function fxCallPrompt(caps, transcript) {
   return [
     "You are helping a Montreal AI consultant prepare a quote after a 15-minute discovery call with a small business. Read the transcript at the end. Use ONLY what the client actually said or clearly implied. Never guess, never add needs they did not mention.",
-    "Reply with ONLY one JSON object in a single code block and no other text, in English even if the call was in French:",
+    "Reply with ONLY one JSON object in a single code block and no other text, in English even if the call was in French. " + JSON_RULES,
     '{"needs":["need ids"],"evidence":{"need id":"short quote or paraphrase, under 15 words"},"users":0,"workflows":0,"tools":["chatgpt|claude|gemini|copilot"],"summary":"two sentences on what the client wants","questions":["things still unclear or that must be confirmed"],"notes":"anything they asked for that a paid chat AI plan may not be able to do"}',
     "Allowed need ids (use only these): " + caps.reqs.map(r => r.id + " = " + r.label).join("; ") + ".",
     "Rules: users = how many people would use it (0 if not said). workflows = how many separate repeatable tasks they described (0 if not said). tools = paid AI plans they say they already have (chatgpt, claude, gemini, copilot), otherwise an empty list. Use the need priv only if they mention client or customer personal information. Do not mention prices.",
@@ -1900,7 +1902,7 @@ function fxCallPrompt(caps, transcript) {
   ].join("\n\n");
 }
 function parseCallReply(text, caps) {
-  let o; try { o = JSON.parse(String(text || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); } catch (e) { return { error: "That is not valid JSON. Copy the whole reply from the AI chat, including the braces." }; }
+  let o; try { o = readAiJson(text); } catch (e) { return { error: e.message }; }
   if (!o || typeof o !== "object" || Array.isArray(o)) return { error: "That reply is not the expected object." };
   const ids = caps.reqs.map(r => r.id), arr = v => Array.isArray(v) ? v : [], str = (v, n) => typeof v === "string" ? v.trim().slice(0, n) : "", int = (v, max) => { const n = Math.round(Number(v)); return n > 0 && n <= max ? n : 0; };
   const needs = arr(o.needs).filter(x => ids.includes(x)).filter((x, i, a) => a.indexOf(x) === i);
@@ -2013,7 +2015,7 @@ function feasScreen() {
     el("button", { class: "btn", onclick: async () => say(await copyText(fxRefreshPrompt(caps)) ? "Refresh prompt copied. Paste it into an AI chat with web search." : "Could not copy.") }, "Copy refresh prompt"),
     imp,
     el("button", { class: "btn", onclick: () => {
-      let o; try { o = JSON.parse((f.imp || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "")); } catch (e) { say("That is not valid JSON: " + shorten(e && e.message, 100)); return; }
+      let o; try { o = readAiJson(f.imp); } catch (e) { say(e.message); return; }
       const c = cleanCaps(o); if (c.error) { say("Not imported. " + c.error); return; }
       try { localStorage.setItem(CAPS_KEY, JSON.stringify({ verified: c.caps.verified, fx: c.caps.fx, tools: c.caps.tools, cells: c.caps.cells })); } catch (e) { say("Could not save on this device."); return; }
       f.imp = ""; say("Imported. Table verified " + c.caps.verified + ". Saved on this device only.");
@@ -2169,6 +2171,26 @@ function fmt(s, ...a) { let i = 0; return s.replace(/%s/g, () => a[i++]); }
 const isStr = v => typeof v === "string";
 const shorten = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n) + "..." : s; };
 
+/* Shared by every prompt that asks a free AI chat for JSON, and by readAiJson() that reads the reply back. */
+const JSON_RULES = "JSON FORMAT (strict, so the app can read it): reply with one JSON object in a single code block and nothing before or after it. Straight double quotes only, never curly quotes. No trailing commas, no comments, no line breaks inside a string value, no markdown, links, citations, footnote marks or backslashes inside values. If you are running out of space, shorten the wording, but always finish the object and close every brace and bracket.";
+/* Tolerant reader for AI replies: strips code fences, chat citation markers, curly quotes, stray backslashes and trailing commas, then parses.
+   A cut-off reply is NOT repaired (that would silently drop content); it gets a clear message instead. Returns the parsed value or throws Error(message). */
+function readAiJson(text) {
+  let s = String(text || "").replace(/[​-‍﻿]/g, "").replace(/ /g, " ");
+  s = s.replace(/[\s\S]*?/g, "").replace(/[-]/g, "").replace(/【[^】]*】/g, "").replace(/:contentReference\[[^\]]*\]\{[^}]*\}/g, "").replace(/\[oaicite:\d+\]\{[^}]*\}/g, "").trim();
+  const fence = s.match(/```[A-Za-z]*[ \t]*\r?\n?([\s\S]*?)(?:```|$)/); if (fence) s = fence[1].trim();
+  const a = s.indexOf("{"); if (a < 0) throw new Error("No JSON found in that text. Copy the whole reply, starting at the first {.");
+  s = s.slice(a);
+  const tryP = x => { try { return { v: JSON.parse(x) }; } catch (e) { return null; } };
+  let r = tryP(s); if (r) return r.v;
+  const z = s.lastIndexOf("}"); if (z > 0) { r = tryP(s.slice(0, z + 1)); if (r) return r.v; }
+  const fixed = (z > 0 ? s.slice(0, z + 1) : s).replace(/[“”„‟]/g, '"').replace(/[‘’]/g, "'").replace(/\\([\[\]_#*])/g, "$1").replace(/,\s*([}\]])/g, "$1");
+  r = tryP(fixed); if (r) return r.v;
+  const open = (fixed.match(/\{/g) || []).length, close = (fixed.match(/\}/g) || []).length;
+  if (z < 0 || open > close) throw new Error("The reply was cut off before the last }. In the AI chat say: \"Send the same JSON again, shorter, inside one code block\", then copy that.");
+  let m = ""; try { JSON.parse(fixed); } catch (e) { m = e && e.message ? e.message : ""; }
+  throw new Error("The reply is not valid JSON" + (m ? " (" + shorten(m, 80) + ")" : "") + ". In the AI chat say: \"Send the same JSON again inside one code block, straight quotes only\", then copy that.");
+}
 function validateText(text, type, lang) {
   const E = [], add = m => E.push(m);
   text = (text || "").trim();
@@ -2184,10 +2206,13 @@ function validateText(text, type, lang) {
   }
   let o;
   try { o = JSON.parse(text); } catch (e) {
+    try { o = readAiJson(text); } catch (e2) { o = null; }
+    if (o) { /* repaired by readAiJson */ } else {
     const errs = [t("e_parse") + " " + shorten(e && e.message, 160)];
     if (/[\u201C\u201D]|\\[\[\]_]/.test(text)) errs.push(t("e_smart"));
+    if (!/\}\s*$/.test(text)) errs.push("The reply looks cut off. Ask the AI to send the same JSON again, shorter, inside one code block.");
     return { errors: errs };
-  }
+  } }
   if (!o || typeof o !== "object" || Array.isArray(o)) return { errors: [t("e_notobj")] };
 
   if (o.schema_version !== 1) add(t("e_ver"));
@@ -2654,7 +2679,9 @@ Go back over each field you extracted and list the JSON key name in low_confiden
 - The mark itself is faint, smudged, very thin, or partially cut off by a fold/shadow in the photo.
 - You inferred a value that isn't explicitly written (e.g. guessing the year for workshop_date, or reading a name/email through messy cursive) rather than reading it directly and confidently.
 - For a checkbox list (topics, ongoing_support), you're unsure whether a specific item was intended to be marked at all (as opposed to being confident about the overall set but shaky on one member of it).
-Do NOT include a field just because it is null/blank. A clearly empty field is not low-confidence, it is just unanswered. Only flag fields where a mark exists but its meaning is genuinely uncertain. Return an empty array if every field you read was unambiguous.`;
+Do NOT include a field just because it is null/blank. A clearly empty field is not low-confidence, it is just unanswered. Only flag fields where a mark exists but its meaning is genuinely uncertain. Return an empty array if every field you read was unambiguous.
+
+${JSON_RULES}`;
 const SV_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
 const svB64 = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
 async function svPdfImages(file) {
