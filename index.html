@@ -762,7 +762,7 @@ const S = {
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
   auth: { status: "out", msg: "", email: "", busy: false },
-  saveMsg: "", cap: { rows: null, status: "idle", msg: "", wl: null, wlStatus: "idle", wlMsg: "", wlFilter: "new" }, feasSaved: null, lead: null, lFilter: "active", fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
+  saveMsg: "", cap: { rows: null, status: "idle", msg: "", wl: null, wlStatus: "idle", wlMsg: "", wlFilter: "new", inq: null, inqStatus: "idle", inqMsg: "", inqFilter: "new" }, feasSaved: null, lead: null, lFilter: "active", fx: { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }, sFilter: "all", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -1672,6 +1672,68 @@ function waitScreen() {
     list.length ? el("button", { class: "btn", onclick: async () => { S.cap.wlMsg = (await copyText(list.map(x => x.email).join(", ")) ? "Emails copied (" + list.length + ")." : "Could not copy."); render(); } }, "Copy these emails") : null,
     el("button", { class: "btn link", onclick: () => { S.screen = "cap"; render(); window.scrollTo(0, 0); } }, "Back to Site availability"));
 }
+/* Contact-form submissions saved by the sites (table site_inquiries, migration/site_inquiries.sql). The formsubmit.co email still arrives too. */
+const INQ_LABEL = { interest: "Interested in", team_size: "Team size", personal_info: "Handles personal info", "session-type": "Interested in", referral: "Heard about me via" };
+async function inqLoad() {
+  if (S.auth.status !== "in" || S.cap.inqStatus === "loading") return; S.cap.inqStatus = "loading";
+  const r = await sbReq("GET", "site_inquiries?select=*&order=created_at.desc&limit=300");
+  if (r.ok && Array.isArray(r.json)) { S.cap.inq = r.json; S.cap.inqStatus = "ok"; S.cap.inqMsg = ""; } else { S.cap.inqStatus = "error"; S.cap.inqMsg = capErr(r); }
+  if (["inq", "home"].includes(S.screen)) render();
+}
+async function inqSet(id, status) {
+  const r = await sbReq("PATCH", "site_inquiries?id=eq." + encodeURIComponent(id), { status }, "return=minimal");
+  if (r.ok) { const x = (S.cap.inq || []).find(y => y.id === id); if (x) x.status = status; } else S.cap.inqMsg = "Not saved. " + capErr(r);
+  render();
+}
+async function inqDelete(x) {
+  if (!confirm("Delete this entry permanently? Use this only for test entries. For real people, use Archive.\n\n" + x.name + (x.organization ? " (" + x.organization + ")" : ""))) return;
+  const r = await sbReq("DELETE", "site_inquiries?id=eq." + encodeURIComponent(x.id), null, "return=minimal");
+  if (r.ok) { S.cap.inq = (S.cap.inq || []).filter(y => y.id !== x.id); S.cap.inqMsg = "Entry deleted."; } else S.cap.inqMsg = "Not deleted. " + capErr(r);
+  render();
+}
+function inqToLead(x) {
+  const brand = x.site === "seniors" ? "seniors" : "business", ex = x.extra || {};
+  const rec = { id: newId(), brand, sel: [BASE[brand]], typeId: BASE[brand], lang: x.language === "fr" ? "fr" : "en", name: (x.organization || x.name).slice(0, 80), created: Date.now(), updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {}, feas: null,
+    lead: { status: "new", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("From the contact form" + (ex.interest || ex["session-type"] ? ". Interested in: " + (ex.interest || ex["session-type"]) : "") + (x.message ? ". " + x.message : "")).slice(0, 500) } };
+  if (Store.upsert(rec)) { Cloud.push(rec); S.cap.inqMsg = "Lead created for " + rec.name + ". Find it under Leads."; inqSet(x.id, "contacted"); } else { S.cap.inqMsg = "Could not save the lead on this device."; render(); }
+}
+/* Business inquiry to a pre-filled Feasibility check (same mapping as pasting the email). */
+function inqToFeas(x) {
+  const ex = x.extra || {}, ts = ex.team_size || "";
+  applyInquiry({ name: x.name, company: x.organization, email: x.email, phone: x.phone, message: (x.message || "").slice(0, 600),
+    users: ts === "1" ? 1 : ts === "2-5" ? 5 : ts === "6-20" ? 20 : /^21/.test(ts) ? 21 : 0, teamSet: !!ts, personal: ex.personal_info === "yes" || ex.personal_info === "not-sure",
+    tools: ["chatgpt", "claude", "gemini", "copilot"].filter(t => ex["tool_" + t]), reqs: Object.keys(INQ_NEED).filter(k => ex[k]).map(k => INQ_NEED[k]) });
+  S.fx.msg = "Filled from the inquiry. Check it below, then tap Save this check to add it to Leads."; S.screen = "feas"; render(); window.scrollTo(0, 0);
+}
+function inqScreen() {
+  const all = S.cap.inq || [], f = S.cap.inqFilter, list = all.filter(x => f === "all" ? x.status !== "archived" : f === "archived" ? x.status === "archived" : x.status === "new");
+  const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter inquiries", style: "margin:0 0 12px" }, [["new", "New (" + all.filter(x => x.status === "new").length + ")"], ["all", "All"], ["archived", "Archived"]].map(([k, n]) => el("button", { "aria-pressed": String(f === k), onclick: () => { S.cap.inqFilter = k; render(); } }, n)));
+  const cards = list.map(x => {
+    const ex = x.extra || {}, bits = Object.keys(ex).filter(k => INQ_LABEL[k]).map(k => INQ_LABEL[k] + ": " + ex[k]);
+    const tools = ["chatgpt", "claude", "gemini", "copilot"].filter(t => ex["tool_" + t]), needs = Object.keys(INQ_NEED).filter(k => ex[k]).map(k => INQ_NEED[k]);
+    return el("div", { class: "card", style: "border-left:8px solid " + (x.site === "seniors" ? brandFor("seniors").colors.blue : brandFor("business").colors.blue) },
+      el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, el("strong", { style: "flex:1" }, x.name + (x.organization ? " · " + x.organization : "")), el("span", { class: "vd " + (x.status === "new" ? "partial" : "unknown") }, x.status)),
+      el("p", { class: "muted", style: "margin:2px 0" }, (x.site === "seniors" ? "Seniors" : "Business") + " · " + capFmt(x.created_at) + " · " + x.language.toUpperCase()),
+      el("p", { style: "margin:4px 0" }, el("a", { href: "mailto:" + x.email }, x.email), x.phone ? [" · ", el("a", { href: "tel:" + x.phone }, x.phone)] : null),
+      bits.length ? el("p", { class: "muted", style: "margin:2px 0" }, bits.join(" · ")) : null,
+      tools.length ? el("p", { class: "muted", style: "margin:2px 0" }, "Pays for: " + tools.join(", ")) : null,
+      needs.length ? el("p", { class: "muted", style: "margin:2px 0" }, "Needs ticked: " + needs.length) : null,
+      x.message ? el("p", { style: "margin:6px 0;white-space:pre-wrap" }, x.message) : null,
+      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" },
+        x.site === "business" ? el("button", { class: "btn sm primary", style: "margin:0;width:auto", onclick: () => inqToFeas(x) }, "Start feasibility check") : null,
+        el("button", { class: "btn sm" + (x.site === "business" ? "" : " primary"), style: "margin:0;width:auto", onclick: () => inqToLead(x) }, "Make a lead"),
+        x.status !== "contacted" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => inqSet(x.id, "contacted") }, "Mark contacted") : null,
+        x.status !== "archived" ? el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => inqSet(x.id, "archived") }, "Archive") : el("button", { class: "btn sm", style: "margin:0;width:auto", onclick: () => inqSet(x.id, "new") }, "Restore"),
+        el("button", { class: "btn sm", style: "margin:0;width:auto;color:#9A1C1C;border-color:#9A1C1C", onclick: () => inqDelete(x) }, "Delete (tests only)")));
+  });
+  return shell(el("h1", null, "Inquiries"),
+    el("div", { class: "note" }, "Contact-form submissions from both sites (a copy of what is emailed to you). Archive hides an entry and keeps it. Delete erases it for good, so use it only for test entries."),
+    S.cap.inqMsg ? el("div", { class: "note", role: "status" }, S.cap.inqMsg) : null,
+    S.cap.inqStatus === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
+    S.cap.inqStatus === "error" ? el("button", { class: "btn", onclick: () => { S.cap.inqStatus = "idle"; inqLoad(); } }, "Try again") : null,
+    filt, cards.length ? cards : (S.cap.inqStatus === "ok" ? el("p", { class: "muted" }, "Nothing here.") : null),
+    el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
+}
 /* Paste the formsubmit.co email from the Business contact form to fill a Feasibility check and a lead. Field names are fixed by the form (see the biz repo CLAUDE.md). */
 const INQ_NEED = { need_writing: "write", need_documents: "files", need_reuse: "reuse", need_own_data: "own", need_schedule: "sched", need_automatic: "auto", need_images: "img", need_office_files: "office", need_research: "web" };
 const INQ_KEYS = ["name", "email", "phone", "company", "team_size", "personal_info", "message", "tool_chatgpt", "tool_claude", "tool_gemini", "tool_copilot", "tool_none", "tool_unsure"].concat(Object.keys(INQ_NEED));
@@ -1871,6 +1933,7 @@ function homeScreen() {
         S.sid = newId(); S.name = ""; S.feasSaved = null; S.lead = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
       } }, t("start"))),
     el("button", { class: "btn", style: S.cap.rows ? "border-left:10px solid " + (CAP_SITES.some(x => capState(S.cap.rows[x.id], Date.now()).k === "on") ? "#B42318" : CAP_SITES.some(x => capState(S.cap.rows[x.id], Date.now()).k === "scheduled") ? "#B45309" : "#14632F") : "", onclick: () => { S.cap.status = "idle"; S.cap.msg = ""; S.screen = "cap"; render(); window.scrollTo(0, 0); capLoad(); } }, "Site availability" + (S.cap.rows ? ": " + CAP_SITES.map(x => x.name.split(" ")[0] + " " + ({ on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[capState(S.cap.rows[x.id], Date.now()).k])).join(" \u00B7 ") : "")),
+    el("button", { class: "btn", onclick: () => { S.cap.inqStatus = "idle"; S.cap.inqMsg = ""; S.screen = "inq"; render(); window.scrollTo(0, 0); inqLoad(); } }, "Inquiries" + (S.cap.inq ? " (" + S.cap.inq.filter(x => x.status === "new").length + " new)" : "")),
     el("button", { class: "btn", onclick: () => { S.cap.wlStatus = "idle"; S.cap.wlMsg = ""; S.screen = "wait"; render(); window.scrollTo(0, 0); wlLoad(); } }, "Waitlist" + (S.cap.wl ? " (" + S.cap.wl.filter(x => x.status === "new").length + " new)" : "")),
     el("button", { class: "btn", onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost"))).length + " active)"),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
@@ -2376,8 +2439,8 @@ function render() {
   const root = document.getElementById("root");
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
-  if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); }, 900); }
-  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, leads: leadsScreen, cap: capScreen, wait: waitScreen };
+  if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); inqLoad(); }, 900); }
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, leads: leadsScreen, cap: capScreen, wait: waitScreen, inq: inqScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
 }
 

@@ -5,6 +5,7 @@ Goal: never promise what the client's AI plan cannot do, and always have a clear
 Tools: Google Calendar booking page, formsubmit email, the toolkit (Leads, Feasibility check, Client documents).
 
 ## 1. Interest arrives (same day)
+- Contact-form submissions (both sites) are also saved automatically: toolkit home > Inquiries. From a Business inquiry tap Start feasibility check (fills needs, plan and team size) or Make a lead. Setup: run migration/site_inquiries.sql once in Supabase. The formsubmit.co email still arrives as the alert; the saved copy is what the toolkit reads (no more pasting).
 - Contact form: email arrives with team_size, tool_*, personal_info and need_* fields (mapping is in the biz repo CLAUDE.md).
 - Booking page: Google emails you and adds a calendar event. No prep fields, only the one custom question.
 - Toolkit > Leads > Add lead: name, source, contact. Status New. Follow-up date = 1 business day.
