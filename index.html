@@ -140,6 +140,8 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
 .doc .card2{border:1px solid var(--line);border-top:5px solid var(--blue);border-radius:16px;padding:14px 16px}
 .doc .box{border-radius:14px;border-left-width:6px;padding:14px 16px}
 .doc .box.safety{background:#FFF6E0;border-left-color:#E0A100}
+/* Business artifacts use navy and gold, so the safety box is red to stand out from the brand colouring. */
+.doc.biz .box.safety{background:#FDECEA;border-left-color:#B42318}
 .doc ol.st li{align-items:flex-start;margin:12px 0}
 .doc ol.st li::before{width:32px;height:32px;box-shadow:0 2px 6px rgba(17,48,76,.25)}
 .doc ol.st li span{padding-top:3px}
@@ -2219,7 +2221,7 @@ function renderDeliverable(d) {
   });
   const kind = l["k_" + d.output_type] || "", tag = brand.tag[d.language] || brand.tag.en;
   let dt = ""; try { dt = new Date().toLocaleDateString(d.language === "fr" ? "fr-CA" : "en-CA", { dateStyle: "long" }); } catch (e) {}
-  return el("article", { class: "doc" },
+  return el("article", { class: "doc" + (d.session_type === "business" ? " biz" : "") },
     el("div", { class: "hero" }, el("div", { class: "hglow" }), el("div", { class: "hglow2" }),
       el("div", { class: "htop" }, el("img", { class: "logo", src: brand.logo, alt: "" }), el("div", null, el("div", { class: "bname" }, brand.name), el("div", { class: "btag" }, tag))),
       kind ? el("div", { class: "eyebrow" }, kind) : null,
