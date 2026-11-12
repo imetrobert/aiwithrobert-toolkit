@@ -170,6 +170,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
 .sl th{background:var(--navy)}.sl tbody tr:nth-child(even) td{background:var(--light)}
 @media print{.doc{box-shadow:none;border-radius:0}.doc .hero,.doc .foot,.doc .eyebrow,.doc .pill,.doc .tryit,.doc .box,.doc .card2,.doc tbody td,.doc th{-webkit-print-color-adjust:exact;print-color-adjust:exact}.doc .foot{break-inside:avoid}}
 .sl.tl .si,.sl.cl .si{padding-top:3.5cqw;padding-bottom:9cqw}.sl .slogo{width:9cqw;height:9cqw;background:#fff;padding:.9cqw;border-radius:2cqw;box-shadow:0 .4cqw 1.6cqw rgba(0,0,0,.3)}.sl.tl h1{font-size:5.6cqw;margin:1.6cqw 0 1.6cqw}.sl.tl .eye{margin-top:2cqw}.sl .stag{margin-top:2cqw}
+.namef{display:block;margin:0 0 10px}.card input[type=text],.namef input{width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;box-sizing:border-box}
 .actbar{position:sticky;top:0;z-index:20;background:#fff;padding:8px 0 6px;margin:0 0 8px;border-bottom:1px solid var(--line)}.actbar .row{display:flex;gap:10px}.actbar .btn{margin:0;flex:1;min-height:48px}
 .modal{position:fixed;inset:0;background:rgba(10,25,40,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}.mbox{background:#fff;border-radius:18px;padding:18px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35)}
 @media print{.actbar,.modal{display:none!important}}
@@ -734,7 +735,7 @@ const S = {
   answers: {},
   paste: "", errors: [], result: null, tab: "edit",
   auth: { status: "out", msg: "", email: "", busy: false },
-  saveMsg: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
+  saveMsg: "", name: "", libSig: "", modal: false, cloud: { status: "idle", msg: "", at: 0 }, sid: null, created: 0, saveErr: false, sMsg: "", sErrs: []
 };
 S.lang = S.ui;
 
@@ -1006,8 +1007,8 @@ function cloudLine() {
 function reuseInputs(rec) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
   const r = c.rec, a = Object.assign({}, r.answers); delete a.transcript;
-  S.brand = r.brand; S.sel = r.sel.slice(); S.lang = r.lang; S.answers = a; S.results = {}; S.pastes = {}; S.typeId = S.sel[0]; S.result = null; S.paste = ""; S.errors = [];
-  S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.step = 0; S.screen = "intake"; render(); window.scrollTo(0, 0);
+  S.brand = r.brand; S.sel = r.sel.slice(); S.lang = r.lang; S.answers = a; S.name = ""; S.results = {}; S.pastes = {}; S.typeId = S.sel[0]; S.result = null; S.paste = ""; S.errors = [];
+  S.sid = newId(); S.name = ""; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.step = 0; S.screen = "intake"; render(); window.scrollTo(0, 0);
 }
 const STORE_KEY = "awr_toolkit_sessions";
 const Store = {
@@ -1023,7 +1024,7 @@ function persist() {
   if (!S.sid || S.auth.status !== "in" || !["intake", "hub", "composer", "import", "edit"].includes(S.screen)) return;
   syncCur();
   if (!Object.keys(S.answers).length && !Object.keys(S.results).length && !Object.keys(S.pastes).length) return;
-  const rec = { id: S.sid, brand: S.brand, sel: S.sel.slice(), typeId: S.typeId, lang: S.lang, created: S.created || Date.now(), updated: Date.now(), step: S.step, answers: S.answers, pastes: S.pastes, results: S.results };
+  const rec = { id: S.sid, brand: S.brand, sel: S.sel.slice(), typeId: S.typeId, lang: S.lang, name: S.name || "", created: S.created || Date.now(), updated: Date.now(), step: S.step, answers: S.answers, pastes: S.pastes, results: S.results };
   const sig = JSON.stringify(Object.assign({}, rec, { updated: 0 }));
   if (sig === lastSaved) return;
   if (Store.upsert(rec)) { lastSaved = sig; Cloud.push(rec); }
@@ -1065,7 +1066,7 @@ function cleanSession(raw) {
     if (isStr(rp[id]) && rp[id]) pastes[id] = rp[id].slice(0, LIMITS.bytes);
   }
   const step = Number.isInteger(raw.step) ? Math.min(Math.max(raw.step, 0), base.questions.length - 1) : 0, num = v => Number.isFinite(v) ? v : Date.now();
-  return { rec: { id: raw.id, brand, sel, typeId, lang: raw.lang, created: num(raw.created), updated: num(raw.updated), step, answers, pastes, results } };
+  return { rec: { id: raw.id, brand, sel, typeId, lang: raw.lang, name: isStr(raw.name) ? raw.name.trim().slice(0, 80) : "", created: num(raw.created), updated: num(raw.updated), step, answers, pastes, results } };
 }
 function backupText(list) { return JSON.stringify({ app: "awr-toolkit", backup_version: 2, exported_at: new Date().toISOString(), sessions: list }, null, 1); }
 function importBackup(text) {
@@ -1102,8 +1103,8 @@ function openSession(rec, openId) {
   const c = cleanSession(rec); if (c.error) { S.sErrs = [c.error]; render(); return; }
   const r = c.rec, base = OUTPUT_TYPES[BASE[r.brand]];
   S.brand = r.brand; S.sel = r.sel; S.results = r.results; S.pastes = r.pastes; S.typeId = r.typeId; S.result = r.results[r.typeId] || null; S.paste = r.pastes[r.typeId] || "";
-  S.saveMsg = ""; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.created = r.created; S.tab = "edit";
-  lastSaved = ""; S.libSig = JSON.stringify([S.brand, S.sel, S.answers, S.results, S.pastes]);
+  S.saveMsg = ""; S.lang = r.lang; S.answers = r.answers; S.step = r.step; S.errors = []; S.sid = r.id; S.name = r.name; S.created = r.created; S.tab = "edit";
+  lastSaved = ""; S.libSig = JSON.stringify([S.name, S.brand, S.sel, S.answers, S.results, S.pastes]);
   const done = visibleQs(r.brand, r.sel).every(q => !q.required || isStr(r.answers[q.id]) && r.answers[q.id].trim() || Array.isArray(r.answers[q.id]) && r.answers[q.id].length);
   S.screen = done ? "hub" : "intake";
   if (openId && r.sel.includes(openId)) { S.typeId = openId; S.result = r.results[openId] || null; S.paste = r.pastes[openId] || ""; S.screen = S.result ? "edit" : "composer"; S.tab = "preview"; }
@@ -1125,8 +1126,10 @@ function sessionsScreen() {
   const say = m => { S.sMsg = m; render(); };
   const cards = list.map(r => el("div", { class: "card" },
     el("span", { class: "pill" }, brandFor(r.brand).name + " \u00B7 " + r.sel.length + " " + t("sessItems") + " \u00B7 " + r.lang.toUpperCase()),
-    el("p", { style: "margin:8px 0 2px;font-weight:700;color:var(--navy)" }, sessionTitle(r)),
-    el("p", { class: "muted", style: "margin:0 0 6px" }, when(r.updated)),
+    el("p", { style: "margin:8px 0 2px;font-weight:700;color:var(--navy)" }, r.name || sessionTitle(r)),
+    el("p", { class: "muted", style: "margin:0 0 6px" }, when(r.updated) + (r.name ? " \u00B7 " + sessionTitle(r) : "")),
+    el("input", { type: "text", maxlength: "80", value: r.name || "", placeholder: "Name (optional)", "aria-label": "Name for this saved profile", style: "margin:0 0 6px",
+      onchange: e => { const nr = Object.assign({}, r, { name: e.target.value.trim().slice(0, 80), updated: Date.now() }); if (Store.upsert(nr)) { Cloud.push(nr); if (S.sid === r.id) S.name = nr.name; } render(); } }),
     r.sel.map(id => el("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)" },
       el("div", { style: "flex:1;min-width:0" }, el("div", { style: "font-weight:700" }, L(OUTPUT_TYPES[id].label)),
         el("div", { class: "muted", style: "margin:0" }, r.results[id] ? "Ready \u00B7 " + r.results[id].title : "Not built yet")),
@@ -1183,7 +1186,7 @@ function homeScreen() {
       el("button", { class: "btn primary", disabled: !S.sel.length, onclick: () => {
         if (!S.sel.length) return;
         S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; S.typeId = S.sel[0];
-        S.sid = newId(); S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
+        S.sid = newId(); S.name = ""; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
       } }, t("start"))),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
@@ -1640,7 +1643,7 @@ async function saveNow() {
   S.saveMsg = c === "ok" ? "Saved to your library on this device and in your cloud account at " + at + "." : "Saved on this device at " + at + ". Cloud copy: " + (c === "setup" ? "not set up yet" : c === "offline" ? "offline, will retry" : "problem, will retry") + ".";
   render();
 }
-const curSig = () => { syncCur(); return JSON.stringify([S.brand, S.sel, S.answers, S.results, S.pastes]); };
+const curSig = () => { syncCur(); return JSON.stringify([S.name, S.brand, S.sel, S.answers, S.results, S.pastes]); };
 const isDirty = () => curSig() !== S.libSig;
 function goStart() { S.modal = false; S.saveMsg = ""; S.screen = "home"; render(); window.scrollTo(0, 0); }
 function leaveModal() {
@@ -1650,6 +1653,11 @@ function leaveModal() {
     el("button", { class: "btn primary", onclick: async () => { await saveNow(); goStart(); } }, "Save and go to start"),
     el("button", { class: "btn", onclick: goStart }, "Go to start without saving"),
     el("button", { class: "btn link", onclick: () => { S.modal = false; render(); } }, "Cancel")));
+}
+function nameField() {
+  return el("label", { class: "namef" }, el("span", { class: "muted", style: "display:block;margin:0 0 4px" }, "Name (optional)"),
+    el("input", { type: "text", maxlength: "80", value: S.name || "", placeholder: "e.g. Tuesday group at the library", "aria-label": "Name for this saved profile",
+      oninput: e => { S.name = e.target.value.slice(0, 80); }, onchange: () => { if (S.sid) persist(); } }));
 }
 function saveBar() {
   return el("div", { class: "actbar" },
@@ -1667,7 +1675,7 @@ function editScreen() {
        el("div", { class: "ed" }, textField(d, "title", t("title")), textField(d, "intro", t("intro"), { long: true })),
        d.blocks.map((b, i) => blockEditor(b, i, d.blocks))]
     : [previewOf(d), exportPanel(d)];
-  return shell(saveBar(), tabs, body,
+  return shell(saveBar(), nameField(), tabs, body,
     el("button", { class: "btn primary", onclick: saveNow }, "Save to library"),
     el("button", { class: "btn", onclick: () => { S.screen = "import"; S.errors = []; render(); window.scrollTo(0, 0); } }, t("newImport")),
     el("button", { class: "btn", onclick: () => { S.screen = "hub"; render(); window.scrollTo(0, 0); } }, t("hubBack")),
