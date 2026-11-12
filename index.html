@@ -1015,7 +1015,7 @@ const Cloud = {
         const c = cleanSession(row && row.data); if (c.error) continue;
         cloud[c.rec.id] = c.rec;
         const mine = byId[c.rec.id];
-        if (!mine) { merged.push(c.rec); pulled++; }
+        if (!mine) { merged.push(c.rec); pulled++; if (c.rec.lead && !c.rec.lead.archived) { const u = unseenLeads(); u.push(c.rec.id); unseenLeadsSet(u); } }
         else if (c.rec.updated > (mine.updated || 0)) { merged[merged.findIndex(x => x.id === mine.id)] = c.rec; pulled++; }
       }
       if (pulled && !Store.write(merged)) { Cloud.set("error", "storage"); return; }
@@ -1647,6 +1647,24 @@ function capScreen() {
     el("button", { class: "btn", onclick: () => { S.screen = "wait"; render(); window.scrollTo(0, 0); } }, "Open the waitlist"),
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
 }
+/* "New since you last looked" cues on the home screen. Each section is marked seen when you open it. */
+const seenGet = k => { try { return Number(localStorage.getItem("awr_seen_" + k)) || 0; } catch (e) { return 0; } };
+const seenSet = (k, v) => { try { if (v > seenGet(k)) localStorage.setItem("awr_seen_" + k, String(v)); } catch (e) {} };
+const unseenLeads = () => { try { const a = JSON.parse(localStorage.getItem("awr_unseen_leads") || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+const unseenLeadsSet = a => { try { localStorage.setItem("awr_unseen_leads", JSON.stringify(a.slice(-200))); } catch (e) {} };
+const ts = x => { const n = Date.parse(x && x.created_at); return isNaN(n) ? 0 : n; };
+function newCounts() {
+  const n = (rows, k) => (rows || []).filter(x => x.status === "new" && ts(x) > seenGet(k)).length;
+  const ids = new Set(unseenLeads());
+  return { wait: n(S.cap.wl, "wait"), inq: n(S.cap.inq, "inq"), leads: Store.all().filter(x => ids.has(x.id) && x.lead && !x.lead.archived).length };
+}
+function markSeenNow() {
+  if (S.screen === "wait" && S.cap.wl) seenSet("wait", Math.max(0, ...S.cap.wl.map(ts)));
+  if (S.screen === "inq" && S.cap.inq) seenSet("inq", Math.max(0, ...S.cap.inq.map(ts)));
+  if (S.screen === "leads" && unseenLeads().length) unseenLeadsSet([]);
+}
+const newPill = n => n ? el("span", { style: "display:inline-block;margin-left:8px;padding:2px 10px;border-radius:999px;background:#B42318;color:#fff;font-weight:700;font-size:13px;vertical-align:middle" }, n + " NEW") : null;
+const newStyle = n => n ? "border-left:10px solid #B42318;background:#FEF3F2;font-weight:700" : "";
 async function wlLoad() {
   if (S.auth.status !== "in" || S.cap.wlStatus === "loading") return; S.cap.wlStatus = "loading";
   const r = await sbReq("GET", "waitlist_requests?select=*&order=created_at.desc&limit=300");
@@ -1926,6 +1944,9 @@ function feasScreen() {
 }
 
 function homeScreen() {
+  const NC = newCounts(), nTot = NC.wait + NC.inq + NC.leads;
+  const parts = [NC.inq ? NC.inq + " new inquir" + (NC.inq === 1 ? "y" : "ies") : "", NC.wait ? NC.wait + " new on the waitlist" : "", NC.leads ? NC.leads + " new lead" + (NC.leads === 1 ? "" : "s") : ""].filter(Boolean);
+  const banner = nTot ? el("div", { class: "note", role: "status", style: "border-left:10px solid #B42318;background:#FEF3F2;color:#7A271A;font-weight:700" }, "New since you last looked: " + parts.join(", ") + ".") : null;
   const brandBtns = Object.entries(BRANDING.brands).map(([key, b]) => el("button", { class: "opt", "aria-pressed": String(S.brand === key), onclick: () => { S.brand = key; S.sel = [BASE[key]]; S.typeId = BASE[key]; render(); } },
     el("span", { class: "dot" }), el("span", null, b.name)));
   const artBtns = ARTIFACT_ORDER.map(a => {
@@ -1939,6 +1960,7 @@ function homeScreen() {
   const langSeg = el("div", { class: "seg dark", role: "group" },
     ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.lang === code), onclick: () => { S.lang = code; render(); } }, code === "en" ? "English" : "Français")));
   return shell(
+    banner,
     el("h1", null, t("homeTitle")),
     el("p", { class: "muted" }, t("homeSub")),
     el("div", { class: "card" },
@@ -1953,9 +1975,9 @@ function homeScreen() {
         S.sid = newId(); S.name = ""; S.feasSaved = null; S.lead = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
       } }, t("start"))),
     el("button", { class: "btn", style: S.cap.rows ? "border-left:10px solid " + (CAP_SITES.some(x => capState(S.cap.rows[x.id], Date.now()).k === "on") ? "#B42318" : CAP_SITES.some(x => capState(S.cap.rows[x.id], Date.now()).k === "scheduled") ? "#B45309" : "#14632F") : "", onclick: () => { S.cap.status = "idle"; S.cap.msg = ""; S.screen = "cap"; render(); window.scrollTo(0, 0); capLoad(); } }, "Site availability" + (S.cap.rows ? ": " + CAP_SITES.map(x => x.name.split(" ")[0] + " " + ({ on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[capState(S.cap.rows[x.id], Date.now()).k])).join(" \u00B7 ") : "")),
-    el("button", { class: "btn", onclick: () => { S.cap.inqStatus = "idle"; S.cap.inqMsg = ""; S.screen = "inq"; render(); window.scrollTo(0, 0); inqLoad(); } }, "Inquiries" + (S.cap.inq ? " (" + S.cap.inq.filter(x => x.status === "new").length + " new)" : "")),
-    el("button", { class: "btn", onclick: () => { S.cap.wlStatus = "idle"; S.cap.wlMsg = ""; S.screen = "wait"; render(); window.scrollTo(0, 0); wlLoad(); } }, "Waitlist" + (S.cap.wl ? " (" + S.cap.wl.filter(x => x.status === "new").length + " new)" : "")),
-    el("button", { class: "btn", onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost" || x.lead.archived))).length + " active)"),
+    el("button", { class: "btn", style: newStyle(NC.inq), onclick: () => { S.cap.inqStatus = "idle"; S.cap.inqMsg = ""; S.screen = "inq"; render(); window.scrollTo(0, 0); inqLoad(); } }, "Inquiries" + (S.cap.inq ? " (" + S.cap.inq.filter(x => x.status === "new").length + " new)" : ""), newPill(NC.inq)),
+    el("button", { class: "btn", style: newStyle(NC.wait), onclick: () => { S.cap.wlStatus = "idle"; S.cap.wlMsg = ""; S.screen = "wait"; render(); window.scrollTo(0, 0); wlLoad(); } }, "Waitlist" + (S.cap.wl ? " (" + S.cap.wl.filter(x => x.status === "new").length + " new)" : ""), newPill(NC.wait)),
+    el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => { S.screen = "leads"; render(); window.scrollTo(0, 0); } }, "Leads (" + Store.all().filter(x => (x.lead || x.feas) && !(x.lead && (x.lead.status === "won" || x.lead.status === "lost" || x.lead.archived))).length + " active)", newPill(NC.leads)),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
     el("button", { class: "btn", disabled: S.brand === "seniors", "aria-disabled": String(S.brand === "seniors"), onclick: () => { if (S.brand === "seniors") return; S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
     S.brand === "seniors" ? el("p", { class: "muted", style: "margin:-6px 2px 10px;font-size:13px" }, "Business only. Choose AI with Robert for Business above to use it.") : null,
@@ -2457,6 +2479,7 @@ function render() {
   document.title = BRANDING.appName;
   applyBranding(brandFor(S.brand));
   persist();
+  markSeenNow();
   const root = document.getElementById("root");
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
