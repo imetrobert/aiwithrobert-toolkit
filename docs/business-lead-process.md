@@ -15,8 +15,9 @@ Tools: Google Calendar booking page, formsubmit email, the toolkit (Leads, Feasi
 2. Tick the needs they listed (or that you inferred from their message). Tick "personal information" if they handle client data.
 3. Pick the plan they already pay for. If none or unsure, tap Compare all four.
 4. Set people and number of workflows. Read the verdict and the subscription cost.
-5. Check the age line: if the capability table is over 60 days old, refresh it first (Copy refresh prompt, then Import updated table).
-6. Save this check. Lead status stays Contacted.
+5. Toolkit gate: every deliverable you plan to promise must be producible as a final asset in the toolkit (session pack, workbook, deck, survey, handout, Assessment report, Workflow document, Proposal). If an item has no toolkit output, do not promise it: either build that output first or leave it out of the scope.
+6. Check the age line: if the capability table is over 60 days old, refresh it first (Copy refresh prompt, then Import updated table).
+7. Save this check. Lead status stays Contacted.
 
 ## 3. Pick the reply from the verdict
 - Yes: confirm plainly, then proceed to scope.
@@ -41,6 +42,7 @@ Tools: Google Calendar booking page, formsubmit email, the toolkit (Leads, Feasi
 - Only promise Yes cells. A "general" (not sourced) cell is a Partly until you confirm it.
 - Anything not on the client's plan is "not included", never "I'll figure it out".
 - Vendors change plans: every document carries the verified date. Refresh the table monthly.
+- Every promised item has a toolkit output that produces the final asset. No toolkit output, no promise.
 - No promise outside the written scope. No names or personal data in prompts.
 
 ## 7. Close
