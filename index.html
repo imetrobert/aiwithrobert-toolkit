@@ -1206,6 +1206,44 @@ function newLead(name) {
   if (Store.upsert(rec)) Cloud.push(rec);
   render();
 }
+/* Paste an email (the body is enough; a "From: Name <address>" line helps) and get a lead: no AI, just pattern matching.
+   Finds the sender's address (never one of Robert's own), a phone number, a name, the language and the brand. */
+function parseLeadEmail(text) {
+  const raw = String(text || "").replace(/\r/g, "").replace(/\u00A0/g, " ").trim();
+  if (raw.length < 5) return null;
+  const mine = /(^|[.@])(aiwithrobert\.com|imetrobert\.com)$|^rsimonmtl@gmail\.com$|formsubmit\.co$|(^|\.)google\.com$|^(no-?reply|noreply|mailer-daemon|notifications?)@/i;
+  const emails = (raw.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || []).filter((e, i, a) => a.indexOf(e) === i).filter(e => !mine.test(e) && !mine.test(e.split("@")[1]));
+  const lines = raw.split("\n").map(l => l.trim());
+  const fromLine = lines.find(l => /^(from|de|reply-to)\s*:/i.test(l)) || "";
+  const fromMail = (fromLine.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) || [""])[0];
+  const email = fromMail && emails.includes(fromMail) ? fromMail : (emails[0] || "");
+  const phone = (raw.match(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g) || []).map(x => x.trim()).filter(x => x.replace(/\D/g, "").slice(-10) !== "5142508491")[0] || "";
+  const clean = n => n.replace(/["'<>]/g, "").replace(/\s+/g, " ").trim();
+  let name = fromLine ? clean(fromLine.replace(/^(from|de|reply-to)\s*:/i, "").replace(/<[^>]*>/g, "").replace(/[A-Za-z0-9._%+-]+@\S+/g, "")) : "";
+  if (!name) { /* signature: a short line of 1 to 4 capitalised words after a sign-off, or the last such line */
+    const nameLike = l => /^[A-Z\u00C0-\u00DC][\w\u00C0-\u017F'.-]+(\s+[A-Z\u00C0-\u00DC][\w\u00C0-\u017F'.-]+){0,3}$/.test(l) && l.length <= 40 && !/^(hi|hello|bonjour|salut|dear|thanks|thank you|merci|regards|cordialement|best|sincerely|cheers|sent from)/i.test(l);
+    const so = lines.findIndex(l => /^(thanks|thank you|merci|regards|best regards|kind regards|cordialement|bien \u00e0 vous|sincerely|cheers|best|salutations)[,.! ]*$/i.test(l));
+    const after = so >= 0 ? lines.slice(so + 1).filter(Boolean)[0] : "";
+    name = after && nameLike(after) ? after : (lines.filter(nameLike).pop() || "");
+  }
+  if (!name && email) name = email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  const subject = clean((lines.find(l => /^(subject|objet|sujet)\s*:/i.test(l)) || "").replace(/^(subject|objet|sujet)\s*:/i, ""));
+  const body = lines.filter(l => !/^(from|de|to|\u00e0|cc|bcc|date|sent|envoy\u00e9|subject|objet|sujet|reply-to)\s*:/i.test(l)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const fr = (raw.match(/\b(bonjour|merci|je|nous|vous|pour|avec|une|des|est|entreprise|conf\u00e9rence|formation|cordialement|salut)\b/gi) || []).length > (raw.match(/\b(hello|hi|thanks|the|and|you|for|with|our|business|would|please|regards)\b/gi) || []).length;
+  const seniors = /\b(senior|seniors|a\u00een\u00e9s?|retraite|retired|retirement|library|biblioth\u00e8que|grand-?m[e\u00e8]re|grand-?p[e\u00e8]re|my (mother|father|mom|dad|parents)|ma m\u00e8re|mon p\u00e8re|residence|r\u00e9sidence|club)\b/i.test(raw);
+  return { name: name.slice(0, 80), email, phone, lang: fr ? "fr" : "en", brand: seniors ? "seniors" : "business", note: ((subject ? subject + ": " : "") + body.replace(/\n+/g, " ")).slice(0, 500) };
+}
+function leadFromEmail(text) {
+  const o = parseLeadEmail(text);
+  if (!o || (!o.email && !o.name)) return "I could not find a name or an email address in that text. Copy the whole email, or add the lead by name above.";
+  const dupe = o.email && Store.all().some(r => r.lead && !r.lead.archived && (r.lead.contact || "").toLowerCase().includes(o.email.toLowerCase()));
+  if (dupe && !confirm("A lead with " + o.email + " already exists. Add another one anyway?")) return "Not added: a lead with that email already exists.";
+  const brand = o.brand, rec = { id: newId(), brand, sel: [BASE[brand]], typeId: BASE[brand], lang: o.lang, name: o.name || o.email, created: Date.now(), updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {}, feas: null,
+    lead: { status: "new", contact: [o.name, o.email, o.phone].filter(Boolean).join(" \u00B7 ").slice(0, 120), follow: "", note: ("From an email. " + o.note).slice(0, 500) } };
+  if (!Store.upsert(rec)) return "Could not save the lead on this device.";
+  Cloud.push(rec);
+  return "Lead added: " + rec.name + " (" + (brand === "seniors" ? "Seniors" : "Business") + ", " + (o.lang === "fr" ? "French" : "English") + (o.email ? ", " + o.email : ", no email found") + "). Check the details on its card below.";
+}
 /* Where a lead is in the pipeline (tap a stage to move it) and the one next step for that stage. */
 function leadPipeline(r, cur) {
   const at = LEAD_FLOW.indexOf(cur === "waiting" ? "checked" : cur);
@@ -1246,6 +1284,7 @@ function leadsScreen() {
   const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter leads", style: "margin:0 0 12px" },
     [["active", "Active"], ["due", "Follow up"], ["won", "Won"], ["lost", "Lost"], ["all", "All"], ["archived", "Archived"]].map(([k, n]) => el("button", { "aria-pressed": String(S.lFilter === k), onclick: () => { S.lFilter = k; render(); } }, n + " (" + all.filter(F[k]).length + ")")));
   const nameIn = el("input", { type: "text", maxlength: "80", placeholder: "New lead: business, library or club name", "aria-label": "New lead name" });
+  const mailIn = el("textarea", { rows: "5", "aria-label": "Email text", placeholder: "Paste the email here" });
   const cards = list.map(r => {
     const l = r.lead || { status: "new", contact: "", follow: "", note: "" };
     return el("div", { class: "card", style: "border-left:8px solid " + (due(r) ? "#b45309" : brandFor(r.brand).colors.blue) },
@@ -1263,7 +1302,11 @@ function leadsScreen() {
   const sfl = searchable("leads", list, cards, r => [r.name, r.lead && r.lead.contact, r.lead && r.lead.note, r.lead && r.lead.status, r.feas && r.feas.name].join(" "), r => r.created, r => r.brand, ["lead", "leads"]);
   return shell(inboxTabs("leads"), el("h1", null, "Leads"),
     el("p", { class: "muted" }, "Each lead shows where it is in the pipeline and its next step. Website feasibility checks arrive here by themselves as Check done (or On waitlist when you are at capacity)."),
-    el("div", { class: "card" }, nameIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => newLead(nameIn.value) }, "Add lead")),
+    el("div", { class: "card" }, nameIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => newLead(nameIn.value) }, "Add lead"),
+      el("details", { style: "margin-top:12px" }, el("summary", { style: "font-weight:700;cursor:pointer;color:var(--navy)" }, "Or add a lead from an email"),
+        el("p", { class: "muted", style: "margin:8px 0" }, "Copy the email you received and paste it here. The name, email address, phone number, language and a note are filled in for you."),
+        mailIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => { const m = leadFromEmail(mailIn.value); S.leadMsg = m; if (/^Lead added/.test(m)) { S.lFilter = "active"; } render(); } }, "Add lead from this email")),
+      S.leadMsg ? el("div", { class: "note", role: "status", style: "margin-top:10px" }, S.leadMsg) : null),
     all.length ? filt : null, sfl.bar,
     cards.length ? sfl.box : el("p", { class: "muted" }, all.length ? "Nothing in this view." : "No leads yet. Add one above or save a Feasibility check."),
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
