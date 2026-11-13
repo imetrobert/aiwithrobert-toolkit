@@ -325,6 +325,9 @@ const OUTPUT_TYPES = {
           { id: "tried", en: "Tried it a little", fr: "Essayé un peu" },
           { id: "regular", en: "Uses it regularly", fr: "L'utilise régulièrement" }
         ] },
+      { id: "examples", type: "text", required: false, max: 1200, promptLabel: "Real situations from their life (use these to make every example and practice prompt specific)",
+        label: { en: "Two or three real situations where they would use it (optional, but it makes the result much more personal)", fr: "Deux ou trois situations r\u00E9elles o\u00F9 ils s'en serviraient (facultatif, mais le r\u00E9sultat sera beaucoup plus personnalis\u00E9)" },
+        hint:  { en: "Example: writing to the condo board; planning a trip to see the grandchildren; understanding a letter from the bank. No names or personal details.", fr: "Exemple : \u00E9crire au syndicat de copropri\u00E9t\u00E9; planifier un voyage pour voir les petits-enfants; comprendre une lettre de la banque. Pas de noms ni de d\u00E9tails personnels." } },
       { id: "notes", type: "text", required: false, promptLabel: "Anything else to keep in mind",
         label: { en: "Anything else? (optional)", fr: "Autre chose? (facultatif)" },
         hint:  { en: "Interests, pace, things to avoid. No names or personal details.", fr: "Intérêts, rythme, éléments à éviter. Pas de noms ni de détails personnels." } }
@@ -361,6 +364,9 @@ const OUTPUT_TYPES = {
       { id: "tasks", type: "text", required: true, promptLabel: "Key tasks they want AI help with",
         label: { en: "Which key tasks do they want AI to help with?", fr: "Pour quelles t\u00E2ches cl\u00E9s veulent-ils l'aide de l'IA?" },
         hint:  { en: "Example: client emails, quotes, meeting notes, social posts.", fr: "Exemple : courriels aux clients, soumissions, notes de r\u00E9union, publications." } },
+      { id: "examples", type: "text", required: false, max: 1200, promptLabel: "Real examples from their week (use these to make every prompt and workflow specific)",
+        label: { en: "Three real tasks from their week, with the documents or emails involved (optional, but it makes the result much more personal)", fr: "Trois t\u00E2ches r\u00E9elles de leur semaine, avec les documents ou courriels concern\u00E9s (facultatif, mais le r\u00E9sultat sera beaucoup plus personnalis\u00E9)" },
+        hint:  { en: "Example: Monday review-meeting prep from fund fact sheets; replying to rate questions in Outlook; turning call notes into a follow-up email. No client names or private details.", fr: "Exemple : pr\u00E9parer les rencontres de r\u00E9vision du lundi \u00E0 partir des aper\u00E7us de fonds; r\u00E9pondre aux questions sur les taux dans Outlook; transformer des notes d'appel en courriel de suivi. Pas de noms de clients ni de d\u00E9tails priv\u00E9s." } },
       { id: "experience", type: "choice", required: true, promptLabel: "Current experience with AI",
         label: { en: "What is their current AI experience?", fr: "Quelle est leur exp\u00E9rience actuelle de l'IA?" },
         options: [
@@ -2413,6 +2419,23 @@ function hubScreen() {
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("hubHome")));
 }
 
+/* Optional second message for the same AI chat: makes the first reply more specific to this client. */
+function sharpenPrompt() {
+  return ["Review the JSON you just produced against the intake I gave you. Make it more specific to this client. Do this silently, then send the full corrected JSON.",
+    "- Go through every section, practice prompt, workflow, slide, tip and question. Apply the swap test: if it could appear unchanged in a deliverable for a different client in a different line of work, rewrite it around this client's own details (their role, named tools, named tasks, documents, kinds of email, their own words) or remove it.",
+    "- Fill in every prompt with what the intake already answers. Leave at most one or two [placeholders], only for what changes each time.",
+    "- Rename any title that names a general skill so that it names the client's real task.",
+    "- Put what matters most to this client first and give it the most depth. Do not add items to reach a count.",
+    "- Do not invent facts, tools, clients, numbers or results that are not in the intake. Keep every safety and privacy caution.",
+    "- Keep exactly the same JSON format: same top-level fields and values for schema_version, session_type, output_type and language, and only the block types and fields used before.",
+    JSON_RULES].join("\n");
+}
+function sharpenBox() {
+  const m = el("span", { class: "muted", role: "status", style: "display:block" });
+  return el("div", { class: "note" }, el("b", null, "Optional: make it more specific"),
+    el("div", { style: "margin:4px 0 8px" }, "If the first reply reads as generic, send this second message in the same chat, then paste the new reply here in place of the first one."),
+    el("button", { class: "btn sm", onclick: async () => { m.textContent = (await copyText(sharpenPrompt())) ? "Copied. Send it in the same chat as a second message." : t("copyFail"); } }, "Copy the \u201Cmake it more specific\u201D message"), m);
+}
 function composerScreen() {
   const type = currentType();
   const prompt = buildPrompt(type, S.lang, S.answers);
@@ -2432,6 +2455,7 @@ function composerScreen() {
     (type.art === "handout" && (S.answers.transcript || "").length > 30000) ? el("div", { class: "note warn" }, "This prompt includes a long transcript (" + Math.round(S.answers.transcript.length / 1000) + "k characters). If a free tool refuses it or cuts off, try another tool from the list or trim the transcript.") : null,
     copyBtn, msg,
     el("pre", { class: "prompt" }, prompt),
+    sharpenBox(),
     el("details", null,
       el("summary", null, t("formatTitle")),
       el("p", { class: "muted" }, t("formatBody")),
@@ -2836,7 +2860,7 @@ function importScreen() {
     S.errors.length ? el("div", { class: "err", role: "alert" }, el("b", null, t("problems")),
       el("ul", null, shown.map(x => el("li", null, x))),
       S.errors.length > 12 ? el("div", null, "+" + (S.errors.length - 12) + " " + t("moreErrs")) : null) : null,
-    ta,
+    ta, sharpenBox(),
     el("button", { class: "btn primary", onclick: () => runValidation(S.paste) }, t("validate")),
     file, el("button", { class: "btn", onclick: () => file.click() }, t("importFile")),
     el("button", { class: "btn link", onclick: () => { S.screen = "composer"; render(); window.scrollTo(0, 0); } }, t("backPrompt")));
