@@ -2016,7 +2016,7 @@ async function inqAutoLeads() {
       const now = Date.parse(x.created_at) || Date.now();
       const rec = { id, brand: "business", sel: [BASE.business], typeId: BASE.business, lang: x.language === "fr" ? "fr" : "en", name: (x.organization || x.name || "Website check").slice(0, 80), created: now, updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {},
         feas: { tool, reqs, users, flows: 1, assess: false, train: 0, request: (x.message || "").slice(0, 600), verdict: tool === "all" ? "" : fxEval(caps, tool, reqs).overall, verified: caps.verified, saved: now },
-        lead: { status: ex.capacity === "yes" ? "waiting" : "checked", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("Website feasibility check" + (ex.capacity === "yes" ? ", done while at capacity (on the waitlist)" : "") + ". Plan: " + (ex.plan || tool) + ".").slice(0, 500),
+        lead: { status: ex.capacity === "yes" ? "waiting" : "checked", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("Website feasibility check" + (ex.capacity === "yes" ? ", done while at capacity (on the waitlist)" : "") + ". Plan: " + (ex.plan || tool) + "." + (ex.source ? " Came from: " + String(ex.source).slice(0, 80) + "." : "")).slice(0, 500),
           hist: ex.capacity === "yes" ? { new: { d: now, how: "auto" }, checked: { d: now, how: "auto" } } : { new: { d: now, how: "auto" } }, at: now } };
       if (!Store.upsert(rec)) continue;
       Cloud.push(rec); const u = unseenLeads(); u.push(id); unseenLeadsSet(u); made++;
