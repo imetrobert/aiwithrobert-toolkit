@@ -1551,6 +1551,7 @@ function fxEval(caps, toolId, reqIds) {
   const has = v => rows.some(x => x.cell.v === v);
   return { rows, overall: has("no") ? "no" : (has("partial") || has("unknown")) ? "partial" : "yes" };
 }
+const CAPS_REFRESH_DAYS = 90;
 const fxAge = caps => { const d = Date.parse(caps.verified + "T00:00:00"); return Number.isFinite(d) ? Math.floor((Date.now() - d) / 86400000) : 999; };
 const FX_PRICE = { assessSmall: 900, assessLarge: 1800, assessSmallMax: 5, workflow: 2000, partialAdd: 500, training: 1500, trainingIncluded: 10, trainingExtra: 100, bundleOff: 0.1 };
 /* Price lines for a proposal: optional assessment, workflows (+ conditions), optional training, and the bundle saving
@@ -2231,7 +2232,7 @@ function feasScreen() {
   return shell(
     el("h1", null, "Feasibility check"),
     el("div", { class: "note" }, "Check whether a job can be delivered with the client's own paid AI plan before you promise it. Results come from a dated table, not guesses."),
-    age > 60 ? el("div", { class: "note warn", role: "alert" }, "This table was last verified " + caps.verified + " (" + age + " days ago). Re-verify with the Refresh prompt below before relying on it.") : el("p", { class: "muted" }, "Table verified " + caps.verified + (caps.custom ? " (your imported version)." : " (built in).")),
+    age >= CAPS_REFRESH_DAYS ? el("div", { class: "note warn", role: "alert" }, "This table was last verified " + caps.verified + " (" + age + " days ago). Re-verify with the Refresh prompt below before relying on it.") : el("p", { class: "muted" }, "Table verified " + caps.verified + (caps.custom ? " (your imported version)." : " (built in).")),
     f.msg ? el("div", { class: "note", role: "status" }, f.msg) : null,
     contactPicker(),
     el("details", { class: "card" }, el("summary", { style: "font-weight:700;cursor:pointer" }, "Or paste a contact-form email"),
@@ -2268,8 +2269,8 @@ function feasScreen() {
       el("div", { class: "seg", role: "group", "aria-label": "Document language", style: "margin-bottom:10px" }, [["en", "English"], ["fr", "Fran\u00E7ais"]].map(([k, n]) => el("button", { "aria-pressed": String(S.lang === k), onclick: () => fxSetLang(k) }, n))),
       [["assessment", "Assessment report"], ["workflow_doc", "Workflow document"], ["proposal", "Proposal"]].map(([k, n]) => el("button", { class: "btn sm" + (S.results["business_" + k] ? "" : " primary"), onclick: () => fxMakeDoc(k) }, (S.results["business_" + k] ? "Rebuild " : "Build ") + n)),
       Object.keys(S.results).some(id => OUTPUT_TYPES[id] && OUTPUT_TYPES[id].local) ? el("button", { class: "btn sm", onclick: () => { S.screen = "hub"; render(); window.scrollTo(0, 0); } }, "Open my materials") : null) : null,
-    el("h2", null, "Keep the table current"),
-    el("p", { class: "muted" }, "Plans change often. Once a month, copy this prompt into a free AI chat with web search turned on, then paste its JSON reply below. Check key entries against the vendor pages before relying on them."),
+    el("h2", { id: "caps-refresh" }, "Keep the table current"),
+    el("p", { class: "muted" }, "Plans change often. Every 3 months (the home screen reminds you), copy this prompt into a free AI chat with web search turned on, then paste its JSON reply below. Check key entries against the vendor pages before relying on them."),
     el("button", { class: "btn", onclick: async () => say(await copyText(fxRefreshPrompt(caps)) ? "Refresh prompt copied. Paste it into an AI chat with web search." : "Could not copy.") }, "Copy refresh prompt"),
     imp,
     el("button", { class: "btn", onclick: () => {
@@ -2289,6 +2290,12 @@ function feasScreen() {
 function homeScreen() {
   const NC = newCounts(), nTot = NC.wait + NC.inq + NC.leads;
   const parts = [NC.inq ? NC.inq + " new inquir" + (NC.inq === 1 ? "y" : "ies") : "", NC.wait ? NC.wait + " new on the waitlist" : "", NC.leads ? NC.leads + " new lead" + (NC.leads === 1 ? "" : "s") : ""].filter(Boolean);
+  /* Reminder stripe: shows once the capability table is 90 days old; importing a refreshed table (new verified date) clears it. */
+  const capsAge = fxAge(loadCaps());
+  const capsStripe = capsAge >= CAPS_REFRESH_DAYS ? el("button", { class: "note warn", role: "status", style: "display:block;width:100%;text-align:left;font:inherit;cursor:pointer;font-weight:700", onclick: () => {
+    S.brand = "business"; S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 };
+    S.screen = "feas"; render(); const t = document.getElementById("caps-refresh"); if (t) t.scrollIntoView({ block: "start" }); else window.scrollTo(0, 0); } },
+    "Time to refresh the feasibility rules: last verified " + loadCaps().verified + " (" + capsAge + " days ago). The website shows this date to clients. Tap to refresh now (about 5 minutes).") : null;
   const banner = nTot ? el("div", { class: "note", role: "status", style: "border-left:10px solid #B42318;background:#FEF3F2;color:#7A271A;font-weight:700" }, "New since you last looked: " + parts.join(", ") + ".") : null;
   const brandBtns = Object.entries(BRANDING.brands).map(([key, b]) => el("button", { class: "opt", "aria-pressed": String(S.brand === key), onclick: () => { S.brand = key; S.sel = [BASE[key]]; S.typeId = BASE[key]; render(); } },
     el("span", { class: "dot" }), el("span", null, b.name)));
@@ -2303,7 +2310,7 @@ function homeScreen() {
   const langSeg = el("div", { class: "seg dark", role: "group" },
     ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.lang === code), onclick: () => { S.lang = code; render(); } }, code === "en" ? "English" : "Français")));
   return shell(
-    banner,
+    banner, capsStripe,
     el("h1", null, t("homeTitle")),
     el("p", { class: "muted" }, t("homeSub")),
     el("div", { class: "card" },
