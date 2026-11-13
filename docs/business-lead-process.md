@@ -82,3 +82,19 @@ Bonjour [nom], merci pour les détails. J'ai comparé votre liste à [forfait]. 
 ## Surveys (workshop feedback forms)
 
 Home > **Surveys** shows the saved responses (totals, most requested topics, search, CSV exports for the newsletter list and all data, delete). **Add a survey** reads a paper form two ways: a photo or PDF sent to Gemini (optional one-time key, stored in this browser only), or **no API key**: copy the prompt, attach the photo(s) in any free chatbot, paste its reply back. Either way you review and correct every field before saving. Data lives in `survey_responses` (`migration/survey_responses.sql`); the invoicing app no longer holds this feature.
+
+## Website feasibility check and the pipeline (added 2026-11-12)
+
+The Business site's main call to action is the free feasibility check (`js/feascheck.js` in the biz repo). It shows an instant
+preliminary result (verdicts only) and needs no manual step, open or at capacity. Links to send clients:
+`https://aiwithrobert.com/feasibility` (EN) and `https://aiwithrobert.com/faisabilite` (FR); the same paths work on biz.aiwithrobert.com.
+
+Pipeline stages in the toolkit (Leads): 1 New lead, 2 Check done, 3 Invited to call, 4 Call booked, 5 Proposal sent, 6 Won;
+side stages On waitlist and Lost. Each lead card shows the stage and one Next step.
+
+- A website check arrives by itself as **Check done** (or **On waitlist** when it was done at capacity; the person is also on the Waitlist).
+- Open: the result already offers the booking link. "Copy invitation email" gives a ready email for the email agent (from biz@).
+- At capacity: nothing to do. When a spot opens, Waitlist > "Copy follow-up for my email agent", then "Mark these as contacted"
+  (their leads move to Invited to call).
+- Call booked > "Open check and build proposal" > Proposal sent > Won (invoice via the invoicing app's Import a lead) or Lost.
+- Monthly table refresh: importing the updated table also publishes it to the website (`migration/feasibility_public.sql`).

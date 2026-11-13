@@ -177,6 +177,8 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
 .namef{display:block;margin:0 0 10px}.card input[type=text],.namef input{width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;box-sizing:border-box}
 .actbar{position:sticky;top:0;z-index:20;background:#fff;padding:8px 0 6px;margin:0 0 8px;border-bottom:1px solid var(--line)}.actbar .row{display:flex;gap:10px}.actbar .btn{margin:0;flex:1;min-height:48px}
 .modal{position:fixed;inset:0;background:rgba(10,25,40,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}.mbox{background:#fff;border-radius:18px;padding:18px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+.pipe{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.pstep{border:1px solid #CBD5E1;background:#fff;color:#475569;border-radius:999px;padding:5px 10px;font-size:13px;font-weight:600;cursor:pointer}.pstep.done{background:#F1F3F6;color:#64748B}.pstep.on{background:var(--navy);border-color:var(--navy);color:#fff}.pstep.side{border-style:dashed}
+.pnext{background:#F1F3F6;border-radius:10px;padding:10px 12px;margin:0 0 10px}
 @media print{.actbar,.modal{display:none!important}}
 .row2{display:flex;gap:12px}.row2 label{flex:1}.row2 input{width:100%;font:inherit;font-size:17px;padding:10px 12px;border:2px solid var(--line);border-radius:12px;box-sizing:border-box}
 .vd{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700;white-space:nowrap;border:1.5px solid}.vd.yes{background:#E7F6EC;color:#14632F;border-color:#14632F}.vd.partial{background:#FFF1EB;color:#9A3412;border-color:#C2410C}.vd.no{background:#FDECEC;color:#9A1C1C;border-color:#9A1C1C}.vd.unknown{background:#EEF1F5;color:#41505F;border-color:#41505F}
@@ -1066,8 +1068,29 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 /* Rebuild a clean session from untrusted data (a backup file or storage). Accepts the old
    single-artifact shape (typeId/paste/result) and the current multi-artifact shape. */
 /* Optional lead-tracking fields on a saved profile (status, contact, follow-up date, note). */
-const LEAD_ST = ["new", "contacted", "booked", "proposal", "won", "lost"];
-const LEAD_LABEL = { new: "New", contacted: "Contacted", booked: "Call booked", proposal: "Proposal sent", won: "Won", lost: "Lost" };
+/* Sales pipeline, in order. "waiting" is the at-capacity side step between Check done and Invited to call. */
+const LEAD_ST = ["new", "checked", "waiting", "contacted", "booked", "proposal", "won", "lost"];
+const LEAD_LABEL = { new: "New lead", checked: "Check done", waiting: "On waitlist", contacted: "Invited to call", booked: "Call booked", proposal: "Proposal sent", won: "Won", lost: "Lost" };
+const LEAD_FLOW = ["new", "checked", "contacted", "booked", "proposal", "won"];
+const BOOKING_URL = "https://calendar.app.google/4Wdg7xGxXUcyXzdr7", BIZ_FROM = "biz@aiwithrobert.com";
+/* Client emails, EN/FR. {name} = first name. Used by the Leads next-step buttons and the Waitlist follow-up. */
+const LEAD_MAIL = {
+  invite: {
+    en: { subj: "Your AI feasibility check: next step", body: "Hi {name},\n\nThank you for completing the feasibility check on my website. The next step is a free 15-minute call, where we look at what your result means for your business and what it would take to set it up.\n\nYou can pick a time here: " + BOOKING_URL + "\n\nRobert Simon\nAI with Robert for Business\n514-250-8491" },
+    fr: { subj: "Votre vérification de faisabilité IA : prochaine étape", body: "Bonjour {name},\n\nMerci d'avoir rempli la vérification de faisabilité sur mon site. La prochaine étape est un appel gratuit de 15 minutes, où nous regardons ce que votre résultat représente pour votre entreprise et ce qu'il faudrait pour le mettre en place.\n\nVous pouvez choisir un moment ici : " + BOOKING_URL + "\n\nRobert Simon\nAI with Robert pour entreprises\n514-250-8491" } },
+  reopen: {
+    en: { subj: "A spot has opened at AI with Robert for Business", body: "Hi {name},\n\nYou joined my waitlist, and I now have availability. If you would still like to look at how AI could save your business time, the next step is a free 15-minute call.\n\nYou can pick a time here: " + BOOKING_URL + "\n\nIf the timing is no longer right, no reply is needed.\n\nRobert Simon\nAI with Robert for Business\n514-250-8491" },
+    fr: { subj: "Une place s'est libérée chez AI with Robert pour entreprises", body: "Bonjour {name},\n\nVous vous êtes inscrit à ma liste d'attente, et j'ai maintenant de la disponibilité. Si vous souhaitez toujours voir comment l'IA pourrait faire gagner du temps à votre entreprise, la prochaine étape est un appel gratuit de 15 minutes.\n\nVous pouvez choisir un moment ici : " + BOOKING_URL + "\n\nSi le moment ne convient plus, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour entreprises\n514-250-8491" } }
+};
+const firstName = n => String(n || "").trim().split(/\s+/)[0] || "";
+const mailText = (kind, lang, name, email) => { const m = LEAD_MAIL[kind][lang === "fr" ? "fr" : "en"]; return "From: " + BIZ_FROM + "\nTo: " + email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(name) || (lang === "fr" ? "" : "there")).replace("Bonjour ,", "Bonjour,"); };
+/* One paste for the email agent: instructions, both templates, then one line per recipient. */
+function agentBatch(kind, people) {
+  const m = LEAD_MAIL[kind];
+  return ["Send one separate email to each recipient listed at the end, from " + BIZ_FROM + ". Never put two recipients on the same email. Use the English template for EN and the French template for FR, and replace {name} with the first name given. Do not change the wording. Tell me when each one is sent.",
+    "--- ENGLISH TEMPLATE ---\nSubject: " + m.en.subj + "\n\n" + m.en.body, "--- FRENCH TEMPLATE ---\nSubject: " + m.fr.subj + "\n\n" + m.fr.body,
+    "--- RECIPIENTS (" + people.length + ") ---\n" + people.map(x => (x.lang === "fr" ? "FR" : "EN") + " | " + (firstName(x.name) || "-") + " | " + x.email).join("\n")].join("\n\n");
+}
 function cleanLead(l) {
   if (!l || typeof l !== "object" || Array.isArray(l)) return null;
   return { status: LEAD_ST.includes(l.status) ? l.status : "new", contact: isStr(l.contact) ? l.contact.trim().slice(0, 120) : "",
@@ -1183,6 +1206,35 @@ function newLead(name) {
   if (Store.upsert(rec)) Cloud.push(rec);
   render();
 }
+/* Where a lead is in the pipeline (tap a stage to move it) and the one next step for that stage. */
+function leadPipeline(r, cur) {
+  const at = LEAD_FLOW.indexOf(cur === "waiting" ? "checked" : cur);
+  const chip = (k, i) => el("button", { class: "pstep" + (k === cur || (cur === "waiting" && k === "checked") ? " on" : at > i ? " done" : ""), "aria-pressed": String(k === cur), title: "Move to: " + LEAD_LABEL[k], onclick: () => saveLead(r, { status: k }) }, (i + 1) + ". " + LEAD_LABEL[k]);
+  return el("div", { class: "pipe", role: "group", "aria-label": "Pipeline stage" },
+    LEAD_FLOW.map(chip),
+    el("button", { class: "pstep side" + (cur === "waiting" ? " on" : ""), "aria-pressed": String(cur === "waiting"), onclick: () => saveLead(r, { status: "waiting" }) }, LEAD_LABEL.waiting),
+    el("button", { class: "pstep side" + (cur === "lost" ? " on" : ""), "aria-pressed": String(cur === "lost"), onclick: () => saveLead(r, { status: "lost" }) }, LEAD_LABEL.lost));
+}
+function leadNext(r, cur) {
+  const email = ((r.lead && r.lead.contact || "").match(/[^\s·,;]+@[^\s·,;]+\.[^\s·,;]+/) || [""])[0], who = (r.lead && r.lead.contact || "").split("·")[0].trim();
+  const person = /@/.test(who) || !who ? r.name : who;
+  const msg = el("span", { class: "muted", role: "status", style: "display:block;margin-top:4px" });
+  const go = (label, fn, primary) => el("button", { class: "btn sm" + (primary ? " primary" : ""), onclick: fn }, label);
+  const move = (label, status, primary) => go(label, () => saveLead(r, { status }), primary);
+  const mail = (label, kind) => go(label, async () => { msg.textContent = !email ? "Add the client's email in Contact first." : (await copyText(mailText(kind, r.lang, person, email))) ? "Email copied. Paste it into your email agent." : "Could not copy."; }, true);
+  const biz = r.brand === "business";
+  const N = {
+    new: biz ? ["Run the feasibility check for this lead.", [go("Start feasibility check", () => leadToFeas(r), true)]] : ["Contact them, then mark it here.", [move("Mark invited", "contacted", true)]],
+    checked: ["The check is done. Invite them to a free 15-minute call. (The website already showed them the booking button.)", [mail("Copy invitation email", "invite"), move("Mark invited", "contacted"), move("Call booked", "booked")]],
+    waiting: ["They did the check while you were at capacity and are on the waitlist. Nothing to do until a spot opens, then send the follow-up.", [mail("Copy follow-up email", "reopen"), move("Mark invited", "contacted")]],
+    contacted: ["Invited. When the booking arrives in your calendar, mark the call.", [move("Call booked", "booked", true)]],
+    booked: ["After the call, build the proposal from the saved check.", [r.feas ? go("Open check and build proposal", () => openFeas(r), true) : (biz ? go("Start feasibility check", () => leadToFeas(r), true) : null), move("Proposal sent", "proposal")]],
+    proposal: ["Proposal sent. Record the outcome.", [move("Won", "won", true), move("Lost", "lost")]],
+    won: ["Won. Create the invoice in the invoicing app (Import a lead).", [el("a", { class: "btn sm primary", href: "https://invoices.aiwithrobert.com/", target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Open invoicing app")]],
+    lost: ["Closed as lost. Archive it when you no longer need it.", []]
+  }[cur] || ["", []];
+  return el("div", { class: "pnext" }, el("div", { style: "font-weight:700;color:var(--navy)" }, "Next step"), el("div", { style: "margin:2px 0 8px" }, N[0]), el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, N[1]), msg);
+}
 function leadsScreen() {
   const today = todayStr();
   const all = Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).filter(r => r.lead || r.feas);
@@ -1198,7 +1250,7 @@ function leadsScreen() {
     const l = r.lead || { status: "new", contact: "", follow: "", note: "" };
     return el("div", { class: "card", style: "border-left:8px solid " + (due(r) ? "#b45309" : brandFor(r.brand).colors.blue) },
       el("p", { style: "margin:0 0 6px;font-weight:700;color:var(--navy)" }, r.name || sessionTitle(r), due(r) ? el("span", { class: "pill", style: "margin-left:8px" }, "Follow up") : null),
-      el("div", { class: "seg", role: "group", "aria-label": "Status", style: "margin-bottom:8px;flex-wrap:wrap" }, LEAD_ST.map(k => el("button", { "aria-pressed": String(st(r) === k), onclick: () => saveLead(r, { status: k }) }, LEAD_LABEL[k]))),
+      leadPipeline(r, st(r)), leadNext(r, st(r)),
       el("label", { class: "muted", style: "display:block;margin:0 0 2px" }, "Follow-up date"),
       el("input", { type: "date", value: l.follow, "aria-label": "Follow-up date", onchange: e => saveLead(r, { follow: e.target.value }) }),
       el("input", { type: "text", maxlength: "120", value: l.contact, placeholder: "Contact (name, phone or email)", "aria-label": "Contact", style: "margin-top:6px", onchange: e => saveLead(r, { contact: e.target.value }) }),
@@ -1210,7 +1262,7 @@ function leadsScreen() {
   });
   const sfl = searchable("leads", list, cards, r => [r.name, r.lead && r.lead.contact, r.lead && r.lead.note, r.lead && r.lead.status, r.feas && r.feas.name].join(" "), r => r.created, r => r.brand, ["lead", "leads"]);
   return shell(inboxTabs("leads"), el("h1", null, "Leads"),
-    el("p", { class: "muted" }, "Track venues and businesses from first contact to won or lost. Syncs with your other saved profiles. Saved Feasibility checks appear here too."),
+    el("p", { class: "muted" }, "Each lead shows where it is in the pipeline and its next step. Website feasibility checks arrive here by themselves as Check done (or On waitlist when you are at capacity)."),
     el("div", { class: "card" }, nameIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => newLead(nameIn.value) }, "Add lead")),
     all.length ? filt : null, sfl.bar,
     cards.length ? sfl.box : el("p", { class: "muted" }, all.length ? "Nothing in this view." : "No leads yet. Add one above or save a Feasibility check."),
@@ -1694,6 +1746,18 @@ async function wlSet(id, status) {
   if (r.ok) { const x = (S.cap.wl || []).find(y => y.id === id); if (x) x.status = status; } else S.cap.wlMsg = "Not saved. " + capErr(r);
   render();
 }
+/* After the follow-up is sent: mark the shown waitlist rows contacted and move their "On waitlist" leads to "Invited to call". */
+async function wlBulkContacted(rows) {
+  rows = rows.filter(x => x.status === "new");
+  if (!rows.length) { S.cap.wlMsg = "Nothing to mark: none of the entries shown are New."; render(); return; }
+  if (!confirm("Mark " + rows.length + " waitlist " + (rows.length === 1 ? "entry" : "entries") + " as contacted? Do this after your email agent has sent the follow-up.")) return;
+  let ok = 0, moved = 0;
+  for (const x of rows) { const r = await sbReq("PATCH", "waitlist_requests?id=eq." + encodeURIComponent(x.id), { status: "contacted" }, "return=minimal"); if (r.ok) { x.status = "contacted"; ok++; } }
+  const emails = rows.filter(x => x.status === "contacted").map(x => String(x.email || "").toLowerCase());
+  Store.all().forEach(raw => { const c = cleanSession(raw); if (!c.rec || !c.rec.lead || c.rec.lead.status !== "waiting") return; const ct = c.rec.lead.contact.toLowerCase(); if (emails.some(e => e && ct.includes(e))) { c.rec.lead.status = "contacted"; c.rec.updated = Date.now(); if (Store.upsert(c.rec)) { Cloud.push(c.rec); moved++; } } });
+  S.cap.wlMsg = ok + " marked contacted" + (ok < rows.length ? " (" + (rows.length - ok) + " failed, try again)" : "") + (moved ? ". " + moved + " lead" + (moved === 1 ? "" : "s") + " moved to Invited to call." : ".");
+  render();
+}
 async function wlDelete(x) {
   if (!confirm("Delete this entry permanently? Use this only for test entries. For real people, use Archive.\n\n" + x.name + (x.organization ? " (" + x.organization + ")" : ""))) return;
   const r = await sbReq("DELETE", "waitlist_requests?id=eq." + encodeURIComponent(x.id), null, "return=minimal");
@@ -1755,6 +1819,10 @@ function waitScreen() {
     S.cap.wlStatus === "loading" ? el("p", { class: "muted" }, "Loading...") : null,
     S.cap.wlStatus === "error" ? el("button", { class: "btn", onclick: () => { S.cap.wlStatus = "idle"; wlLoad(); } }, "Try again") : null,
     filt, sfw.bar, cards.length ? sfw.box : (S.cap.wlStatus === "ok" ? el("p", { class: "muted" }, "Nothing here.") : null),
+    list.length ? el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Follow up when a spot opens"),
+      el("p", { class: "muted" }, "Works on the entries shown below (use the filters to choose who). 1. Copy the follow-up and paste it into your email agent: it holds the instructions, the EN and FR message and one line per person. 2. When the agent has sent them, mark them contacted."),
+      el("button", { class: "btn primary", onclick: async () => { const rows = list.filter(S.sfMatch.wait); S.cap.wlMsg = !rows.length ? "No entries shown." : (await copyText(agentBatch("reopen", rows.map(x => ({ name: x.name, email: x.email, lang: x.language })))) ? "Follow-up copied for " + rows.length + " people. Paste it into your email agent." : "Could not copy."); render(); } }, "1. Copy follow-up for my email agent"),
+      el("button", { class: "btn", onclick: () => wlBulkContacted(list.filter(S.sfMatch.wait)) }, "2. Mark these as contacted")) : null,
     list.length ? el("button", { class: "btn", onclick: async () => { S.cap.wlMsg = (await copyText(list.filter(S.sfMatch.wait).map(x => x.email).join(", ")) ? "Emails copied (" + list.filter(S.sfMatch.wait).length + ")." : "Could not copy."); render(); } }, "Copy these emails") : null,
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
 }
@@ -1765,6 +1833,39 @@ async function inqLoad() {
   const r = await sbReq("GET", "site_inquiries?select=*&order=created_at.desc&limit=300");
   if (r.ok && Array.isArray(r.json)) { S.cap.inq = r.json; S.cap.inqStatus = "ok"; S.cap.inqMsg = ""; } else { S.cap.inqStatus = "error"; S.cap.inqMsg = capErr(r); }
   if (["inq", "home", "feas"].includes(S.screen)) render();
+  if (S.cap.inqStatus === "ok") inqAutoLeads();
+}
+/* Website feasibility checks (extra.kind = "feasibility") become leads by themselves, with the check attached.
+   The lead id comes from the inquiry id, so running this twice (or on two devices) never makes a duplicate. */
+/* The website's free feasibility check reads this published copy: verdicts only (no notes, sources or prices). */
+async function capsPublish(caps) {
+  const cells = {}; caps.reqs.forEach(r => { if (r.id === "cost") return; cells[r.id] = {}; caps.tools.forEach(tl => { cells[r.id][tl.id] = (caps.cells[r.id][tl.id] || {}).v || "unknown"; }); });
+  const r = await sbReq("POST", "site_public_data?on_conflict=key", { key: "caps", data: { verified: caps.verified, cells }, updated_at: new Date().toISOString() }, "resolution=merge-duplicates,return=minimal");
+  return r.ok ? "Published to the website (table verified " + caps.verified + ")." : r.status === 404 || (r.json && /does not exist|schema cache|PGRST20/i.test(JSON.stringify(r.json))) ? "Not published: run migration/feasibility_public.sql in Supabase first. The website keeps using its built-in table." : "Not published. " + capErr(r);
+}
+async function inqAutoLeads() {
+  const caps = loadCaps(), todo = (S.cap.inq || []).filter(x => x.site === "business" && x.status === "new" && x.extra && x.extra.kind === "feasibility");
+  let made = 0;
+  for (const x of todo) {
+    const ex = x.extra, id = "wf-" + String(x.id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
+    if (!Store.all().some(r => r.id === id)) {
+      const ts0 = ex.team_size || "", users = ts0 === "1" ? 1 : ts0 === "2-5" ? 5 : ts0 === "6-20" ? 20 : /^21/.test(ts0) ? 21 : 1;
+      const tool = ["chatgpt", "claude", "gemini", "copilot"].find(k => ex["tool_" + k]) || "all";
+      let reqs = Object.keys(INQ_NEED).filter(k => ex[k]).map(k => INQ_NEED[k]);
+      if (ex.personal_info === "yes" || ex.personal_info === "not-sure") reqs.push("priv");
+      if (users >= 2) reqs.push("team");
+      reqs = caps.reqs.map(r => r.id).filter(i => reqs.includes(i));
+      const now = Date.parse(x.created_at) || Date.now();
+      const rec = { id, brand: "business", sel: [BASE.business], typeId: BASE.business, lang: x.language === "fr" ? "fr" : "en", name: (x.organization || x.name || "Website check").slice(0, 80), created: now, updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {},
+        feas: { tool, reqs, users, flows: 1, assess: false, train: 0, request: (x.message || "").slice(0, 600), verdict: tool === "all" ? "" : fxEval(caps, tool, reqs).overall, verified: caps.verified, saved: now },
+        lead: { status: ex.capacity === "yes" ? "waiting" : "checked", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("Website feasibility check" + (ex.capacity === "yes" ? ", done while at capacity (on the waitlist)" : "") + ". Plan: " + (ex.plan || tool) + ".").slice(0, 500) } };
+      if (!Store.upsert(rec)) continue;
+      Cloud.push(rec); const u = unseenLeads(); u.push(id); unseenLeadsSet(u); made++;
+    }
+    const r = await sbReq("PATCH", "site_inquiries?id=eq." + encodeURIComponent(x.id), { status: "contacted" }, "return=minimal");
+    if (r.ok) x.status = "contacted";
+  }
+  if (made && ["inq", "home", "leads", "feas"].includes(S.screen)) render();
 }
 async function inqSet(id, status) {
   const r = await sbReq("PATCH", "site_inquiries?id=eq." + encodeURIComponent(id), { status }, "return=minimal");
@@ -2018,8 +2119,11 @@ function feasScreen() {
       let o; try { o = readAiJson(f.imp); } catch (e) { say(e.message); return; }
       const c = cleanCaps(o); if (c.error) { say("Not imported. " + c.error); return; }
       try { localStorage.setItem(CAPS_KEY, JSON.stringify({ verified: c.caps.verified, fx: c.caps.fx, tools: c.caps.tools, cells: c.caps.cells })); } catch (e) { say("Could not save on this device."); return; }
-      f.imp = ""; say("Imported. Table verified " + c.caps.verified + ". Saved on this device only.");
+      f.imp = ""; say("Imported. Table verified " + c.caps.verified + ". Publishing to the website...");
+      capsPublish(loadCaps()).then(m => say("Imported. Table verified " + c.caps.verified + ". " + m));
     } }, "Import updated table"),
+    el("button", { class: "btn", onclick: async () => { say("Publishing..."); say(await capsPublish(caps)); } }, "Publish this table to the website"),
+    el("p", { class: "muted" }, "The website's free feasibility check uses the published table (verdicts only). Importing publishes it for you; use the button to publish again."),
     caps.custom ? el("button", { class: "btn link", onclick: () => { try { localStorage.removeItem(CAPS_KEY); } catch (e) {} say("Back to the built-in table."); } }, "Reset to built-in table") : null,
     el("div", { class: "note" }, "Plan prices are in USD. Nothing here guarantees Quebec Law 25 compliance; the client's privacy lead should approve any use with personal information."),
     el("button", { class: "btn link", onclick: () => { f.msg = ""; S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
