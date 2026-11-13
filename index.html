@@ -175,7 +175,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
 @media print{.doc{box-shadow:none;border-radius:0}.doc .hero,.doc .foot,.doc .eyebrow,.doc .pill,.doc .tryit,.doc .box,.doc .card2,.doc tbody td,.doc th{-webkit-print-color-adjust:exact;print-color-adjust:exact}.doc .foot{break-inside:avoid}}
 .sl.tl .si,.sl.cl .si{padding-top:3.5cqw;padding-bottom:9cqw}.sl .slogo{width:9cqw;height:9cqw;background:#fff;padding:.9cqw;border-radius:2cqw;box-shadow:0 .4cqw 1.6cqw rgba(0,0,0,.3)}.sl.tl h1{font-size:5.6cqw;margin:1.6cqw 0 1.6cqw}.sl.tl .eye{margin-top:2cqw}.sl .stag{margin-top:2cqw}
 .namef{display:block;margin:0 0 10px}.card input[type=text],.namef input{width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;box-sizing:border-box}
-.actbar{position:sticky;top:0;z-index:20;background:#fff;padding:8px 0 6px;margin:0 0 8px;border-bottom:1px solid var(--line)}.actbar .row{display:flex;gap:10px}.actbar .btn{margin:0;flex:1;min-height:48px}
+.actbar{position:sticky;top:var(--hh,0px);z-index:4;background:#fff;padding:8px 0 6px;margin:0 0 8px;border-bottom:1px solid var(--line)}.actbar .row{display:flex;gap:10px}.actbar .btn{margin:0;flex:1;min-height:48px}
 .modal{position:fixed;inset:0;background:rgba(10,25,40,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}.mbox{background:#fff;border-radius:18px;padding:18px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35)}
 .pipe{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.pstep{border:1px solid #CBD5E1;background:#fff;color:#475569;border-radius:999px;padding:5px 10px;font-size:13px;font-weight:600;cursor:pointer}.pstep.ok{background:#DCFCE7;border-color:#86EFAC;color:#14532D}.pstep.skip{background:#F1F3F6;border-style:dashed;color:#64748B}.pinfo{width:30px;height:30px;border-radius:50%;border:1px solid #94A3B8;background:#fff;color:#334155;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer}.phist{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin:0 0 8px;font-size:14px;color:#334155}.pstep.on{background:var(--navy);border-color:var(--navy);color:#fff}.pstep.side{border-style:dashed}
 .pnext{background:#F1F3F6;border-radius:10px;padding:10px 12px;margin:0 0 10px}
@@ -2764,7 +2764,7 @@ function exportPanel(d) {
   if (blobUrl) URL.revokeObjectURL(blobUrl);
   blobUrl = URL.createObjectURL(blob);
   const msg = el("p", { class: "muted", role: "status" });
-  const share = el("button", { class: "btn primary", onclick: async () => {
+  const share = el("button", { class: "btn", onclick: async () => {
     try {
       const f = new File([blob], name, { type: "text/html" });
       if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: d.title }); msg.textContent = t("shared"); }
@@ -2779,10 +2779,10 @@ function exportPanel(d) {
       const fname = slug(d.title) + "-" + d.language + ".pdf", pf = new File([pb], fname, { type: "application/pdf" }), purl = URL.createObjectURL(pb);
       msg.textContent = t("pdfReady");
       pdfBox.replaceChildren(
-        el("button", { class: "btn primary", onclick: async () => { try { if (navigator.canShare && navigator.canShare({ files: [pf] })) await navigator.share({ files: [pf], title: d.title }); else msg.textContent = t("pdfShareFail"); } catch (e) { if (!e || e.name !== "AbortError") msg.textContent = t("pdfShareFail"); } } }, t("pdfShare")),
-        el("a", { class: "btn", href: purl, target: "_blank", rel: "noopener", download: fname, style: "text-decoration:none" }, t("pdfOpen")));
-    } catch (e) { msg.textContent = t("pdfFail"); }
-    pdfBtn2.disabled = false;
+        el("a", { class: "btn primary", href: purl, target: "_blank", rel: "noopener", download: fname, style: "text-decoration:none" }, t("pdfOpen")),
+        el("button", { class: "btn", onclick: async () => { try { if (navigator.canShare && navigator.canShare({ files: [pf] })) await navigator.share({ files: [pf], title: d.title }); else msg.textContent = t("pdfShareFail"); } catch (e) { if (!e || e.name !== "AbortError") msg.textContent = t("pdfShareFail"); } } }, t("pdfShare")));
+      pdfBtn2.className = "btn"; pdfBtn2.setAttribute("aria-disabled", "true"); /* stays greyed out: the PDF is built, Open PDF is now the main button */
+    } catch (e) { msg.textContent = t("pdfFail"); pdfBtn2.disabled = false; }
   } }, t("pdfDl"));
   const copy = el("button", { class: "btn", onclick: async () => { msg.textContent = (await copyText(plainText(d))) ? t("textCopied") : t("copyFail"); } }, t("copyText"));
   /* Print: opens the printable page in a new tab and starts the print dialog by itself. */
@@ -3234,6 +3234,7 @@ function render() {
   if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); inqLoad(); svLoad(); }, 900); }
   const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, leads: leadsScreen, cap: capScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
+  const hd = document.querySelector("header.top"); if (hd) document.documentElement.style.setProperty("--hh", hd.offsetHeight + "px"); /* the Start/Save bar sticks just under the header */
 }
 
 bootAuth();
