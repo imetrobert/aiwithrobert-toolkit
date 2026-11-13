@@ -177,7 +177,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:28px}
 .namef{display:block;margin:0 0 10px}.card input[type=text],.namef input{width:100%;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;box-sizing:border-box}
 .actbar{position:sticky;top:0;z-index:20;background:#fff;padding:8px 0 6px;margin:0 0 8px;border-bottom:1px solid var(--line)}.actbar .row{display:flex;gap:10px}.actbar .btn{margin:0;flex:1;min-height:48px}
 .modal{position:fixed;inset:0;background:rgba(10,25,40,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}.mbox{background:#fff;border-radius:18px;padding:18px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35)}
-.pipe{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.pstep{border:1px solid #CBD5E1;background:#fff;color:#475569;border-radius:999px;padding:5px 10px;font-size:13px;font-weight:600;cursor:pointer}.pstep.done{background:#F1F3F6;color:#64748B}.pstep.on{background:var(--navy);border-color:var(--navy);color:#fff}.pstep.side{border-style:dashed}
+.pipe{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.pstep{border:1px solid #CBD5E1;background:#fff;color:#475569;border-radius:999px;padding:5px 10px;font-size:13px;font-weight:600;cursor:pointer}.pstep.ok{background:#DCFCE7;border-color:#86EFAC;color:#14532D}.pstep.skip{background:#F1F3F6;border-style:dashed;color:#64748B}.pinfo{width:30px;height:30px;border-radius:50%;border:1px solid #94A3B8;background:#fff;color:#334155;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer}.phist{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin:0 0 8px;font-size:14px;color:#334155}.pstep.on{background:var(--navy);border-color:var(--navy);color:#fff}.pstep.side{border-style:dashed}
 .pnext{background:#F1F3F6;border-radius:10px;padding:10px 12px;margin:0 0 10px}
 @media print{.actbar,.modal{display:none!important}}
 .row2{display:flex;gap:12px}.row2 label{flex:1}.row2 input{width:100%;font:inherit;font-size:17px;padding:10px 12px;border:2px solid var(--line);border-radius:12px;box-sizing:border-box}
@@ -1082,19 +1082,27 @@ const LEAD_MAIL = {
     en: { subj: "A spot has opened at AI with Robert for Business", body: "Hi {name},\n\nYou joined my waitlist, and I now have availability. If you would still like to look at how AI could save your business time, the next step is a free 15-minute call.\n\nYou can pick a time here: " + BOOKING_URL + "\n\nIf the timing is no longer right, no reply is needed.\n\nRobert Simon\nAI with Robert for Business\n514-250-8491" },
     fr: { subj: "Une place s'est libérée chez AI with Robert pour entreprises", body: "Bonjour {name},\n\nVous vous êtes inscrit à ma liste d'attente, et j'ai maintenant de la disponibilité. Si vous souhaitez toujours voir comment l'IA pourrait faire gagner du temps à votre entreprise, la prochaine étape est un appel gratuit de 15 minutes.\n\nVous pouvez choisir un moment ici : " + BOOKING_URL + "\n\nSi le moment ne convient plus, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour entreprises\n514-250-8491" } }
 };
+LEAD_MAIL.reopenSeniors = {
+  en: { subj: "A spot has opened at AI with Robert for Seniors", body: "Hi {name},\n\nYou joined my waitlist, and I now have availability for new bookings. If you are still interested, reply to this email or call me at 514-250-8491 and we will find a time that suits you.\n\nIf the timing is no longer right, no reply is needed.\n\nRobert Simon\nAI with Robert for Seniors\n514-250-8491" },
+  fr: { subj: "Une place s'est libérée chez AI with Robert pour aînés", body: "Bonjour {name},\n\nVous vous êtes inscrit à ma liste d'attente, et j'ai maintenant de la disponibilité pour de nouvelles réservations. Si cela vous intéresse toujours, répondez à ce courriel ou appelez-moi au 514-250-8491 et nous trouverons un moment qui vous convient.\n\nSi le moment ne convient plus, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour aînés\n514-250-8491" } };
+const mailFrom = brand => brand === "seniors" ? "seniors@aiwithrobert.com" : BIZ_FROM;
+const mailKind = (kind, brand) => kind === "reopen" && brand === "seniors" ? "reopenSeniors" : kind;
 const firstName = n => String(n || "").trim().split(/\s+/)[0] || "";
-const mailText = (kind, lang, name, email) => { const m = LEAD_MAIL[kind][lang === "fr" ? "fr" : "en"]; return "From: " + BIZ_FROM + "\nTo: " + email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(name) || (lang === "fr" ? "" : "there")).replace("Bonjour ,", "Bonjour,"); };
+const mailText = (kind, lang, name, email, brand) => { const m = LEAD_MAIL[mailKind(kind, brand)][lang === "fr" ? "fr" : "en"]; return "From: " + mailFrom(brand) + "\nTo: " + email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(name) || (lang === "fr" ? "" : "there")).replace("Bonjour ,", "Bonjour,"); };
 /* One paste for the email agent: instructions, both templates, then one line per recipient. */
-function agentBatch(kind, people) {
-  const m = LEAD_MAIL[kind];
-  return ["Send one separate email to each recipient listed at the end, from " + BIZ_FROM + ". Never put two recipients on the same email. Use the English template for EN and the French template for FR, and replace {name} with the first name given. Do not change the wording. Tell me when each one is sent.",
+function agentBatch(kind, people, brand) {
+  const m = LEAD_MAIL[mailKind(kind, brand)];
+  return ["Send one separate email to each recipient listed at the end, from " + mailFrom(brand) + ". Never put two recipients on the same email. Use the English template for EN and the French template for FR, and replace {name} with the first name given. Do not change the wording. Tell me when each one is sent.",
     "--- ENGLISH TEMPLATE ---\nSubject: " + m.en.subj + "\n\n" + m.en.body, "--- FRENCH TEMPLATE ---\nSubject: " + m.fr.subj + "\n\n" + m.fr.body,
     "--- RECIPIENTS (" + people.length + ") ---\n" + people.map(x => (x.lang === "fr" ? "FR" : "EN") + " | " + (firstName(x.name) || "-") + " | " + x.email).join("\n")].join("\n\n");
 }
 function cleanLead(l) {
   if (!l || typeof l !== "object" || Array.isArray(l)) return null;
+  const hist = {};
+  if (l.hist && typeof l.hist === "object" && !Array.isArray(l.hist)) LEAD_ST.forEach(k => { const h = l.hist[k]; if (h && Number.isFinite(h.d) && ["done", "skipped", "auto"].includes(h.how)) hist[k] = { d: h.d, how: h.how }; });
   return { status: LEAD_ST.includes(l.status) ? l.status : "new", contact: isStr(l.contact) ? l.contact.trim().slice(0, 120) : "",
-    follow: isStr(l.follow) && /^\d{4}-\d{2}-\d{2}$/.test(l.follow) ? l.follow : "", note: isStr(l.note) ? l.note.slice(0, 500) : "", archived: l.archived === true };
+    follow: isStr(l.follow) && /^\d{4}-\d{2}-\d{2}$/.test(l.follow) ? l.follow : "", note: isStr(l.note) ? l.note.slice(0, 1500) : "", archived: l.archived === true,
+    hist, at: Number.isFinite(l.at) ? l.at : 0 };
 }
 /* A saved Feasibility check attached to a saved profile (optional). */
 function cleanFeas(f) {
@@ -1244,34 +1252,110 @@ function leadFromEmail(text) {
   Cloud.push(rec);
   return "Lead added: " + rec.name + " (" + (brand === "seniors" ? "Seniors" : "Business") + ", " + (o.lang === "fr" ? "French" : "English") + (o.email ? ", " + o.email : ", no email found") + "). Check the details on its card below.";
 }
-/* Where a lead is in the pipeline (tap a stage to move it) and the one next step for that stage. */
+/* ---- Pipeline tracking. Each lead keeps hist[stage] = { d: when it left that stage, how: done | skipped | auto } and at = when it
+   entered the current stage. Tapping a stage asks whether the action for the current stage was really done (done = green tick,
+   moved anyway = grey "skipped"). The Next step buttons are the action itself, so they record "done" without asking. ---- */
+const leadFlow = r => r.brand === "seniors" ? ["new", "contacted", "booked", "won"] : LEAD_FLOW;
+const leadLabel = (r, k) => r.brand === "seniors" && k === "contacted" ? "Contacted" : r.brand === "seniors" && k === "booked" ? "Session booked" : LEAD_LABEL[k];
+const leadPos = (r, k) => { const f = leadFlow(r); return k === "lost" ? 99 : k === "waiting" ? Math.max(0, f.indexOf("checked")) : f.indexOf(k); };
+const leadAct = (r, k) => (r.brand === "seniors"
+  ? { new: "contact them", waiting: "send the follow-up email", contacted: "confirm a session with them", booked: "hold the session" }
+  : { new: "run the feasibility check", checked: "send the invitation to a call", waiting: "send the follow-up email", contacted: "get a call booked", booked: "hold the call and send the proposal", proposal: "get the client's decision" })[k] || "finish this step";
+const fmtDay = d => { try { return new Date(d).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" }); } catch (e) { return ""; } };
+function stagePatch(r, to, how) {
+  const l = r.lead || {}, cur = l.status || "new", now = Date.now(), hist = Object.assign({}, l.hist || {}), f = leadFlow(r), pc = leadPos(r, cur), pt = leadPos(r, to);
+  if (to === "lost") hist.lost = { d: now, how: "done" };
+  else if (cur === "lost" || cur === "won" || pt < pc || (pt === pc && cur === "waiting")) { f.forEach((k, i) => { if (i >= pt) delete hist[k]; }); delete hist.lost; if (to !== "waiting" && pt <= leadPos(r, "waiting")) delete hist.waiting; }
+  else {
+    hist[cur] = { d: now, how };
+    f.forEach((k, i) => { if (i > pc && i < pt && !hist[k]) hist[k] = { d: now, how: "skipped" }; });
+    if (to === "won") hist.won = { d: now, how: "done" };
+  }
+  return { status: to, hist, at: now };
+}
+const moveStage = (r, to, how) => saveLead(r, stagePatch(r, to, how));
+/* A small question box (the browser's own confirm only offers OK / Cancel). Resolves with the value of the tapped button, or null. */
+function askBox(text, buttons) {
+  return new Promise(res => {
+    const close = v => { ov.remove(); res(v); };
+    const ov = el("div", { class: "modal", role: "dialog", "aria-modal": "true" }, el("div", { class: "mbox" }, el("p", { style: "margin:0 0 14px;font-size:17px;line-height:1.45;color:var(--navy)" }, text),
+      buttons.map(([label, v, primary]) => el("button", { class: "btn" + (primary ? " primary" : ""), onclick: () => close(v) }, label)), el("button", { class: "btn link", onclick: () => close(null) }, "Cancel")));
+    document.body.append(ov);
+  });
+}
+async function changeStage(r, to) {
+  const cur = (r.lead && r.lead.status) || "new", who = r.name || "this lead";
+  if (to === cur) return;
+  if (to === "lost") { if (await askBox("Mark " + who + " as Lost?", [["Yes, mark as Lost", 1, true]])) moveStage(r, to, "done"); return; }
+  const pc = leadPos(r, cur), pt = leadPos(r, to);
+  if (cur === "lost" || cur === "won" || pt < pc || (pt === pc && cur === "waiting")) { if (await askBox("Move " + who + " back to \u201C" + leadLabel(r, to) + "\u201D? The later steps will be cleared from its history.", [["Yes, move it back", 1, true]])) moveStage(r, to, "done"); return; }
+  if (to === "waiting") { if (await askBox("Put " + who + " on the waitlist?", [["Yes", 1, true]])) moveStage(r, to, "done"); return; }
+  const act = leadAct(r, cur);
+  const a = await askBox("You are about to leave the status \u201C" + leadLabel(r, cur) + "\u201D. Did you already " + act + "?", [["Yes, I did", "y", true], ["No", "n"]]);
+  if (a === "y") { moveStage(r, to, "done"); return; }
+  if (a !== "n") return;
+  if (await askBox("Do you still want to change the status even though you did not " + act + "? The step will show as skipped.", [["Yes, change it anyway", 1, true]])) moveStage(r, to, "skipped");
+}
 function leadPipeline(r, cur) {
-  const at = LEAD_FLOW.indexOf(cur === "waiting" ? "checked" : cur);
-  const chip = (k, i) => el("button", { class: "pstep" + (k === cur || (cur === "waiting" && k === "checked") ? " on" : at > i ? " done" : ""), "aria-pressed": String(k === cur), title: "Move to: " + LEAD_LABEL[k], onclick: () => saveLead(r, { status: k }) }, (i + 1) + ". " + LEAD_LABEL[k]);
-  return el("div", { class: "pipe", role: "group", "aria-label": "Pipeline stage" },
-    LEAD_FLOW.map(chip),
-    el("button", { class: "pstep side" + (cur === "waiting" ? " on" : ""), "aria-pressed": String(cur === "waiting"), onclick: () => saveLead(r, { status: "waiting" }) }, LEAD_LABEL.waiting),
-    el("button", { class: "pstep side" + (cur === "lost" ? " on" : ""), "aria-pressed": String(cur === "lost"), onclick: () => saveLead(r, { status: "lost" }) }, LEAD_LABEL.lost));
+  const f = leadFlow(r), hist = (r.lead && r.lead.hist) || {}, at = r.lead && r.lead.at;
+  const state = k => k === cur ? "on" : hist[k] ? (hist[k].how === "skipped" ? "skip" : "ok") : "";
+  const mark = k => k === cur ? "" : hist[k] ? (hist[k].how === "skipped" ? "\u2013 " : "\u2713 ") : "";
+  const chip = (k, i) => el("button", { class: "pstep " + state(k), "aria-pressed": String(k === cur), onclick: () => changeStage(r, k) }, mark(k) + (i + 1) + ". " + leadLabel(r, k));
+  const side = k => el("button", { class: "pstep side " + state(k), "aria-pressed": String(k === cur), onclick: () => changeStage(r, k) }, mark(k) + LEAD_LABEL[k]);
+  const rows = LEAD_ST.filter(k => hist[k]).sort((x, y) => hist[x].d - hist[y].d).map(k => el("div", null, (hist[k].how === "skipped" ? "\u2013 " : "\u2713 ") + leadLabel(r, k) + ": " + ({ done: k === "lost" || k === "won" ? "reached" : "done", skipped: "skipped (moved on without the action)", auto: "done by the website" })[hist[k].how] + " on " + fmtDay(hist[k].d)));
+  const info = el("div", { class: "phist", hidden: true }, rows.length ? rows : el("div", null, "No steps recorded yet."),
+    el("div", { style: "margin-top:4px" }, "Now: " + leadLabel(r, cur) + (at ? " since " + fmtDay(at) + " (" + Math.max(0, Math.floor((Date.now() - at) / 86400000)) + " days)" : "")));
+  const ib = el("button", { class: "pinfo", "aria-label": "Pipeline history and dates", "aria-expanded": "false", onclick: () => { info.hidden = !info.hidden; ib.setAttribute("aria-expanded", String(!info.hidden)); } }, "i");
+  return el("div", null, el("div", { class: "pipe", role: "group", "aria-label": "Pipeline stage" }, f.map(chip), side("waiting"), side("lost"), ib), info);
 }
 function leadNext(r, cur) {
   const email = ((r.lead && r.lead.contact || "").match(/[^\s·,;]+@[^\s·,;]+\.[^\s·,;]+/) || [""])[0], who = (r.lead && r.lead.contact || "").split("·")[0].trim();
   const person = /@/.test(who) || !who ? r.name : who;
   const msg = el("span", { class: "muted", role: "status", style: "display:block;margin-top:4px" });
   const go = (label, fn, primary) => el("button", { class: "btn sm" + (primary ? " primary" : ""), onclick: fn }, label);
-  const move = (label, status, primary) => go(label, () => saveLead(r, { status }), primary);
-  const mail = (label, kind) => go(label, async () => { msg.textContent = !email ? "Add the client's email in Contact first." : (await copyText(mailText(kind, r.lang, person, email))) ? "Email copied. Paste it into your email agent." : "Could not copy."; }, true);
+  const move = (label, status, primary) => go(label, () => moveStage(r, status, "done"), primary);
+  const mail = (label, kind) => go(label, async () => { msg.textContent = !email ? "Add the client's email in Contact first." : (await copyText(mailText(kind, r.lang, person, email, r.brand))) ? "Email copied. Paste it into your email agent." : "Could not copy."; }, true);
   const biz = r.brand === "business";
-  const N = {
-    new: biz ? ["Run the feasibility check for this lead.", [go("Start feasibility check", () => leadToFeas(r), true)]] : ["Contact them, then mark it here.", [move("Mark invited", "contacted", true)]],
+  const inv = el("a", { class: "btn sm primary", href: "https://invoices.aiwithrobert.com/", target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Open invoicing app");
+  const N = (biz ? {
+    new: ["Run the feasibility check for this lead.", [go("Start feasibility check", () => leadToFeas(r), true)]],
     checked: ["The check is done. Invite them to a free 15-minute call. (The website already showed them the booking button.)", [mail("Copy invitation email", "invite"), move("Mark invited", "contacted"), move("Call booked", "booked")]],
-    waiting: ["They did the check while you were at capacity and are on the waitlist. Nothing to do until a spot opens, then send the follow-up.", [mail("Copy follow-up email", "reopen"), move("Mark invited", "contacted")]],
+    waiting: ["On the waitlist. Nothing to do until a spot opens, then send the follow-up.", [mail("Copy follow-up email", "reopen"), move("Mark invited", "contacted")]],
     contacted: ["Invited. When the booking arrives in your calendar, mark the call.", [move("Call booked", "booked", true)]],
-    booked: ["After the call, build the proposal from the saved check.", [r.feas ? go("Open check and build proposal", () => openFeas(r), true) : (biz ? go("Start feasibility check", () => leadToFeas(r), true) : null), move("Proposal sent", "proposal")]],
-    proposal: ["Proposal sent. Record the outcome.", [move("Won", "won", true), move("Lost", "lost")]],
-    won: ["Won. Create the invoice in the invoicing app (Import a lead).", [el("a", { class: "btn sm primary", href: "https://invoices.aiwithrobert.com/", target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Open invoicing app")]],
+    booked: ["After the call, build the proposal from the saved check.", [r.feas ? go("Open check and build proposal", () => openFeas(r), true) : go("Start feasibility check", () => leadToFeas(r), true), move("Proposal sent", "proposal")]],
+    proposal: ["Proposal sent. Record the outcome.", [move("Won", "won", true), go("Lost", () => changeStage(r, "lost"))]],
+    won: ["Won. Create the invoice in the invoicing app (Import a lead).", [inv]],
     lost: ["Closed as lost. Archive it when you no longer need it.", []]
-  }[cur] || ["", []];
+  } : {
+    new: ["Contact them to see what they need.", [move("Mark contacted", "contacted", true)]],
+    waiting: ["On the waitlist. Nothing to do until a spot opens, then send the follow-up.", [mail("Copy follow-up email", "reopen"), move("Mark contacted", "contacted")]],
+    contacted: ["Contacted. When they confirm a session, mark it booked.", [move("Session booked", "booked", true)]],
+    booked: ["After the session, record the outcome.", [move("Won", "won", true), go("Lost", () => changeStage(r, "lost"))]],
+    won: ["Won. Create the invoice in the invoicing app.", [inv]],
+    lost: ["Closed as lost. Archive it when you no longer need it.", []]
+  })[cur] || ["Tap a stage above to place this lead in the pipeline.", []];
   return el("div", { class: "pnext" }, el("div", { style: "font-weight:700;color:var(--navy)" }, "Next step"), el("div", { style: "margin:2px 0 8px" }, N[0]), el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, N[1]), msg);
+}
+/* Follow-up for everyone shown under the "On waitlist" filter: one paste per brand for the email agent, then mark them invited. */
+async function leadsFollowUp(rows) {
+  const ppl = b => rows.filter(r => r.brand === b).map(r => { const c = r.lead.contact || "", e = (c.match(/[^\s·,;]+@[^\s·,;]+\.[^\s·,;]+/) || [""])[0], w = c.split("·")[0].trim(); return { name: /@/.test(w) || !w ? r.name : w, email: e, lang: r.lang }; }).filter(x => x.email);
+  const parts = ["business", "seniors"].map(b => [b, ppl(b)]).filter(x => x[1].length);
+  if (!parts.length) return "No one shown has an email address.";
+  const text = parts.map(([b, p]) => (parts.length > 1 ? "===== " + (b === "seniors" ? "SENIORS" : "BUSINESS") + " (send these separately) =====\n\n" : "") + agentBatch("reopen", p, b)).join("\n\n\n");
+  return (await copyText(text)) ? "Follow-up copied for " + parts.reduce((n, x) => n + x[1].length, 0) + " people. Paste it into your email agent." : "Could not copy.";
+}
+async function leadsMarkInvited(rows) {
+  if (!rows.length) return "No one shown.";
+  if (!(await askBox("Mark " + rows.length + " waitlist lead" + (rows.length === 1 ? "" : "s") + " as invited? Do this after your email agent has sent the follow-up.", [["Yes, they were sent", 1, true]]))) return "";
+  const emails = [];
+  rows.forEach(r => { const nr = Object.assign({}, r, { lead: Object.assign({}, r.lead, stagePatch(r, "contacted", "done")), updated: Date.now() }); if (Store.upsert(nr)) Cloud.push(nr); const e = ((r.lead.contact || "").match(/[^\s·,;]+@[^\s·,;]+\.[^\s·,;]+/) || [""])[0].toLowerCase(); if (e) emails.push(e); });
+  for (const x of (S.cap.wl || []).filter(x => x.status === "new" && emails.includes(String(x.email || "").toLowerCase()))) { const q = await sbReq("PATCH", "waitlist_requests?id=eq." + encodeURIComponent(x.id), { status: "contacted" }, "return=minimal"); if (q.ok) x.status = "contacted"; }
+  return rows.length + " moved to Invited.";
+}
+/* When a lead is deleted, its waitlist row is archived too, so it is not created again on the next load. */
+async function wlArchiveByEmail(contact) {
+  const e = ((contact || "").match(/[^\s·,;]+@[^\s·,;]+\.[^\s·,;]+/) || [""])[0].toLowerCase(); if (!e) return;
+  for (const x of (S.cap.wl || []).filter(x => x.status !== "archived" && String(x.email || "").toLowerCase() === e)) { const q = await sbReq("PATCH", "waitlist_requests?id=eq." + encodeURIComponent(x.id), { status: "archived" }, "return=minimal"); if (q.ok) x.status = "archived"; }
 }
 function leadsScreen() {
   const today = todayStr();
@@ -1279,10 +1363,11 @@ function leadsScreen() {
   const st = r => (r.lead && r.lead.status) || "new", open = r => st(r) !== "won" && st(r) !== "lost";
   const arch = r => !!(r.lead && r.lead.archived), live = r => !arch(r);
   const due = r => live(r) && open(r) && r.lead && r.lead.follow && r.lead.follow <= today;
-  const F = { active: r => live(r) && open(r), due, won: r => live(r) && st(r) === "won", lost: r => live(r) && st(r) === "lost", all: live, archived: arch };
+  const F = { active: r => live(r) && open(r), due, archived: arch };
+  LEAD_ST.forEach(k => { F[k] = r => live(r) && st(r) === k; });
   const list = all.filter(F[S.lFilter] || F.active).sort((a, b) => ((a.lead && a.lead.follow) || "9999") < ((b.lead && b.lead.follow) || "9999") ? -1 : 1);
-  const filt = el("div", { class: "seg dark", role: "group", "aria-label": "Filter leads", style: "margin:0 0 12px" },
-    [["active", "Active"], ["due", "Follow up"], ["won", "Won"], ["lost", "Lost"], ["all", "All"], ["archived", "Archived"]].map(([k, n]) => el("button", { "aria-pressed": String(S.lFilter === k), onclick: () => { S.lFilter = k; render(); } }, n + " (" + all.filter(F[k]).length + ")")));
+  const filt = el("div", { class: "pipe", role: "group", "aria-label": "Filter leads by pipeline stage", style: "margin:0 0 12px" },
+    [["active", "All active"], ["due", "Follow up"]].concat(LEAD_ST.map(k => [k, LEAD_LABEL[k]])).concat([["archived", "Archived"]]).map(([k, n]) => el("button", { class: "pstep" + (S.lFilter === k ? " on" : ""), "aria-pressed": String(S.lFilter === k), onclick: () => { S.lFilter = k; S.leadMsg = ""; render(); } }, n + " (" + all.filter(F[k]).length + ")")));
   const nameIn = el("input", { type: "text", maxlength: "80", placeholder: "New lead: business, library or club name", "aria-label": "New lead name" });
   const mailIn = el("textarea", { rows: "5", "aria-label": "Email text", placeholder: "Paste the email here" });
   const cards = list.map(r => {
@@ -1293,21 +1378,25 @@ function leadsScreen() {
       el("label", { class: "muted", style: "display:block;margin:0 0 2px" }, "Follow-up date"),
       el("input", { type: "date", value: l.follow, "aria-label": "Follow-up date", onchange: e => saveLead(r, { follow: e.target.value }) }),
       el("input", { type: "text", maxlength: "120", value: l.contact, placeholder: "Contact (name, phone or email)", "aria-label": "Contact", style: "margin-top:6px", onchange: e => saveLead(r, { contact: e.target.value }) }),
-      el("textarea", { maxlength: "500", rows: "2", "aria-label": "Note", placeholder: "Note (where you met, what they need)", style: "margin-top:6px", onchange: e => saveLead(r, { note: e.target.value }) }, l.note),
+      el("textarea", { maxlength: "1500", rows: "3", "aria-label": "Note", placeholder: "Note (where you met, what they need)", style: "margin-top:6px", onchange: e => saveLead(r, { note: e.target.value }) }, l.note),
       r.feas ? el("button", { class: "btn sm primary", onclick: () => openFeas(r) }, "Open feasibility check") : null,
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" },
         el("button", { class: "btn sm", onclick: () => saveLead(r, { archived: !arch(r) }) }, arch(r) ? "Restore" : "Archive"),
-        el("button", { class: "btn sm danger", onclick: () => { if (confirm("Delete this lead from this device and your cloud account? Any saved profile or feasibility check on it is deleted too. This cannot be undone. Use Archive to keep it.")) { Store.remove(r.id); if (S.sid === r.id) { S.sid = null; S.lead = null; S.feasSaved = null; lastSaved = ""; } render(); } } }, "Delete (tests only)")));
+        el("button", { class: "btn sm danger", onclick: () => { if (confirm("Delete this lead from this device and your cloud account? Any saved profile or feasibility check on it is deleted too. This cannot be undone. Use Archive to keep it.")) { Store.remove(r.id); wlArchiveByEmail(l.contact); if (S.sid === r.id) { S.sid = null; S.lead = null; S.feasSaved = null; lastSaved = ""; } render(); } } }, "Delete (tests only)")));
   });
   const sfl = searchable("leads", list, cards, r => [r.name, r.lead && r.lead.contact, r.lead && r.lead.note, r.lead && r.lead.status, r.feas && r.feas.name].join(" "), r => r.created, r => r.brand, ["lead", "leads"]);
-  return shell(inboxTabs("leads"), el("h1", null, "Leads"),
-    el("p", { class: "muted" }, "Each lead shows where it is in the pipeline and its next step. Website feasibility checks arrive here by themselves as Check done (or On waitlist when you are at capacity)."),
+  const fu = S.lFilter === "waiting" && list.length ? el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Follow up when a spot opens"),
+    el("p", { class: "muted" }, "Works on the waitlist leads shown below (use the search and filters to choose who). 1. Copy the follow-up and paste it into your email agent. 2. When the agent has sent them, mark them invited."),
+    el("button", { class: "btn primary", onclick: async () => { S.leadMsg = await leadsFollowUp(list.filter(S.sfMatch.leads)); render(); } }, "1. Copy follow-up for my email agent"),
+    el("button", { class: "btn", onclick: async () => { const m = await leadsMarkInvited(list.filter(S.sfMatch.leads)); if (m) S.leadMsg = m; render(); } }, "2. Mark these as invited")) : null;
+  return shell(el("h1", null, "Leads"),
+    el("p", { class: "muted" }, "Everyone who contacts you lands here by themselves: website feasibility checks, contact-form messages and waitlist sign-ups. Each lead shows its pipeline stage and next step."),
     el("div", { class: "card" }, nameIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => newLead(nameIn.value) }, "Add lead"),
       el("details", { style: "margin-top:12px" }, el("summary", { style: "font-weight:700;cursor:pointer;color:var(--navy)" }, "Or add a lead from an email"),
         el("p", { class: "muted", style: "margin:8px 0" }, "Copy the email you received and paste it here. The name, email address, phone number, language and a note are filled in for you."),
         mailIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => { const m = leadFromEmail(mailIn.value); S.leadMsg = m; if (/^Lead added/.test(m)) { S.lFilter = "active"; } render(); } }, "Add lead from this email")),
       S.leadMsg ? el("div", { class: "note", role: "status", style: "margin-top:10px" }, S.leadMsg) : null),
-    all.length ? filt : null, sfl.bar,
+    all.length ? filt : null, fu, sfl.bar,
     cards.length ? sfl.box : el("p", { class: "muted" }, all.length ? "Nothing in this view." : "No leads yet. Add one above or save a Feasibility check."),
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
 }
@@ -1758,7 +1847,7 @@ const ts = x => { const n = Date.parse(x && x.created_at); return isNaN(n) ? 0 :
 function newCounts() {
   const n = (rows, k) => (rows || []).filter(x => x.status === "new" && ts(x) > seenGet(k)).length;
   const ids = new Set(unseenLeads());
-  return { wait: n(S.cap.wl, "wait"), inq: n(S.cap.inq, "inq"), leads: Store.all().filter(x => ids.has(x.id) && x.lead && !x.lead.archived).length };
+  return { wait: 0, inq: 0, leads: Store.all().filter(x => ids.has(x.id) && x.lead && !x.lead.archived).length };
 }
 function markSeenNow() {
   if (S.screen === "wait" && S.cap.wl) seenSet("wait", Math.max(0, ...S.cap.wl.map(ts)));
@@ -1769,13 +1858,10 @@ function markSeenNow() {
 function openInbox(tab) {
   if (tab === "inq") { S.cap.inqStatus = "idle"; S.cap.inqMsg = ""; S.screen = "inq"; render(); window.scrollTo(0, 0); inqLoad(); }
   else if (tab === "wait") { S.cap.wlStatus = "idle"; S.cap.wlMsg = ""; S.screen = "wait"; render(); window.scrollTo(0, 0); wlLoad(); }
-  else { S.screen = "leads"; render(); window.scrollTo(0, 0); }
+  else { S.screen = "leads"; S.leadMsg = ""; render(); window.scrollTo(0, 0); S.cap.inqStatus = "idle"; S.cap.wlStatus = "idle"; inqLoad(); wlLoad(); }
 }
-function inboxTabs(active) {
-  const NC = newCounts();
-  const tab = (id, label, n) => el("button", { "aria-pressed": String(active === id), onclick: () => { if (active !== id) openInbox(id); } }, label, n ? el("span", { style: "display:inline-block;margin-left:6px;padding:0 8px;border-radius:999px;background:#B42318;color:#fff;font-size:12px;font-weight:700" }, String(n)) : null);
-  return el("div", { class: "seg dark", role: "group", "aria-label": "Inbox and leads", style: "margin:0 0 12px" }, tab("inq", "Inquiries", NC.inq), tab("wait", "Waitlist", NC.wait), tab("leads", "Leads", NC.leads));
-}
+/* Inquiries and Waitlist were folded into Leads (2026-11-12): rows from both tables become leads by themselves. */
+function inboxTabs() { return null; }
 const newPill = n => n ? el("span", { style: "display:inline-block;margin-left:8px;padding:2px 10px;border-radius:999px;background:#B42318;color:#fff;font-weight:700;font-size:13px;vertical-align:middle" }, n + " NEW") : null;
 const newStyle = n => n ? "border-left:10px solid #B42318;background:#FEF3F2;font-weight:700" : "";
 async function wlLoad() {
@@ -1783,6 +1869,7 @@ async function wlLoad() {
   const r = await sbReq("GET", "waitlist_requests?select=*&order=created_at.desc&limit=300");
   if (r.ok && Array.isArray(r.json)) { S.cap.wl = r.json; S.cap.wlStatus = "ok"; S.cap.wlMsg = ""; } else { S.cap.wlStatus = "error"; S.cap.wlMsg = capErr(r); }
   if (["wait", "home", "feas"].includes(S.screen)) render();
+  if (S.cap.wlStatus === "ok") wlAutoLeads();
 }
 async function wlSet(id, status) {
   const r = await sbReq("PATCH", "waitlist_requests?id=eq." + encodeURIComponent(id), { status }, "return=minimal");
@@ -1887,8 +1974,20 @@ async function capsPublish(caps) {
   return r.ok ? "Published to the website (table verified " + caps.verified + ")." : r.status === 404 || (r.json && /does not exist|schema cache|PGRST20/i.test(JSON.stringify(r.json))) ? "Not published: run migration/feasibility_public.sql in Supabase first. The website keeps using its built-in table." : "Not published. " + capErr(r);
 }
 async function inqAutoLeads() {
-  const caps = loadCaps(), todo = (S.cap.inq || []).filter(x => x.site === "business" && x.status === "new" && x.extra && x.extra.kind === "feasibility");
+  const caps = loadCaps(), fresh = (S.cap.inq || []).filter(x => x.status === "new"), todo = fresh.filter(x => x.site === "business" && x.extra && x.extra.kind === "feasibility");
   let made = 0;
+  for (const x of fresh.filter(x => !todo.includes(x))) { /* plain contact-form message (Seniors site today) -> New lead */
+    const id = "iq-" + String(x.id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60), brand = x.site === "seniors" ? "seniors" : "business", ex = x.extra || {}, now = Date.parse(x.created_at) || Date.now();
+    if (!Store.all().some(r => r.id === id)) {
+      const what = ex["session-type"] || ex.interest || "";
+      const rec = { id, brand, sel: [BASE[brand]], typeId: BASE[brand], lang: x.language === "fr" ? "fr" : "en", name: (x.organization || x.name || "Website message").slice(0, 80), created: now, updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {}, feas: null,
+        lead: { status: "new", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("From the website contact form." + (what ? " Interested in: " + what + "." : "") + (x.message ? " " + x.message : "")).slice(0, 1500), hist: {}, at: now } };
+      if (!Store.upsert(rec)) continue;
+      Cloud.push(rec); const u = unseenLeads(); u.push(id); unseenLeadsSet(u); made++;
+    }
+    const q = await sbReq("PATCH", "site_inquiries?id=eq." + encodeURIComponent(x.id), { status: "contacted" }, "return=minimal");
+    if (q.ok) x.status = "contacted";
+  }
   for (const x of todo) {
     const ex = x.extra, id = "wf-" + String(x.id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
     if (!Store.all().some(r => r.id === id)) {
@@ -1901,7 +2000,8 @@ async function inqAutoLeads() {
       const now = Date.parse(x.created_at) || Date.now();
       const rec = { id, brand: "business", sel: [BASE.business], typeId: BASE.business, lang: x.language === "fr" ? "fr" : "en", name: (x.organization || x.name || "Website check").slice(0, 80), created: now, updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {},
         feas: { tool, reqs, users, flows: 1, assess: false, train: 0, request: (x.message || "").slice(0, 600), verdict: tool === "all" ? "" : fxEval(caps, tool, reqs).overall, verified: caps.verified, saved: now },
-        lead: { status: ex.capacity === "yes" ? "waiting" : "checked", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("Website feasibility check" + (ex.capacity === "yes" ? ", done while at capacity (on the waitlist)" : "") + ". Plan: " + (ex.plan || tool) + ".").slice(0, 500) } };
+        lead: { status: ex.capacity === "yes" ? "waiting" : "checked", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("Website feasibility check" + (ex.capacity === "yes" ? ", done while at capacity (on the waitlist)" : "") + ". Plan: " + (ex.plan || tool) + ".").slice(0, 500),
+          hist: ex.capacity === "yes" ? { new: { d: now, how: "auto" }, checked: { d: now, how: "auto" } } : { new: { d: now, how: "auto" } }, at: now } };
       if (!Store.upsert(rec)) continue;
       Cloud.push(rec); const u = unseenLeads(); u.push(id); unseenLeadsSet(u); made++;
     }
@@ -1909,6 +2009,22 @@ async function inqAutoLeads() {
     if (r.ok) x.status = "contacted";
   }
   if (made && ["inq", "home", "leads", "feas"].includes(S.screen)) render();
+  if (S.cap.wlStatus === "ok") wlAutoLeads(); /* after the checks, so a waitlisted check is matched by email and not doubled */
+}
+/* Waitlist sign-ups become "On waitlist" leads. The row stays New in its table until the follow-up is sent.
+   Skipped when a lead with the same email already exists (for example a feasibility check done at capacity). */
+function wlAutoLeads() {
+  if (S.cap.inqStatus !== "ok") return; /* wait until the checks were turned into leads */
+  let made = 0;
+  (S.cap.wl || []).filter(x => x.status === "new").forEach(x => {
+    const id = "wl-" + String(x.id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60), e = String(x.email || "").toLowerCase(), all = Store.all();
+    if (all.some(r => r.id === id) || (e && all.some(r => r.lead && (r.lead.contact || "").toLowerCase().includes(e)))) return;
+    const brand = x.site === "seniors" ? "seniors" : "business", now = Date.parse(x.created_at) || Date.now();
+    const rec = { id, brand, sel: [BASE[brand]], typeId: BASE[brand], lang: x.language === "fr" ? "fr" : "en", name: (x.organization || x.name || "Waitlist").slice(0, 80), created: now, updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {}, feas: null,
+      lead: { status: "waiting", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("From the waitlist" + (x.services && x.services.length ? ". Interested in: " + x.services.join(", ") : "") + ".").slice(0, 500), hist: {}, at: now } };
+    if (Store.upsert(rec)) { Cloud.push(rec); const u = unseenLeads(); u.push(id); unseenLeadsSet(u); made++; }
+  });
+  if (made && ["home", "leads", "feas"].includes(S.screen)) render();
 }
 async function inqSet(id, status) {
   const r = await sbReq("PATCH", "site_inquiries?id=eq." + encodeURIComponent(id), { status }, "return=minimal");
@@ -1948,8 +2064,6 @@ function leadToFeas(rec) {
 }
 function savedContacts() {
   const out = [], bz = x => x.site !== "seniors" && x.status !== "archived";
-  (S.cap.inq || []).filter(bz).forEach(x => out.push({ kind: "Inquiry", name: x.organization || x.name, sub: x.organization ? x.name : "", t: ts(x), go: () => inqToFeas(x) }));
-  (S.cap.wl || []).filter(bz).forEach(x => out.push({ kind: "Waitlist", name: x.organization || x.name, sub: x.organization ? x.name : "", t: ts(x), go: () => wlToFeas(x) }));
   Store.all().filter(r => r.brand === "business" && !r.feas && r.lead && !r.lead.archived).forEach(r => out.push({ kind: "Lead", name: r.name || "(no name)", sub: (r.lead.contact || "").slice(0, 60), t: r.updated || r.created || 0, go: () => leadToFeas(r) }));
   return out.sort((a, b) => b.t - a.t);
 }
@@ -1964,7 +2078,7 @@ function contactPicker() {
   };
   q.oninput = draw; draw();
   return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Start from a saved contact"),
-    el("p", { class: "muted" }, "Pick a Business inquiry, waitlist entry or lead you already have. Name, contact details, team size, plan and needs are filled in where they were captured."),
+    el("p", { class: "muted" }, "Pick a Business lead that has no feasibility check yet. Its name and contact details are filled in."),
     all.length > 6 ? q : null, box);
 }
 function inqScreen() {
@@ -2208,7 +2322,7 @@ function homeScreen() {
       S.cap.rows ? CAP_SITES.map(x => { const k = capState(S.cap.rows[x.id], Date.now()).k; return el("span", { style: "display:flex;align-items:center;gap:10px;margin-top:6px;font-weight:600" },
         el("span", { "aria-hidden": "true", style: "flex:none;width:16px;height:16px;border-radius:50%;background:" + { on: "#B42318", scheduled: "#B45309", off: "#14632F" }[k] }),
         el("span", null, x.name.split(" ")[0] + ": " + { on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[k])); }) : el("span", { class: "muted", style: "display:block;margin-top:4px;font-weight:400" }, "Loading...")),
-    el("button", { class: "btn", style: newStyle(NC.inq + NC.wait + NC.leads), onclick: () => openInbox(NC.inq ? "inq" : NC.wait ? "wait" : NC.leads ? "leads" : "inq") }, "Inbox & leads", newPill(NC.inq + NC.wait + NC.leads)),
+    el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => openInbox("leads") }, "Leads", newPill(NC.leads)),
     el("button", { class: "btn", disabled: S.brand === "business", "aria-disabled": String(S.brand === "business"), onclick: () => { if (S.brand === "business") return; svState().msg = ""; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad(); } }, "Surveys" + (S.sv && S.sv.rows ? " (" + S.sv.rows.length + ")" : "")),
     S.brand === "business" ? el("p", { class: "muted", style: "margin:-6px 2px 10px;font-size:13px" }, "Seniors workshops only. Choose AI with Robert for Seniors above to use it.") : null,
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),

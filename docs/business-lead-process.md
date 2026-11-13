@@ -98,3 +98,16 @@ side stages On waitlist and Lost. Each lead card shows the stage and one Next st
   (their leads move to Invited to call).
 - Call booked > "Open check and build proposal" > Proposal sent > Won (invoice via the invoicing app's Import a lead) or Lost.
 - Monthly table refresh: importing the updated table also publishes it to the website (`migration/feasibility_public.sql`).
+
+## One Leads list and pipeline tracking (added 2026-11-12, later)
+
+Inquiries and Waitlist are no longer separate screens. Rows from `site_inquiries` and `waitlist_requests` become leads by
+themselves (`inqAutoLeads`, `wlAutoLeads`; lead ids `wf-` website check, `iq-` contact-form message, `wl-` waitlist sign-up).
+The Leads filter row is the pipeline (All active, Follow up, each stage, Archived). Seniors leads use a shorter pipeline:
+New lead, Contacted, Session booked, Won.
+
+Changing a stage by tapping it asks "Did you already <action for the current stage>?". Yes records the step as done (green tick);
+No, then "change it anyway", records it as skipped (grey dash). The "i" on each card lists the date of every step and how long
+the lead has been in its current stage. Next step buttons record "done" without asking, because they are the action.
+Under the "On waitlist" filter: "Copy follow-up for my email agent" (one block per brand, Business from biz@, Seniors from
+seniors@) and "Mark these as invited".
