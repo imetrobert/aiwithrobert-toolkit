@@ -2223,6 +2223,7 @@ function feasScreen() {
   if (f.tool !== "all" && !caps.tools.some(t => t.id === f.tool)) f.tool = caps.tools[0].id;
   const chip = v => el("span", { class: "vd " + v }, FX_MARK[v] + " " + FX_LABEL[v]);
   const say = m => { f.msg = m; render(); };
+  const sayCap = m => { f.capMsg = m; render(); setTimeout(() => { const e = document.getElementById("caps-msg"); if (e) e.scrollIntoView({ block: "center" }); }, 50); };
   const toolOpts = caps.tools.concat([{ id: "all", name: "Compare all four", price: "See which plans can do the job" }]).map(t =>
     el("button", { class: "opt", "aria-pressed": String(f.tool === t.id), onclick: () => { f.tool = t.id; render(); } }, el("span", { class: "dot" }), el("span", null, t.name, t.price ? el("small", null, t.price) : null)));
   const reqOpts = caps.reqs.map(r => el("button", { class: "opt multi", "aria-pressed": String(f.reqs.includes(r.id)), onclick: () => { f.reqs = f.reqs.includes(r.id) ? f.reqs.filter(x => x !== r.id) : f.reqs.concat(r.id); render(); } },
@@ -2311,13 +2312,15 @@ function feasScreen() {
     el("button", { class: "btn", onclick: async () => say(await copyText(fxRefreshPrompt(caps)) ? "Refresh prompt copied. Paste it into an AI chat with web search." : "Could not copy.") }, "Copy refresh prompt"),
     imp,
     el("button", { class: "btn", onclick: () => {
-      let o; try { o = readAiJson(f.imp); } catch (e) { say(e.message); return; }
-      const c = cleanCaps(o); if (c.error) { say("Not imported. " + c.error); return; }
-      try { localStorage.setItem(CAPS_KEY, JSON.stringify({ verified: c.caps.verified, fx: c.caps.fx, tools: c.caps.tools, cells: c.caps.cells })); } catch (e) { say("Could not save on this device."); return; }
-      f.imp = ""; say("Imported. Table verified " + c.caps.verified + ". Publishing to the website...");
-      capsPublish(loadCaps()).then(m => say("Imported. Table verified " + c.caps.verified + ". " + m));
+      let o; try { o = readAiJson(f.imp); } catch (e) { sayCap("Not imported. " + e.message); return; }
+      const c = cleanCaps(o); if (c.error) { sayCap("Not imported. " + c.error); return; }
+      try { localStorage.setItem(CAPS_KEY, JSON.stringify({ verified: c.caps.verified, fx: c.caps.fx, tools: c.caps.tools, cells: c.caps.cells })); } catch (e) { sayCap("Not imported. Could not save on this device."); return; }
+      f.imp = ""; sayCap("Imported on this device. Table verified " + c.caps.verified + ". Publishing to the website...");
+      capsPublish(loadCaps()).then(m => sayCap("Imported on this device. Table verified " + c.caps.verified + ". " + m));
     } }, "Import updated table"),
-    el("button", { class: "btn", onclick: async () => { say("Publishing..."); say(await capsPublish(caps)); } }, "Publish this table to the website"),
+    el("button", { class: "btn", onclick: async () => { sayCap("Publishing..."); sayCap(await capsPublish(caps)); } }, "Publish this table to the website"),
+    f.capMsg ? el("div", { class: "note", role: "status", id: "caps-msg" }, f.capMsg) : null,
+    el("p", { class: "muted" }, "Table in use: verified " + caps.verified + (caps.custom ? " (imported on this device)" : " (built-in)") + "."),
     el("p", { class: "muted" }, "The website's free feasibility check uses the published table (verdicts only). Importing publishes it for you; use the button to publish again."),
     caps.custom ? el("button", { class: "btn link", onclick: () => { try { localStorage.removeItem(CAPS_KEY); } catch (e) {} say("Back to the built-in table."); } }, "Reset to built-in table") : null,
     el("div", { class: "note" }, "Plan prices are in USD. Nothing here guarantees Quebec Law 25 compliance; the client's privacy lead should approve any use with personal information."),
