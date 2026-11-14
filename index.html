@@ -2249,7 +2249,7 @@ function wsScreen() {
   let diff = [];
   if (w.live) Object.keys(dev.cells).forEach(id => Object.keys(dev.cells[id]).forEach(t => { if (((w.live.cells[id] || {})[t]) !== dev.cells[id][t]) diff.push(T.need[id] + " / " + t); }));
   const status = w.status === "loading" || w.status === "idle" ? "Checking the website..." : w.status === "ok"
-    ? "Live on the website: table verified " + w.live.verified + ". " + (w.live.verified === dev.verified && !diff.length ? "Same as the table on this device." : "Different from this device (verified " + dev.verified + (diff.length ? "; " + diff.length + " verdict(s) differ" : "") + "). Tap \"Publish this table to the website\" on the previous screen.")
+    ? "Live on the website: table verified " + w.live.verified + ". " + (w.live.verified === dev.verified && !diff.length ? "Same as the table on this device." : "Different from this device (verified " + dev.verified + (diff.length ? "; " + diff.length + " verdict(s) differ" : "") + "). Import the table again to publish it.")
     : w.status === "empty" ? "Nothing published yet. The website uses its built-in copy (verified 2026-11-11)." : "Could not read the live table (offline or the migration is missing).";
   const tool = WS_TOOLS.some(t => t[0] === w.plan) ? w.plan : "";
   const ids = w.needs.slice(); if (w.team !== "1") ids.push("team"); if (w.priv !== "no") ids.push("priv");
@@ -2379,11 +2379,10 @@ function feasScreen() {
       f.imp = ""; sayCap("Imported on this device. Table verified " + c.caps.verified + ". Publishing to the website...");
       capsPublish(loadCaps()).then(m => sayCap("Imported on this device. Table verified " + c.caps.verified + ". " + m));
     } }, "Import updated table"),
-    el("button", { class: "btn", onclick: async () => { sayCap("Publishing..."); sayCap(await capsPublish(caps)); } }, "Publish this table to the website"),
     el("button", { class: "btn", onclick: () => { S.ws = null; S.screen = "wspreview"; render(); window.scrollTo(0, 0); } }, "Preview what clients see on the website"),
     f.capMsg ? el("div", { class: "note", role: "status", id: "caps-msg" }, f.capMsg) : null,
     el("p", { class: "muted" }, "Table in use: verified " + caps.verified + (caps.custom ? " (imported on this device)" : " (built-in)") + "."),
-    el("p", { class: "muted" }, "The website's free feasibility check uses the published table (verdicts only). Importing publishes it for you; use the button to publish again."),
+    el("p", { class: "muted" }, "The website's free feasibility check uses the published table (verdicts only). Importing publishes it for you automatically."),
     caps.custom ? el("button", { class: "btn link", onclick: () => { try { localStorage.removeItem(CAPS_KEY); } catch (e) {} say("Back to the built-in table."); } }, "Reset to built-in table") : null,
     el("div", { class: "note" }, "Plan prices are in USD. Nothing here guarantees Quebec Law 25 compliance; the client's privacy lead should approve any use with personal information."),
     el("button", { class: "btn link", onclick: () => { f.msg = ""; S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));

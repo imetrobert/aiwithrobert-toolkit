@@ -10,7 +10,7 @@ a number is missing from the website's pricing text.
 
 ## Refresh the feasibility rules (every 3 months; the home screen shows a stripe at 90 days)
 Feasibility screen > "Copy refresh prompt" > paste into a free AI chat with web search > paste the JSON reply into "Import updated table". Importing also
-publishes the verdicts to the Business website ("Publish this table to the website" if it did not). The built-in fallback table is `CAPS_BUILTIN`;
+publishes the verdicts to the Business website (re-import the table to publish again). The built-in fallback table is `CAPS_BUILTIN`;
 the stripe threshold is `CAPS_REFRESH_DAYS`.
 
 ## Change the email templates for leads (invite, reopen, Seniors reopen)
