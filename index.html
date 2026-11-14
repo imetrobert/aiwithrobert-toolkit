@@ -46,6 +46,7 @@ p{margin:8px 0}
 .opt.multi .dot{border-radius:6px}
 .opt[aria-pressed=true] .dot{background:var(--blue);box-shadow:inset 0 0 0 4px #fff}
 .opt small{display:block;color:var(--muted);font-weight:400}
+input[type=date]{box-sizing:border-box;max-width:100%;min-width:0;min-height:50px;-webkit-appearance:none;appearance:none;background:#fff;text-align:left}
 input,textarea{font:inherit;font-size:17px;width:100%;border:2px solid var(--line);border-radius:12px;padding:12px;color:var(--ink)}
 textarea{min-height:140px;resize:vertical}
 .pill{display:inline-block;background:var(--light);color:var(--navy);border-radius:999px;padding:4px 12px;font-size:14px;font-weight:700}
@@ -1989,9 +1990,30 @@ async function capsPublish(caps) {
   const r = await sbReq("POST", "site_public_data?on_conflict=key", { key: "caps", data: { verified: caps.verified, cells }, updated_at: new Date().toISOString() }, "resolution=merge-duplicates,return=minimal");
   return r.ok ? "Published to the website (table verified " + caps.verified + ")." : r.status === 404 || (r.json && /does not exist|schema cache|PGRST20/i.test(JSON.stringify(r.json))) ? "Not published: run migration/feasibility_public.sql in Supabase first. The website keeps using its built-in table." : "Not published. " + capErr(r);
 }
+/* Everything the visitor entered in the website feasibility form, as the lead's note (also used to refresh older, shorter notes). */
+function feasNote(x, tool) {
+  const ex = x.extra || {}, pi = { yes: "yes", no: "no", "not-sure": "not sure" }[ex.personal_info] || ex.personal_info || "";
+  const res = String(x.message || "").replace(/^Website feasibility check\.\s*/, "").trim();
+  const bits = [];
+  bits.push("Website feasibility check" + (ex.capacity === "yes" ? ", done while at capacity (on the waitlist)" : "") + ".");
+  bits.push("Entered: name " + (x.name || "-") + "; organization " + (x.organization || "-") + "; email " + (x.email || "-") + "; phone " + (x.phone || "-") + ".");
+  bits.push("Plan: " + (ex.plan || tool) + ". Team size: " + (ex.team_size || "-") + ". Handles personal information: " + (pi || "-") + ".");
+  if (res) bits.push("Result shown on screen: " + res + ".");
+  if (ex.source) bits.push("Came from: " + String(ex.source).slice(0, 80) + ".");
+  if (x.created_at) bits.push("Submitted: " + String(x.created_at).slice(0, 10) + ".");
+  return bits.join("\n").slice(0, 1400);
+}
 async function inqAutoLeads() {
   const caps = loadCaps(), fresh = (S.cap.inq || []).filter(x => x.status === "new"), todo = fresh.filter(x => x.site === "business" && x.extra && x.extra.kind === "feasibility");
   let made = 0;
+  /* Older website checks got a short note: refresh those (only if the note is still the untouched automatic one). */
+  (S.cap.inq || []).filter(x => x.site === "business" && x.extra && x.extra.kind === "feasibility").forEach(x => {
+    const r = Store.all().find(r => r.id === "wf-" + String(x.id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60));
+    if (!r || !r.lead || !/^Website feasibility check[^\n]*?\. Plan: [^\n.]*\.( Came from: [^\n]*\.)?$/.test(r.lead.note || "")) return;
+    const tool = ["chatgpt", "claude", "gemini", "copilot"].find(k => x.extra["tool_" + k]) || "all";
+    r.lead.note = feasNote(x, tool); r.updated = Date.now();
+    if (Store.upsert(r)) Cloud.push(r);
+  });
   for (const x of fresh.filter(x => !todo.includes(x))) { /* plain contact-form message (Seniors site today) -> New lead */
     const id = "iq-" + String(x.id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60), brand = x.site === "seniors" ? "seniors" : "business", ex = x.extra || {}, now = Date.parse(x.created_at) || Date.now();
     if (!Store.all().some(r => r.id === id)) {
@@ -2016,7 +2038,7 @@ async function inqAutoLeads() {
       const now = Date.parse(x.created_at) || Date.now();
       const rec = { id, brand: "business", sel: [BASE.business], typeId: BASE.business, lang: x.language === "fr" ? "fr" : "en", name: (x.organization || x.name || "Website check").slice(0, 80), created: now, updated: Date.now(), step: 0, answers: {}, pastes: {}, results: {},
         feas: { tool, reqs, users, flows: 1, assess: false, train: 0, request: (x.message || "").slice(0, 600), verdict: tool === "all" ? "" : fxEval(caps, tool, reqs).overall, verified: caps.verified, saved: now },
-        lead: { status: ex.capacity === "yes" ? "waiting" : "checked", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: ("Website feasibility check" + (ex.capacity === "yes" ? ", done while at capacity (on the waitlist)" : "") + ". Plan: " + (ex.plan || tool) + "." + (ex.source ? " Came from: " + String(ex.source).slice(0, 80) + "." : "")).slice(0, 500),
+        lead: { status: ex.capacity === "yes" ? "waiting" : "checked", contact: [x.organization ? x.name : "", x.email, x.phone].filter(Boolean).join(" · ").slice(0, 120), follow: "", note: feasNote(x, tool),
           hist: ex.capacity === "yes" ? { new: { d: now, how: "auto" }, checked: { d: now, how: "auto" } } : { new: { d: now, how: "auto" } }, at: now } };
       if (!Store.upsert(rec)) continue;
       Cloud.push(rec); const u = unseenLeads(); u.push(id); unseenLeadsSet(u); made++;
