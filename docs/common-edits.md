@@ -47,3 +47,10 @@ browser). `SV_PROMPT` is the extraction prompt; `SV_TOPICS`/`SV_SUPPORT`/`SV_SEC
 
 ## A new database table
 New file in `migration/` with grants in the same file; run it by hand in the Supabase SQL editor; keep the table owned by the repo that uses it.
+
+## Website preview (what visitors see)
+
+Screen `wsScreen()` (button "Preview what clients see on the website" under Feasibility > Keep the table current). It reads the live table
+from the public RPC `public_caps` and rebuilds the visitor result with the same rules and wording as `js/feascheck.js` on the Business site.
+The wording lives in the `WS_TXT` constant (copied from feascheck.js `T.en/T.fr`): if the site's result wording changes, update `WS_TXT` too.
+Importing a table already publishes it automatically; this screen only shows what is live.

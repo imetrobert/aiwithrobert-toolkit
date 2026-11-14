@@ -1467,6 +1467,7 @@ function headerBack() {
   else if (sc === "import") fn = go("composer");
   else if (sc === "edit") fn = () => { if (currentType().local) { S.screen = "feas"; render(); window.scrollTo(0, 0); } else if (isDirty()) { S.modal = true; render(); } else goStart(); };
   else if (["hub", "cap", "leads", "sessions", "feas", "inq", "surveys"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
+  if (sc === "wspreview") fn = go("feas");
   if (sc === "svadd") fn = () => { const v = svState(); if (["review", "saving"].includes(v.stage) && !confirm("Discard this survey without saving?")) return; if (v.stage === "start") S.screen = "surveys"; else { v.stage = "start"; v.err = ""; } render(); window.scrollTo(0, 0); };
   if (!fn) return null;
   return el("button", { class: "hback", "aria-label": "Back", onclick: fn }, "\u2190 Back");
@@ -2218,6 +2219,66 @@ function applyCallReply(c) {
   if (extra.length) { S.lead = Object.assign({ status: "new", contact: "", follow: "", note: "" }, S.lead || {}); S.lead.note = ((S.lead.note ? S.lead.note + " " : "") + "Open after call: " + extra.join("; ")).slice(0, 500); }
   f.callEv = c.evidence;
 }
+const WS_TXT = {
+  en: { need: { write: "Writing: emails, quotes, reports", files: "Summarizing documents, PDFs or spreadsheets", reuse: "Saved prompts my whole team can reuse", own: "Working with my own email, calendar or files", sched: "A task that runs on a schedule", auto: "Something that runs by itself when an email, form or invoice arrives", img: "Creating images or marketing visuals", office: "Ready-made Word, Excel or PowerPoint files", web: "Researching competitors, suppliers or markets", team: "Several people sharing one setup", priv: "Handling customers’ personal information" }, v: { yes: "Yes", partial: "Partly", no: "No", unknown: "Needs a closer look" }, s: { yes: "Your plan can do this today.", partial: "Possible, with conditions or some setup. The specifics are part of a call or the AI Opportunity Assessment.", no: "Not offered by this plan today. There is usually another way to get there, and we can look at it together.", unknown: "I need a closer look before I can confirm this one." }, sAny: { yes: "The common paid plans can do this.", partial: "Possible on some plans, with conditions. Which plan fits you best is part of a call.", no: "Not offered by the common paid plans today. There is usually another way to get there.", unknown: "I need a closer look before I can confirm this one." }, rTitle: "Your preliminary result", rFor: "For your plan: ", rAny: "You do not have a paid plan yet, so this shows what the common paid plans can do.", note: "This is a preliminary result based on public plan information, last verified on ", note2: ". Plans change often, and how to set each item up for your business is not covered here.", nextT: "Next step", next: "Book a free 15-minute call and we will scope what this means for your business. Questions by email are answered within 1 to 2 business days.", book: "Book a 15-minute call", capT: "You are on the waitlist", cap: "I am fully booked right now, so I am not taking calls at the moment. Your result is saved and you have been added to the waitlist. I will contact you as soon as a spot opens." },
+  fr: { need: { write: "Rédaction : courriels, soumissions, rapports", files: "Résumer des documents, des PDF ou des chiffriers", reuse: "Des invites enregistrées que toute mon équipe peut réutiliser", own: "Travailler avec mes propres courriels, mon calendrier ou mes fichiers", sched: "Une tâche qui s’exécute selon un horaire", auto: "Quelque chose qui s’exécute seul à l’arrivée d’un courriel, d’un formulaire ou d’une facture", img: "Créer des images ou des visuels de marketing", office: "Des fichiers Word, Excel ou PowerPoint prêts à utiliser", web: "Faire de la recherche sur des concurrents, des fournisseurs ou des marchés", team: "Plusieurs personnes qui partagent une même configuration", priv: "Traiter des renseignements personnels de clients" }, v: { yes: "Oui", partial: "En partie", no: "Non", unknown: "À vérifier" }, s: { yes: "Votre forfait peut le faire dès aujourd’hui.", partial: "Possible, avec des conditions ou un peu de configuration. Les détails font partie d’un appel ou de l’Évaluation des occasions d’IA.", no: "Ce forfait ne l’offre pas pour l’instant. Il existe habituellement une autre façon d’y arriver, et nous pouvons la regarder ensemble.", unknown: "Je dois regarder de plus près avant de confirmer ce point." }, sAny: { yes: "Les forfaits payants courants peuvent le faire.", partial: "Possible avec certains forfaits, sous conditions. Le choix du forfait qui vous convient fait partie d’un appel.", no: "Les forfaits payants courants ne l’offrent pas pour l’instant. Il existe habituellement une autre façon d’y arriver.", unknown: "Je dois regarder de plus près avant de confirmer ce point." }, rTitle: "Votre résultat préliminaire", rFor: "Pour votre forfait : ", rAny: "Vous n’avez pas encore de forfait payant; voici donc ce que les forfaits payants courants peuvent faire.", note: "Ceci est un résultat préliminaire fondé sur l’information publique des forfaits, vérifiée la dernière fois le ", note2: ". Les forfaits changent souvent, et la façon de mettre chaque élément en place dans votre entreprise n’est pas couverte ici.", nextT: "Prochaine étape", next: "Réservez un appel gratuit de 15 minutes et nous verrons ce que cela représente pour votre entreprise. Je réponds aux questions par courriel dans un délai de 1 à 2 jours ouvrables.", book: "Réserver un appel de 15 minutes", capT: "Vous êtes sur la liste d’attente", cap: "Mon horaire est complet pour le moment; je ne prends donc pas d’appels actuellement. Votre résultat est enregistré et vous avez été ajouté à la liste d’attente. Je vous contacterai dès qu’une place se libère." }
+};
+
+/* Website preview: the table that is live on biz.aiwithrobert.com and what a visitor sees for any answers (same wording and rules as js/feascheck.js there). */
+const WS_TOOLS = [["chatgpt", "ChatGPT"], ["claude", "Claude"], ["gemini", "Gemini"], ["copilot", "Microsoft Copilot"]];
+const WS_NEEDS = ["write", "files", "reuse", "own", "sched", "auto", "img", "office", "web"];
+const WS_RANK = { yes: 3, partial: 2, unknown: 1, no: 0 };
+function wsState() { return S.ws || (S.ws = { src: "live", status: "idle", live: null, lang: "en", plan: "claude", team: "1", priv: "no", needs: ["write"], cap: false }); }
+async function wsLoad() {
+  const w = wsState(); w.status = "loading"; render();
+  try {
+    const r = await fetch(AUTH.url + "/rest/v1/rpc/public_caps", { method: "POST", headers: { apikey: AUTH.key, "Content-Type": "application/json" }, body: "{}" });
+    const j = r.ok ? await r.json() : null;
+    if (j && j.cells && j.verified) { w.live = j; w.status = "ok"; } else w.status = "empty";
+  } catch (e) { w.status = "error"; }
+  if (S.screen === "wspreview") render();
+}
+function wsDeviceTable() { const c = loadCaps(), cells = {}; c.reqs.forEach(r => { if (r.id === "cost") return; cells[r.id] = {}; c.tools.forEach(tl => { cells[r.id][tl.id] = (c.caps ? c.caps.cells : c.cells)[r.id][tl.id].v || "unknown"; }); }); return { verified: c.verified, cells }; }
+function wsScreen() {
+  const w = wsState(), T = WS_TXT[w.lang], dev = wsDeviceTable();
+  if (w.status === "idle") wsLoad();
+  const tbl = w.src === "live" && w.live ? w.live : dev;
+  const chip = v => el("span", { class: "vd " + v }, FX_MARK[v] + " " + T.v[v]);
+  const pick = (id, label, opts, key) => el("label", { class: "fld" }, el("span", null, label), el("select", { onchange: e => { w[key] = e.target.value; render(); } }, opts.map(o => el("option", { value: o[0], selected: w[key] === o[0] }, o[1]))));
+  const verdict = (id, tool) => { const c = tbl.cells[id] || {}; return tool ? (c[tool] || "unknown") : WS_TOOLS.map(t => c[t[0]] || "unknown").sort((a, b) => WS_RANK[b] - WS_RANK[a])[0]; };
+  let diff = [];
+  if (w.live) Object.keys(dev.cells).forEach(id => Object.keys(dev.cells[id]).forEach(t => { if (((w.live.cells[id] || {})[t]) !== dev.cells[id][t]) diff.push(T.need[id] + " / " + t); }));
+  const status = w.status === "loading" || w.status === "idle" ? "Checking the website..." : w.status === "ok"
+    ? "Live on the website: table verified " + w.live.verified + ". " + (w.live.verified === dev.verified && !diff.length ? "Same as the table on this device." : "Different from this device (verified " + dev.verified + (diff.length ? "; " + diff.length + " verdict(s) differ" : "") + "). Tap \"Publish this table to the website\" on the previous screen.")
+    : w.status === "empty" ? "Nothing published yet. The website uses its built-in copy (verified 2026-11-11)." : "Could not read the live table (offline or the migration is missing).";
+  const tool = WS_TOOLS.some(t => t[0] === w.plan) ? w.plan : "";
+  const ids = w.needs.slice(); if (w.team !== "1") ids.push("team"); if (w.priv !== "no") ids.push("priv");
+  const S2 = tool ? T.s : T.sAny, planName = tool ? WS_TOOLS.filter(t => t[0] === tool)[0][1] : "";
+  const rows = ids.map(id => el("div", { class: "card", style: "margin:8px 0;padding:10px 12px" }, chip(verdict(id, tool)), " ", el("strong", null, T.need[id]), el("div", { class: "muted" }, S2[verdict(id, tool)])));
+  const matrix = el("div", { style: "overflow-x:auto" }, el("table", { style: "border-collapse:collapse;width:100%;font-size:13px" },
+    el("tr", null, el("th", { style: "text-align:left;padding:4px" }, ""), WS_TOOLS.map(t => el("th", { style: "padding:4px" }, t[1]))),
+    WS_NEEDS.concat(["team", "priv"]).map(id => el("tr", null, el("td", { style: "padding:4px;border-top:1px solid #ddd" }, T.need[id]), WS_TOOLS.map(t => el("td", { style: "padding:4px;border-top:1px solid #ddd;text-align:center" }, chip((tbl.cells[id] || {})[t[0]] || "unknown")))))));
+  return el("div", null,
+    el("h1", null, "Website preview"),
+    el("p", { class: "muted" }, "What visitors see in the free feasibility check on biz.aiwithrobert.com. The website shows verdicts only: no notes, sources or prices."),
+    el("div", { class: "note", role: "status" }, status),
+    el("div", { class: "seg", role: "group", "aria-label": "Table" }, [["live", "Live on website"], ["device", "This device"]].map(([k, n]) => el("button", { "aria-pressed": String(w.src === k), onclick: () => { w.src = k; render(); } }, n)),
+      [["en", "English"], ["fr", "Français"]].map(([k, n]) => el("button", { "aria-pressed": String(w.lang === k), onclick: () => { w.lang = k; render(); } }, n))),
+    el("button", { class: "btn", onclick: () => wsLoad() }, "Refresh live table"),
+    el("h2", null, "Try a visitor's answers"),
+    pick("plan", T.rFor.replace(/[:：]\s*$/, ""), WS_TOOLS.concat([["none", "None"], ["unsure", "Not sure"]]), "plan"),
+    pick("team", "Team size", [["1", "1 person"], ["2-5", "2 to 5"], ["6-20", "6 to 20"], ["21+", "21+"]], "team"),
+    pick("priv", "Personal information involved", [["no", "No"], ["yes", "Yes"], ["not-sure", "Not sure"]], "priv"),
+    el("p", { class: "muted" }, "Needs (up to 3, as on the website):"),
+    el("div", null, WS_NEEDS.map(id => el("button", { class: "opt multi", "aria-pressed": String(w.needs.includes(id)), onclick: () => { w.needs = w.needs.includes(id) ? w.needs.filter(x => x !== id) : w.needs.length >= 3 ? w.needs : w.needs.concat([id]); render(); } }, el("span", { class: "dot" }), el("span", null, T.need[id])))),
+    el("h2", null, T.rTitle), el("p", null, tool ? T.rFor + planName : T.rAny),
+    rows.length ? rows : el("p", { class: "muted" }, "Pick at least one need."),
+    el("p", { class: "muted" }, T.note + tbl.verified + T.note2),
+    el("div", { class: "card" }, el("strong", null, w.cap ? T.capT : T.nextT), el("p", null, w.cap ? T.cap : T.next), w.cap ? null : el("div", null, el("span", { class: "btn primary" }, T.book)),
+      el("button", { class: "btn link", onclick: () => { w.cap = !w.cap; render(); } }, w.cap ? "Show it when open for calls" : "Show it when at capacity")),
+    el("h2", null, "Full table (all plans)"), matrix,
+    el("button", { class: "btn link", onclick: () => { S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Back to Feasibility"));
+}
 function feasScreen() {
   const caps = loadCaps(), f = S.fx, age = fxAge(caps);
   if (f.tool !== "all" && !caps.tools.some(t => t.id === f.tool)) f.tool = caps.tools[0].id;
@@ -2319,6 +2380,7 @@ function feasScreen() {
       capsPublish(loadCaps()).then(m => sayCap("Imported on this device. Table verified " + c.caps.verified + ". " + m));
     } }, "Import updated table"),
     el("button", { class: "btn", onclick: async () => { sayCap("Publishing..."); sayCap(await capsPublish(caps)); } }, "Publish this table to the website"),
+    el("button", { class: "btn", onclick: () => { S.ws = null; S.screen = "wspreview"; render(); window.scrollTo(0, 0); } }, "Preview what clients see on the website"),
     f.capMsg ? el("div", { class: "note", role: "status", id: "caps-msg" }, f.capMsg) : null,
     el("p", { class: "muted" }, "Table in use: verified " + caps.verified + (caps.custom ? " (imported on this device)" : " (built-in)") + "."),
     el("p", { class: "muted" }, "The website's free feasibility check uses the published table (verdicts only). Importing publishes it for you; use the button to publish again."),
@@ -3290,7 +3352,7 @@ function render() {
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
   if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); inqLoad(); svLoad(); }, 900); }
-  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, leads: leadsScreen, cap: capScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, wspreview: wsScreen, leads: leadsScreen, cap: capScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
   const hd = document.querySelector("header.top"); if (hd) document.documentElement.style.setProperty("--hh", hd.offsetHeight + "px"); /* the Start/Save bar sticks just under the header */
 }
