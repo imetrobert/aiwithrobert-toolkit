@@ -1,0 +1,36 @@
+name: Maintain
+
+# On every push that changes the app: check it, and refresh docs/code-map.md (the map of the big index.html).
+# Also weekly, so a price changed on the Business website but not here shows up as a red run (GitHub emails you).
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'migration/**'
+      - 'scripts/**'
+  schedule:
+    - cron: '23 12 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Checks (JavaScript syntax, migration grants, prices and booking link vs the Business site)
+        run: python3 scripts/check_toolkit.py
+      - name: Refresh docs/code-map.md
+        run: python3 scripts/code_map.py
+      - name: Commit the map if it changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/code-map.md
+          git diff --staged --quiet || (git commit -m "chore: refresh docs/code-map.md [skip ci]" && git push)
