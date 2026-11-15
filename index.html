@@ -2037,6 +2037,38 @@ const GA_BASE = "https://analytics.google.com/analytics/web/#/p539541576/";
 const GA_LINKS = [["Realtime: who is on the site now", "realtime/overview"], ["Traffic sources", "reports/explorer?r=lifecycle-traffic-acquisition-v2"], ["Most viewed pages", "reports/explorer?r=all-pages-and-screens"], ["Events: form submits, phone, email, booking clicks", "reports/explorer?r=all-events"], ["Home", "reports/intelligenthome"]];
 function gaSaved() { try { const o = JSON.parse(localStorage.getItem("tk-ga-saved") || "{}"); return o && typeof o === "object" ? o : {}; } catch (e) { return {}; } }
 function gaSave(site, v) { try { const o = gaSaved(); o[site] = v; localStorage.setItem("tk-ga-saved", JSON.stringify(o)); } catch (e) {} }
+/* Own anonymous counters (table site_hits, migration/site_hits.sql; the sites send them with js/hits.js): visits, page views, clicks and sources per site. */
+const MET_SITES = [["business", "Business site (biz.aiwithrobert.com)"], ["seniors", "Seniors site (seniors.aiwithrobert.com)"], ["hub", "Hub (aiwithrobert.com)"]];
+const MET_EVENTS = { feasibility_submit: "Feasibility checks", generate_lead: "Contact messages", phone_click: "Phone taps", email_click: "Email taps", booking_click: "Booking taps", brand_card_click: "Hub card taps" };
+async function metLoad() {
+  const m = S.met || (S.met = { status: "idle", rows: [], days: 7, msg: "" });
+  if (S.auth.status !== "in" || m.status === "loading") return; m.status = "loading";
+  const since = new Date(Date.now() - 95 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
+  const r = await sbReq("GET", "site_hits?select=day,site,kind,name,source,n&day=gte." + since + "&order=day.desc&limit=5000");
+  if (r.ok && Array.isArray(r.json)) { m.rows = r.json; m.status = "ok"; m.msg = ""; } else { m.status = "error"; m.msg = r.status === 404 || (r.json && /does not exist|schema cache|PGRST20/i.test(JSON.stringify(r.json))) ? "Run migration/site_hits.sql in Supabase first." : capErr(r); }
+  if (S.screen === "analytics") render();
+}
+function metricsBlock() {
+  const m = S.met || (S.met = { status: "idle", rows: [], days: 7, msg: "" });
+  const seg = el("div", { style: "display:flex;gap:8px;margin:6px 0 10px" }, ...[7, 30, 90].map(d => el("button", { class: "btn sm" + (m.days === d ? " primary" : ""), onclick: () => { m.days = d; render(); } }, d + " days")));
+  const head = [el("h2", { style: "margin-top:0" }, "Visits by website"), el("p", { class: "muted", style: "margin:0 0 4px" }, "Anonymous counters kept by the sites themselves: no cookies, no IP addresses. Numbers can differ a little from Google Analytics."), seg];
+  if (m.status === "loading" || m.status === "idle") return el("div", { class: "card" }, ...head, el("p", { class: "muted" }, "Loading..."));
+  if (m.status === "error") return el("div", { class: "card" }, ...head, el("p", { role: "alert", style: "color:#B42318" }, m.msg), el("button", { class: "btn sm", onclick: () => { m.status = "idle"; metLoad(); render(); } }, "Try again"));
+  const cut = new Date(Date.now() - (m.days - 1) * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
+  const top = (rows, f, n, blank) => { const g = {}; rows.forEach(x => { const k = f(x) || blank; g[k] = (g[k] || 0) + x.n; }); return Object.keys(g).sort((a, b) => g[b] - g[a]).slice(0, n).map(k => k + " (" + g[k] + ")").join(", "); };
+  const sum = rows => rows.reduce((a, x) => a + x.n, 0);
+  return el("div", { class: "card" }, ...head, ...MET_SITES.map(([id, name]) => {
+    const rows = m.rows.filter(x => x.site === id && x.day >= cut), vis = rows.filter(x => x.kind === "visit"), vw = rows.filter(x => x.kind === "view"), ev = rows.filter(x => x.kind === "event");
+    const evs = {}; ev.forEach(x => { const b = x.name.split(":")[0]; evs[b] = (evs[b] || 0) + x.n; });
+    const evT = Object.keys(evs).sort((a, b) => evs[b] - evs[a]).map(k => (MET_EVENTS[k] || k) + " " + evs[k]).join(", ");
+    return el("div", { style: "margin:10px 0 0;padding-top:8px;border-top:1px solid #d9dee5" },
+      el("p", { style: "margin:0;font-weight:700;color:var(--navy)" }, name),
+      el("p", { style: "margin:4px 0" }, el("strong", null, sum(vis) + " "), "visits, ", el("strong", null, sum(vw) + " "), "page views"),
+      evT ? el("p", { style: "margin:4px 0" }, "Actions: " + evT + ".") : null,
+      vw.length ? el("p", { class: "muted", style: "margin:4px 0" }, "Top pages: " + top(vw, x => x.name, 5, "/") + ".") : null,
+      vis.length ? el("p", { class: "muted", style: "margin:4px 0" }, "Where visits came from: " + top(vis, x => x.source, 4, "direct") + ".") : el("p", { class: "muted", style: "margin:4px 0" }, "No visits counted in this period yet."));
+  }), el("p", { class: "muted", style: "margin:10px 0 0;font-size:13px" }, "To keep your own visits out of the counts, open any site once with ?notrack=1 at the end of the address on each device you use (?notrack=0 turns it back on)."));
+}
 function analyticsScreen() {
   const saved = gaSaved(), card = (site, name, siteVal) => {
     const inp = el("input", { type: "url", maxlength: "600", value: saved[site] || "", placeholder: "Paste your saved " + name + " report link", "aria-label": "Saved " + name + " analytics link", onchange: e => { const v = e.target.value.trim(); gaSave(site, /^https:\/\/(analytics|lookerstudio)\.google\.com\//.test(v) ? v : ""); render(); } });
@@ -2045,8 +2077,9 @@ function analyticsScreen() {
       ...GA_LINKS.map(l => el("a", { class: "btn sm", style: "display:block;margin:6px 0;text-align:left", href: GA_BASE + l[1], target: "_blank", rel: "noopener" }, l[0])),
       el("p", { class: "muted", style: "margin:10px 0 4px" }, "Your saved view: in Google Analytics open a report, add a filter or comparison where Site = " + siteVal + ", then copy the page address and paste it here (kept on this device only)."), inp);
   };
-  return shell(el("h1", null, "Website analytics"),
-    el("p", { class: "muted" }, "Both websites report to one Google Analytics property. Visits and traffic live there, not in the toolkit. Lead counts per site are on the Leads screen."),
+  return shell(el("h1", null, "Website metrics and analytics"),
+    metricsBlock(),
+    el("p", { class: "muted" }, "Google Analytics has the fuller picture (searches, devices, cities). All sites report to one property. Lead counts per site are on the Leads screen."),
     card("business", "Business site", "business"), card("seniors", "Seniors site", "seniors"),
     el("p", { class: "muted" }, "Tip: Realtime shows the Site name next to each event when you tap an event name."),
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
@@ -2499,7 +2532,7 @@ function homeScreen() {
         el("span", { "aria-hidden": "true", style: "flex:none;width:16px;height:16px;border-radius:50%;background:" + { on: "#B42318", scheduled: "#B45309", off: "#14632F" }[k] }),
         el("span", null, x.name.split(" ")[0] + ": " + { on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[k])); }) : el("span", { class: "muted", style: "display:block;margin-top:4px;font-weight:400" }, "Loading...")),
     el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => openInbox("leads") }, "Leads", newPill(NC.leads)),
-    el("button", { class: "btn", onclick: () => { S.screen = "analytics"; render(); window.scrollTo(0, 0); } }, "Website analytics (both sites)"),
+    el("button", { class: "btn", onclick: () => { S.screen = "analytics"; render(); window.scrollTo(0, 0); if (S.met) S.met.status = "idle"; metLoad(); } }, "Website metrics and analytics"),
     el("button", { class: "btn", disabled: S.brand === "business", "aria-disabled": String(S.brand === "business"), onclick: () => { if (S.brand === "business") return; svState().msg = ""; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad(); } }, "Surveys" + (S.sv && S.sv.rows ? " (" + S.sv.rows.length + ")" : "")),
     S.brand === "business" ? el("p", { class: "muted", style: "margin:-6px 2px 10px;font-size:13px" }, "Seniors workshops only. Choose AI with Robert for Seniors above to use it.") : null,
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
