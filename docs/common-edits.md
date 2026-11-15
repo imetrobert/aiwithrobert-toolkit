@@ -70,3 +70,17 @@ NOT stored in the toolkit; they live in Google Analytics (one property per site)
 Home button "Website analytics (both sites)" opens `analyticsScreen()` (search the file for it). `GA_BASE` is the shared GA4 property (539541576) and `GA_LINKS` the
 one-tap reports (Realtime, traffic sources, pages, events); a different property id means changing `GA_BASE` and `ANALYTICS_LINKS`. GA cannot filter by Site from a link,
 so each site has a field for the owner's own saved GA/Looker Studio view, kept in localStorage (`tk-ga-saved`, this device only).
+
+## Looker Studio dashboard per site: NOT DONE YET (status 2026-11-15)
+
+The owner works only on an iPhone and Looker Studio crashes there, so the dashboard is NOT built. State so far: he accepted the Looker Studio account setup (company
+"AIWithRobert") and started an "Untitled Report" connected to the Google Analytics connector, property 539541576; nothing else was built. That empty report can be deleted.
+Until he builds it on a computer, the toolkit's "Your saved view" fields on the Website analytics screen stay empty and that is normal: do not treat it as a bug.
+
+Checklist for a computer (about 10 minutes, no code change needed):
+1. lookerstudio.google.com > Create > Report > Google Analytics connector > account AIWithRobert.com > property 539541576 > Add.
+2. Table 1: dimension Hostname; metrics Views, Users, Event count.
+3. Table 2: dimension Event name, breakdown dimension Hostname, filter to feasibility_submit, generate_lead, email_click, phone_click, booking_click.
+4. Date range control: last 28 days. Name it "Website results". Share > Get report link.
+5. In the toolkit open Website analytics and paste the link into both saved-view fields (kept on that device only).
+Once done, delete this section.
