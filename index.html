@@ -2008,7 +2008,7 @@ function feasNote(x, tool) {
 }
 /* Results per website, from the saved website messages (last 300) and the waitlist: how many checks or messages in 7 and 30 days, how many are
    still new, and the most common answers. Visits and traffic are in Google Analytics: one property per site (set the links below). */
-const ANALYTICS_LINKS = { seniors: "https://analytics.google.com/", business: "https://analytics.google.com/" };
+const ANALYTICS_LINKS = { seniors: "https://analytics.google.com/analytics/web/#/p539541576/reports/intelligenthome", business: "https://analytics.google.com/analytics/web/#/p539541576/reports/intelligenthome" }; /* one shared property (539541576); split by the Site dimension (business / seniors) */
 function siteResults() {
   const inq = S.cap.inq || [], wl = S.cap.wl || [];
   if (!inq.length && !wl.length) return null;
