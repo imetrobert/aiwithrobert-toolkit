@@ -54,3 +54,7 @@ Screen `wsScreen()` (button "Preview what clients see on the website" under Feas
 from the public RPC `public_caps` and rebuilds the visitor result with the same rules and wording as `js/feascheck.js` on the Business site.
 The wording lives in the `WS_TXT` constant (copied from feascheck.js `T.en/T.fr`): if the site's result wording changes, update `WS_TXT` too.
 Importing a table already publishes it automatically; this screen only shows what is live.
+
+## Where leads come from (Leads screen, top card)
+`leadSources()` groups website feasibility checks by the saved `extra.source` (`utm_source/utm_campaign`, set by the Business site's `js/feascheck.js`). Blog LinkedIn posts use
+`linkedin/issue-YYYY-MM[-d1|-d2|-d3|-fr]` (d = follow-up post, fr = French post); the button inside an issue uses `imetrobert-blog/issue-YYYY-MM`. Booked/won counts come from the lead's stage.

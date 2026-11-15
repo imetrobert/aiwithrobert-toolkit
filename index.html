@@ -1412,6 +1412,7 @@ function leadsScreen() {
         el("p", { class: "muted", style: "margin:8px 0" }, "Copy the email you received and paste it here. The name, email address, phone number, language and a note are filled in for you."),
         mailIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => { const m = leadFromEmail(mailIn.value); S.leadMsg = m; if (/^Lead added/.test(m)) { S.lFilter = "active"; } render(); } }, "Add lead from this email")),
       S.leadMsg ? el("div", { class: "note", role: "status", style: "margin-top:10px" }, S.leadMsg) : null),
+    leadSources(),
     all.length ? filt : null, fu, sfl.bar,
     cards.length ? sfl.box : el("p", { class: "muted" }, all.length ? "Nothing in this view." : "No leads yet. Add one above or save a Feasibility check."),
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
@@ -2003,6 +2004,27 @@ function feasNote(x, tool) {
   if (ex.source) bits.push("Came from: " + String(ex.source).slice(0, 80) + ".");
   if (x.created_at) bits.push("Submitted: " + String(x.created_at).slice(0, 10) + ".");
   return bits.join("\n").slice(0, 1400);
+}
+/* Where website feasibility checks came from: groups the saved "Came from" (utm_source/utm_campaign) of each check, e.g.
+   "linkedin/issue-2026-12-d2" = LinkedIn follow-up 2 of the December 2026 issue; "-fr" = French post; "imetrobert-blog/issue-2026-12" = the
+   button inside the issue itself. Blank = direct visit. Counts checks, calls booked (or further) and won, from the lead's pipeline stage. */
+function leadSources() {
+  const rows = (S.cap.inq || []).filter(x => x.site === "business" && x.extra && x.extra.kind === "feasibility");
+  if (!rows.length) return null;
+  const recs = Store.all(), far = ["booked", "proposal", "won"], g = {};
+  rows.forEach(x => {
+    const raw = String(x.extra.source || "").toLowerCase(), m = raw.match(/^([a-z0-9_-]+)\/(issue-\d{4}-\d{2})(?:-(d\d|fr|related))?/);
+    const chan = m ? m[1] : (raw.split("/")[0] || "direct"), issue = m ? m[2].replace("issue-", "") : "", part = m && m[3] ? m[3] : "";
+    const key = chan + "|" + issue + "|" + part, r = recs.find(r => r.id === "wf-" + String(x.id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60)), stt = r && r.lead ? r.lead.status : "";
+    const o = g[key] || (g[key] = { chan, issue, part, n: 0, booked: 0, won: 0 });
+    o.n++; if (far.includes(stt)) o.booked++; if (stt === "won") o.won++;
+  });
+  const list = Object.values(g).sort((a, b) => b.n - a.n), byChan = {};
+  list.forEach(o => { byChan[o.chan] = (byChan[o.chan] || 0) + o.n; });
+  const label = o => (o.chan === "imetrobert-blog" ? (o.part === "related" ? "Inside the issue" : "Button inside the issue") : o.chan === "linkedin" ? "LinkedIn" + (o.part === "fr" ? " (French post)" : o.part === "related" ? " (related reading links)" : o.part ? " (follow-up " + o.part.slice(1) + ")" : "") : o.chan === "direct" ? "Direct visit or unknown" : o.chan) + (o.issue ? " - issue " + o.issue : "");
+  return el("details", { class: "card" }, el("summary", { style: "font-weight:700;cursor:pointer;color:var(--navy)" }, "Where leads come from (" + rows.length + " website checks)"),
+    el("p", { class: "muted", style: "margin:8px 0" }, "By channel: " + Object.keys(byChan).sort((a, b) => byChan[b] - byChan[a]).map(k => k + " " + byChan[k]).join(", ") + ". Uses the last 300 website messages."),
+    ...list.map(o => el("p", { style: "margin:4px 0" }, el("strong", null, o.n + " "), label(o), o.booked ? " - " + o.booked + " booked or further" : "", o.won ? ", " + o.won + " won" : "")));
 }
 async function inqAutoLeads() {
   const caps = loadCaps(), fresh = (S.cap.inq || []).filter(x => x.status === "new"), todo = fresh.filter(x => x.site === "business" && x.extra && x.extra.kind === "feasibility");
