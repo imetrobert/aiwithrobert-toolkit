@@ -1468,7 +1468,7 @@ function headerBack() {
   else if (sc === "composer") fn = go("hub");
   else if (sc === "import") fn = go("composer");
   else if (sc === "edit") fn = () => { if (currentType().local) { S.screen = "feas"; render(); window.scrollTo(0, 0); } else if (isDirty()) { S.modal = true; render(); } else goStart(); };
-  else if (["hub", "cap", "leads", "sessions", "feas", "inq", "surveys"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
+  else if (["hub", "cap", "leads", "analytics", "sessions", "feas", "inq", "surveys"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
   if (sc === "wspreview") fn = go("feas");
   if (sc === "svadd") fn = () => { const v = svState(); if (["review", "saving"].includes(v.stage) && !confirm("Discard this survey without saving?")) return; if (v.stage === "start") S.screen = "surveys"; else { v.stage = "start"; v.err = ""; } render(); window.scrollTo(0, 0); };
   if (!fn) return null;
@@ -2031,6 +2031,26 @@ function siteResults() {
     block("business", "Business site (biz.aiwithrobert.com)", "feasibility checks", x => x.extra && x.extra.kind === "feasibility", askB),
     block("seniors", "Seniors site (seniors.aiwithrobert.com)", "contact messages", () => true, askS));
 }
+/* Website analytics screen: one-tap links into the shared GA4 property (539541576) for both sites. GA cannot be filtered by site from a link, so each
+   site also has a field for YOUR saved view (a GA4 report with the Site filter, saved once) kept on this device. */
+const GA_BASE = "https://analytics.google.com/analytics/web/#/p539541576/";
+const GA_LINKS = [["Realtime: who is on the site now", "realtime/overview"], ["Traffic sources", "reports/explorer?r=lifecycle-traffic-acquisition-v2"], ["Most viewed pages", "reports/explorer?r=all-pages-and-screens"], ["Events: form submits, phone, email, booking clicks", "reports/explorer?r=all-events"], ["Home", "reports/intelligenthome"]];
+function gaSaved() { try { const o = JSON.parse(localStorage.getItem("tk-ga-saved") || "{}"); return o && typeof o === "object" ? o : {}; } catch (e) { return {}; } }
+function gaSave(site, v) { try { const o = gaSaved(); o[site] = v; localStorage.setItem("tk-ga-saved", JSON.stringify(o)); } catch (e) {} }
+function analyticsScreen() {
+  const saved = gaSaved(), card = (site, name, siteVal) => {
+    const inp = el("input", { type: "url", maxlength: "600", value: saved[site] || "", placeholder: "Paste your saved " + name + " report link", "aria-label": "Saved " + name + " analytics link", onchange: e => { const v = e.target.value.trim(); gaSave(site, /^https:\/\/(analytics|lookerstudio)\.google\.com\//.test(v) ? v : ""); render(); } });
+    return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, name),
+      saved[site] ? el("a", { class: "btn primary", style: "display:block;text-align:center;margin-bottom:8px", href: saved[site], target: "_blank", rel: "noopener" }, "Open my saved " + name + " view") : null,
+      ...GA_LINKS.map(l => el("a", { class: "btn sm", style: "display:block;margin:6px 0;text-align:left", href: GA_BASE + l[1], target: "_blank", rel: "noopener" }, l[0])),
+      el("p", { class: "muted", style: "margin:10px 0 4px" }, "Your saved view: in Google Analytics open a report, add a filter or comparison where Site = " + siteVal + ", then copy the page address and paste it here (kept on this device only)."), inp);
+  };
+  return shell(el("h1", null, "Website analytics"),
+    el("p", { class: "muted" }, "Both websites report to one Google Analytics property. Visits and traffic live there, not in the toolkit. Lead counts per site are on the Leads screen."),
+    card("business", "Business site", "business"), card("seniors", "Seniors site", "seniors"),
+    el("p", { class: "muted" }, "Tip: Realtime shows the Site name next to each event when you tap an event name."),
+    el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
+}
 /* Where website feasibility checks came from: groups the saved "Came from" (utm_source/utm_campaign) of each check, e.g.
    "linkedin/issue-2026-12-d2" = LinkedIn follow-up 2 of the December 2026 issue; "-fr" = French post; "imetrobert-blog/issue-2026-12" = the
    button inside the issue itself. Blank = direct visit. Counts checks, calls booked (or further) and won, from the lead's pipeline stage. */
@@ -2479,6 +2499,7 @@ function homeScreen() {
         el("span", { "aria-hidden": "true", style: "flex:none;width:16px;height:16px;border-radius:50%;background:" + { on: "#B42318", scheduled: "#B45309", off: "#14632F" }[k] }),
         el("span", null, x.name.split(" ")[0] + ": " + { on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[k])); }) : el("span", { class: "muted", style: "display:block;margin-top:4px;font-weight:400" }, "Loading...")),
     el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => openInbox("leads") }, "Leads", newPill(NC.leads)),
+    el("button", { class: "btn", onclick: () => { S.screen = "analytics"; render(); window.scrollTo(0, 0); } }, "Website analytics (both sites)"),
     el("button", { class: "btn", disabled: S.brand === "business", "aria-disabled": String(S.brand === "business"), onclick: () => { if (S.brand === "business") return; svState().msg = ""; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad(); } }, "Surveys" + (S.sv && S.sv.rows ? " (" + S.sv.rows.length + ")" : "")),
     S.brand === "business" ? el("p", { class: "muted", style: "margin:-6px 2px 10px;font-size:13px" }, "Seniors workshops only. Choose AI with Robert for Seniors above to use it.") : null,
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
@@ -3399,7 +3420,7 @@ function render() {
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
   if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); inqLoad(); svLoad(); }, 900); }
-  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, wspreview: wsScreen, leads: leadsScreen, cap: capScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, wspreview: wsScreen, leads: leadsScreen, cap: capScreen, analytics: analyticsScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
   const hd = document.querySelector("header.top"); if (hd) document.documentElement.style.setProperty("--hh", hd.offsetHeight + "px"); /* the Start/Save bar sticks just under the header */
 }
