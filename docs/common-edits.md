@@ -81,7 +81,7 @@ Checklist for a computer (about 15 minutes, no code change needed). Goal: one Lo
 1. lookerstudio.google.com > Create > Report > Google Analytics connector > account AIWithRobert.com > property 539541576 > Add. Name it "Website results".
 2. Page 1, rename "Business". Add a Table (dimension Hostname; metrics Views, Users, Event count) and a second Table (dimension Event name; filter to feasibility_submit, phone_click, email_click, booking_click). Add a Date range control (last 28 days). Then Page > Page settings (or the page's Filter panel): add a page-level filter Include Hostname contains "biz".
 3. Page 2: Edit > Duplicate page, rename "Seniors", change the filter to Hostname contains "seniors" and the event filter to generate_lead, phone_click, email_click.
-4. Open each page in the browser and copy its own address from the address bar (each page has its own link; make sure Share > Anyone with the link is NOT needed, he is the only viewer, signed in).
+4. Open each page in the browser and copy its own address from the address bar (each page has its own link; sharing is not needed because only he opens it, signed in to Google).
 5. Toolkit > Website metrics and analytics: paste the Business page link into the Business card's "Your saved view" box and the Seniors page link into the Seniors card's box. Each card then shows an "Open my saved ... view" button for that site only.
 Once done, delete this section.
 
