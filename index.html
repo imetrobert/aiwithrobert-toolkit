@@ -2021,7 +2021,7 @@ function leadSources() {
   });
   const list = Object.values(g).sort((a, b) => b.n - a.n), byChan = {};
   list.forEach(o => { byChan[o.chan] = (byChan[o.chan] || 0) + o.n; });
-  const label = o => (o.chan === "imetrobert-blog" ? "Button inside the issue" : o.chan === "linkedin" ? "LinkedIn" + (o.part === "fr" ? " (French post)" : o.part ? " (follow-up " + o.part.slice(1) + ")" : "") : o.chan === "direct" ? "Direct visit or unknown" : o.chan) + (o.issue ? " - issue " + o.issue : "");
+  const label = o => (o.chan === "imetrobert-blog" ? (o.part === "related" ? "Inside the issue" : "Button inside the issue") : o.chan === "linkedin" ? "LinkedIn" + (o.part === "fr" ? " (French post)" : o.part === "related" ? " (related reading links)" : o.part ? " (follow-up " + o.part.slice(1) + ")" : "") : o.chan === "direct" ? "Direct visit or unknown" : o.chan) + (o.issue ? " - issue " + o.issue : "");
   return el("details", { class: "card" }, el("summary", { style: "font-weight:700;cursor:pointer;color:var(--navy)" }, "Where leads come from (" + rows.length + " website checks)"),
     el("p", { class: "muted", style: "margin:8px 0" }, "By channel: " + Object.keys(byChan).sort((a, b) => byChan[b] - byChan[a]).map(k => k + " " + byChan[k]).join(", ") + ". Uses the last 300 website messages."),
     ...list.map(o => el("p", { style: "margin:4px 0" }, el("strong", null, o.n + " "), label(o), o.booked ? " - " + o.booked + " booked or further" : "", o.won ? ", " + o.won + " won" : "")));
