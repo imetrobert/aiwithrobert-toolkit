@@ -64,3 +64,9 @@ Importing a table already publishes it automatically; this screen only shows wha
 `siteResults()` (search the file for it) shows checks/messages, waitlist sign-ups and top answers per site from `S.cap.inq` and `S.cap.wl`. The "Open Google Analytics"
 links come from `ANALYTICS_LINKS` just above it: replace a URL there with a direct link to that site's GA4 property or a Looker Studio dashboard. Visits and traffic are
 NOT stored in the toolkit; they live in Google Analytics (one property per site).
+
+## Website analytics screen (both sites)
+
+Home button "Website analytics (both sites)" opens `analyticsScreen()` (search the file for it). `GA_BASE` is the shared GA4 property (539541576) and `GA_LINKS` the
+one-tap reports (Realtime, traffic sources, pages, events); a different property id means changing `GA_BASE` and `ANALYTICS_LINKS`. GA cannot filter by Site from a link,
+so each site has a field for the owner's own saved GA/Looker Studio view, kept in localStorage (`tk-ga-saved`, this device only).
