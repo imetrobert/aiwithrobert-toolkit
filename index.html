@@ -1412,6 +1412,7 @@ function leadsScreen() {
         el("p", { class: "muted", style: "margin:8px 0" }, "Copy the email you received and paste it here. The name, email address, phone number, language and a note are filled in for you."),
         mailIn, el("button", { class: "btn sm primary", style: "margin-top:8px", onclick: () => { const m = leadFromEmail(mailIn.value); S.leadMsg = m; if (/^Lead added/.test(m)) { S.lFilter = "active"; } render(); } }, "Add lead from this email")),
       S.leadMsg ? el("div", { class: "note", role: "status", style: "margin-top:10px" }, S.leadMsg) : null),
+    siteResults(),
     leadSources(),
     all.length ? filt : null, fu, sfl.bar,
     cards.length ? sfl.box : el("p", { class: "muted" }, all.length ? "Nothing in this view." : "No leads yet. Add one above or save a Feasibility check."),
@@ -2004,6 +2005,31 @@ function feasNote(x, tool) {
   if (ex.source) bits.push("Came from: " + String(ex.source).slice(0, 80) + ".");
   if (x.created_at) bits.push("Submitted: " + String(x.created_at).slice(0, 10) + ".");
   return bits.join("\n").slice(0, 1400);
+}
+/* Results per website, from the saved website messages (last 300) and the waitlist: how many checks or messages in 7 and 30 days, how many are
+   still new, and the most common answers. Visits and traffic are in Google Analytics: one property per site (set the links below). */
+const ANALYTICS_LINKS = { seniors: "https://analytics.google.com/", business: "https://analytics.google.com/" };
+function siteResults() {
+  const inq = S.cap.inq || [], wl = S.cap.wl || [];
+  if (!inq.length && !wl.length) return null;
+  const now = Date.now(), within = n => x => ts(x) && now - ts(x) <= n * 864e5;
+  const top = (rows, f) => { const g = {}; rows.forEach(x => { const v = String(f(x) || "").trim(); if (v) g[v] = (g[v] || 0) + 1; }); return Object.keys(g).sort((a, b) => g[b] - g[a]).slice(0, 3).map(k => k + " " + g[k]).join(", "); };
+  const block = (site, name, what, pick, ask) => {
+    const rows = inq.filter(x => x.site === site && pick(x)), w = wl.filter(x => x.site === site);
+    const tops = top(rows.filter(within(30)), ask);
+    return el("div", { style: "margin:10px 0 0;padding-top:8px;border-top:1px solid #d9dee5" },
+      el("p", { style: "margin:0;font-weight:700;color:var(--navy)" }, name),
+      el("p", { style: "margin:4px 0" }, el("strong", null, rows.filter(within(7)).length + " "), what + " in the last 7 days, ", el("strong", null, rows.filter(within(30)).length + " "), "in the last 30 days, ", el("strong", null, rows.filter(x => x.status === "new").length + " "), "still new."),
+      el("p", { style: "margin:4px 0" }, "Waitlist: ", el("strong", null, w.filter(within(30)).length + " "), "sign-ups in the last 30 days (" + w.length + " in total)."),
+      tops ? el("p", { class: "muted", style: "margin:4px 0" }, ask.label + " (30 days): " + tops + ".") : null,
+      el("p", { style: "margin:4px 0" }, el("a", { href: ANALYTICS_LINKS[site], target: "_blank", rel: "noopener" }, "Open Google Analytics for visits and traffic")));
+  };
+  const askS = x => (x.extra && (x.extra.interest || x.extra["session-type"])) || ""; askS.label = "Most interested in";
+  const askB = x => (x.extra && x.extra.plan) || ""; askB.label = "Plans they already pay for";
+  return el("details", { class: "card", open: "" }, el("summary", { style: "font-weight:700;cursor:pointer;color:var(--navy)" }, "Results by website"),
+    el("p", { class: "muted", style: "margin:8px 0" }, "Counts use the last 300 website messages and waitlist sign-ups."),
+    block("business", "Business site (biz.aiwithrobert.com)", "feasibility checks", x => x.extra && x.extra.kind === "feasibility", askB),
+    block("seniors", "Seniors site (seniors.aiwithrobert.com)", "contact messages", () => true, askS));
 }
 /* Where website feasibility checks came from: groups the saved "Came from" (utm_source/utm_campaign) of each check, e.g.
    "linkedin/issue-2026-12-d2" = LinkedIn follow-up 2 of the December 2026 issue; "-fr" = French post; "imetrobert-blog/issue-2026-12" = the

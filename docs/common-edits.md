@@ -58,3 +58,9 @@ Importing a table already publishes it automatically; this screen only shows wha
 ## Where leads come from (Leads screen, top card)
 `leadSources()` groups website feasibility checks by the saved `extra.source` (`utm_source/utm_campaign`, set by the Business site's `js/feascheck.js`). Blog LinkedIn posts use
 `linkedin/issue-YYYY-MM[-d1|-d2|-d3|-fr]` (d = follow-up post, fr = French post); the button inside an issue uses `imetrobert-blog/issue-YYYY-MM`. Booked/won counts come from the lead's stage.
+
+## Results by website card (Leads screen)
+
+`siteResults()` (search the file for it) shows checks/messages, waitlist sign-ups and top answers per site from `S.cap.inq` and `S.cap.wl`. The "Open Google Analytics"
+links come from `ANALYTICS_LINKS` just above it: replace a URL there with a direct link to that site's GA4 property or a Looker Studio dashboard. Visits and traffic are
+NOT stored in the toolkit; they live in Google Analytics (one property per site).
