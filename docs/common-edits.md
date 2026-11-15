@@ -65,7 +65,7 @@ Importing a table already publishes it automatically; this screen only shows wha
 links come from `ANALYTICS_LINKS` just above it: replace a URL there with a direct link to that site's GA4 property or a Looker Studio dashboard. Visits and traffic are
 NOT stored in the toolkit; they live in Google Analytics (one property per site).
 
-## Website analytics screen (both sites)
+## Website metrics and analytics screen (all sites)
 
 Home button "Website analytics (both sites)" opens `analyticsScreen()` (search the file for it). `GA_BASE` is the shared GA4 property (539541576) and `GA_LINKS` the
 one-tap reports (Realtime, traffic sources, pages, events); a different property id means changing `GA_BASE` and `ANALYTICS_LINKS`. GA cannot filter by Site from a link,
@@ -84,3 +84,12 @@ Checklist for a computer (about 10 minutes, no code change needed):
 4. Date range control: last 28 days. Name it "Website results". Share > Get report link.
 5. In the toolkit open Website analytics and paste the link into both saved-view fields (kept on that device only).
 Once done, delete this section.
+
+### Own visit counters (Website metrics, top of that screen)
+
+`js/hits.js` (identical file on the Business, Seniors and Hub sites; only `CONFIG.site` differs) adds anonymous counters to Supabase table `site_hits` through the public
+RPC `track_hit` (migration/site_hits.sql, run by hand in the Supabase SQL editor first). It counts visit (first page of the day on a device), view (path), event (the same
+events GA gets; it wraps `gtag`) and source (utm_source, else referrer host). `metLoad()` / `metricsBlock()` in index.html read the last 95 days and sum per site for 7/30/90 days.
+No cookies, no IP. Bots and devices that opened any site with `?notrack=1` are skipped (`?notrack=0` undoes it). Numbers will differ a little from GA. New event to count:
+add its name to `EVENTS` in all three hits.js files, to the regex-compatible names in `track_hit` (letters and underscores) and to `MET_EVENTS` for its label.
+If the screen says "Run migration/site_hits.sql in Supabase first", the SQL has not been run yet.
