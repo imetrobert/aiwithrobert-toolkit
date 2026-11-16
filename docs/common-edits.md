@@ -71,19 +71,13 @@ Home button "Website analytics (both sites)" opens `analyticsScreen()` (search t
 one-tap reports (Realtime, traffic sources, pages, events); a different property id means changing `GA_BASE` and `ANALYTICS_LINKS`. GA cannot filter by Site from a link,
 so each site has a field for the owner's own saved GA/Looker Studio view, kept in localStorage (`tk-ga-saved`, this device only).
 
-## Looker Studio dashboard per site: NOT DONE YET (status 2026-11-15)
+## Looker Studio report (built 2026-11-16)
 
-The owner works only on an iPhone and Looker Studio crashes there, so the dashboard is NOT built. State so far: he accepted the Looker Studio account setup (company
-"AIWithRobert") and started an "Untitled Report" connected to the Google Analytics connector, property 539541576; nothing else was built. That empty report can be deleted.
-Until he builds it on a computer, the toolkit's "Your saved view" fields on the Website analytics screen stay empty and that is normal: do not treat it as a bug.
-
-Checklist for a computer (about 15 minutes, no code change needed). Goal: one Looker report with TWO PAGES, one per site, each page filtered to that site only:
-1. lookerstudio.google.com > Create > Report > Google Analytics connector > account AIWithRobert.com > property 539541576 > Add. Name it "Website results".
-2. Page 1, rename "Business". Add a Table (dimension Hostname; metrics Views, Users, Event count) and a second Table (dimension Event name; filter to feasibility_submit, phone_click, email_click, booking_click). Add a Date range control (last 28 days). Then Page > Page settings (or the page's Filter panel): add a page-level filter Include Hostname contains "biz".
-3. Page 2: Edit > Duplicate page, rename "Seniors", change the filter to Hostname contains "seniors" and the event filter to generate_lead, phone_click, email_click.
-4. Open each page in the browser and copy its own address from the address bar (each page has its own link; sharing is not needed because only he opens it, signed in to Google).
-5. Toolkit > Website metrics and analytics: paste the Business page link into the Business card's "Your saved view" box and the Seniors page link into the Seniors card's box. Each card then shows an "Open my saved ... view" button for that site only.
-Once done, delete this section.
+The owner built the "Website results" report in Looker Studio (Google Analytics property 539541576, Hostname splits the sites; tables for views and for the key events
+feasibility_submit, generate_lead, email_click, phone_click, booking_click). Its link is saved in the "Your saved view" boxes on the Website analytics screen. Those boxes are
+kept per device (localStorage `tk-ga-saved`), so on a new phone or browser they are empty until the link is pasted again: that is normal, not a bug. The box accepts
+analytics.google.com and lookerstudio.google.com links (datastudio.google.com links are rewritten to lookerstudio). An event missing from the report simply has no data in
+the date range yet; it is not an error.
 
 ### Own visit counters (Website metrics, top of that screen)
 
