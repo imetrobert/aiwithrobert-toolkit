@@ -2071,7 +2071,7 @@ function metricsBlock() {
 }
 function analyticsScreen() {
   const saved = gaSaved(), card = (site, name, siteVal) => {
-    const inp = el("input", { type: "url", maxlength: "600", value: saved[site] || "", placeholder: "Paste your saved " + name + " report link", "aria-label": "Saved " + name + " analytics link", onchange: e => { const v = e.target.value.trim(); gaSave(site, /^https:\/\/(analytics|lookerstudio)\.google\.com\//.test(v) ? v : ""); render(); } });
+    const inp = el("input", { type: "url", maxlength: "600", value: saved[site] || "", placeholder: "Paste your saved " + name + " report link", "aria-label": "Saved " + name + " analytics link", onchange: e => { const v = e.target.value.trim().replace(/^https:\/\/datastudio\.google\.com\//, "https://lookerstudio.google.com/"); gaSave(site, /^https:\/\/(analytics|lookerstudio)\.google\.com\//.test(v) ? v : ""); render(); } });
     return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, name),
       saved[site] ? el("a", { class: "btn primary", style: "display:block;text-align:center;margin-bottom:8px", href: saved[site], target: "_blank", rel: "noopener" }, "Open my saved " + name + " view") : null,
       ...GA_LINKS.map(l => el("a", { class: "btn sm", style: "display:block;margin:6px 0;text-align:left", href: GA_BASE + l[1], target: "_blank", rel: "noopener" }, l[0])),
