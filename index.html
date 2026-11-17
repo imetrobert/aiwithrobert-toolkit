@@ -1145,7 +1145,7 @@ function cleanLead(l) {
   if (l.hist && typeof l.hist === "object" && !Array.isArray(l.hist)) LEAD_ST.forEach(k => { const h = l.hist[k]; if (h && Number.isFinite(h.d) && ["done", "skipped", "auto"].includes(h.how)) hist[k] = { d: h.d, how: h.how }; });
   return { status: LEAD_ST.includes(l.status) ? l.status : "new", contact: isStr(l.contact) ? l.contact.trim().slice(0, 120) : "",
     follow: isStr(l.follow) && /^\d{4}-\d{2}-\d{2}$/.test(l.follow) ? l.follow : "", note: isStr(l.note) ? l.note.slice(0, 1500) : "", archived: l.archived === true,
-    hist, at: Number.isFinite(l.at) ? l.at : 0,
+    hist, at: Number.isFinite(l.at) ? l.at : 0, ref: isStr(l.ref) ? l.ref.trim().slice(0, 80) : "", code: isStr(l.code) && /^[a-z0-9-]{1,30}$/.test(l.code) ? l.code : "",
     after: (a => ({ thanks: dayOk(a.thanks), review: dayOk(a.review), rebook: dayOk(a.rebook) }))(l.after && typeof l.after === "object" ? l.after : {}) };
 }
 /* A saved Feasibility check attached to a saved profile (optional). */
@@ -1409,6 +1409,47 @@ async function wlArchiveByEmail(contact) {
   const e = ((contact || "").match(/[^\s·,;]+@[^\s·,;]+\.[^\s·,;]+/) || [""])[0].toLowerCase(); if (!e) return;
   for (const x of (S.cap.wl || []).filter(x => x.status !== "archived" && String(x.email || "").toLowerCase() === e)) { const q = await sbReq("PATCH", "waitlist_requests?id=eq." + encodeURIComponent(x.id), { status: "archived" }, "return=minimal"); if (q.ok) x.status = "archived"; }
 }
+/* ---- Referrals: "referred by" on a lead, and a personal referral link per client (utm_source=referral, utm_campaign=<code>).
+   The sites already save utm_source/utm_campaign as the message's source, so a referred visitor is credited with no site change. Recipe: docs/common-edits.md "Referrals". ---- */
+const refUrl = (r, code) => (r.brand === "business" ? "https://biz.aiwithrobert.com/" : "https://seniors.aiwithrobert.com/") + (r.lang === "fr" ? "fr/" : "") + "?utm_source=referral&utm_campaign=" + code + (r.brand === "business" ? "#feas-check" : "");
+function refCodeFor(r) {
+  const taken = Store.all().map(x => x.lead && x.lead.code).filter(Boolean), w = firstName((r.lead && r.lead.contact || "").split("\u00B7")[0].replace(/@\S+/, "") || r.name).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "").slice(0, 14) || "client";
+  let code; do { code = w + "-" + Math.random().toString(36).slice(2, 6); } while (taken.includes(code)); return code;
+}
+const refSan = v => String(v).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
+/* The website message a lead came from (leads from messages have id wf-/iq- plus the message id). */
+const leadInquiry = r => (S.cap.inq || []).find(x => r.id === ((x.site === "business" && x.extra && x.extra.kind === "feasibility" ? "wf-" : "iq-") + refSan(x.id)));
+const refPerson = r => { const w = ((r.lead && r.lead.contact) || "").split("\u00B7")[0].trim(); return /@/.test(w) || !w ? r.name : w; };
+/* Who referred this lead: what you typed, else the client whose referral link they used. */
+function leadReferrer(r) {
+  const l = r.lead || {}; if (l.ref && l.ref.trim()) return { name: l.ref.trim(), auto: false };
+  const x = leadInquiry(r), m = x && x.extra && String(x.extra.source || "").toLowerCase().match(/^referral\/([a-z0-9-]+)/);
+  if (!m) return null; const o = Store.all().find(y => y.lead && y.lead.code === m[1]); return { name: o ? refPerson(o) : m[1], auto: true };
+}
+const REF_MAIL = {
+  en: "Hi {name},\n\nThank you again. If you know someone who would enjoy a session or could use help with AI, they are welcome to use this link, and I will know you sent them:\n{link}\n\nNo pressure at all, and thank you for thinking of it.",
+  fr: "Bonjour {name},\n\nMerci encore. Si vous connaissez quelqu'un qui aimerait une séance ou qui aurait besoin d'aide avec l'IA, cette personne peut utiliser ce lien, et je saurai que vous l'avez envoyée :\n{link}\n\nAucune pression, et merci d'y penser."
+};
+function referralBox(r) {
+  const l = r.lead || {}, msg = el("span", { class: "muted", role: "status", style: "display:block;margin-top:4px" });
+  const box = el("details", { style: "margin-top:8px" }, el("summary", { style: "font-weight:700;cursor:pointer;color:var(--navy)" }, "Referral link for this client" + (l.code ? "" : " (not made yet)")));
+  if (!l.code) { box.append(el("p", { class: "muted", style: "margin:8px 0" }, "Make a personal link this client can pass on. Anyone who uses it is shown here as referred by them."), el("button", { class: "btn sm primary", onclick: () => saveLead(r, { code: refCodeFor(r) }) }, "Make referral link")); return box; }
+  const url = refUrl(r, l.code), n = (S.cap.inq || []).filter(x => x.extra && String(x.extra.source || "").toLowerCase() === "referral/" + l.code).length;
+  box.append(el("p", { class: "muted", style: "word-break:break-all;margin:8px 0" }, url), el("p", { class: "muted", style: "margin:0 0 6px" }, n + " website message" + (n === 1 ? "" : "s") + " from this link."),
+    el("button", { class: "btn sm", onclick: async () => { msg.textContent = (await copyText(url)) ? "Link copied." : "Could not copy."; } }, "Copy link"),
+    el("button", { class: "btn sm primary", onclick: async () => { const e = ((l.contact || "").match(/[^\s\u00B7,;]+@[^\s\u00B7,;]+\.[^\s\u00B7,;]+/) || [""])[0], t = "From: " + mailFrom(r.brand) + "\nTo: " + e + "\nSubject: " + (r.lang === "fr" ? "Une petite idée" : "A small thought") + "\n\n" + REF_MAIL[r.lang === "fr" ? "fr" : "en"].replace("{name}", firstName(refPerson(r)) || (r.lang === "fr" ? "" : "there")).replace("{link}", url).replace("Bonjour ,", "Bonjour,") + "\n\nRobert Simon\n514-250-8491"; msg.textContent = !e ? "Add the client's email in Contact first." : (await copyText(t)) ? "Email copied. Paste it into your email agent." : "Could not copy."; } }, "Copy email with link"), msg);
+  return box;
+}
+/* A short card on the Leads screen: each client's referral link and how many leads it brought. */
+function referralSummary() {
+  const recs = Store.all().filter(x => x.lead && x.lead.code), inq = S.cap.inq || [];
+  const rows = recs.map(x => { const ms = inq.filter(q => q.extra && String(q.extra.source || "").toLowerCase() === "referral/" + x.lead.code), ids = ms.map(q => (q.site === "business" && q.extra && q.extra.kind === "feasibility" ? "wf-" : "iq-") + refSan(q.id)), won = Store.all().filter(y => ids.includes(y.id) && y.lead && ["won", "after"].includes(y.lead.status)).length;
+    const typed = Store.all().filter(y => y.lead && y.lead.ref && y.lead.ref.toLowerCase() === refPerson(x).toLowerCase() && !ids.includes(y.id)).length; return { name: refPerson(x), n: ms.length + typed, won }; }).sort((a, b) => b.n - a.n);
+  if (!rows.length) return null;
+  return el("details", { class: "card" }, el("summary", { style: "font-weight:700;cursor:pointer;color:var(--navy)" }, "Referrals (" + rows.reduce((a, x) => a + x.n, 0) + " leads from " + rows.length + " client link" + (rows.length === 1 ? "" : "s") + ")"),
+    el("p", { class: "muted", style: "margin:8px 0" }, "Counts website messages from each client's link plus leads where you typed their name under Referred by."),
+    ...rows.map(x => el("p", { style: "margin:4px 0" }, x.name + ": " + x.n + " lead" + (x.n === 1 ? "" : "s") + (x.won ? ", " + x.won + " won" : ""))));
+}
 function leadsScreen() {
   const today = todayStr();
   const all = Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).filter(r => r.lead || r.feas);
@@ -1431,6 +1472,8 @@ function leadsScreen() {
       el("input", { type: "date", value: l.follow, "aria-label": "Follow-up date", onchange: e => saveLead(r, { follow: e.target.value }) }),
       el("input", { type: "text", maxlength: "120", value: l.contact, placeholder: "Contact (name, phone or email)", "aria-label": "Contact", style: "margin-top:6px", onchange: e => saveLead(r, { contact: e.target.value }) }),
       el("textarea", { maxlength: "1500", rows: "3", "aria-label": "Note", placeholder: "Note (where you met, what they need)", style: "margin-top:6px", onchange: e => saveLead(r, { note: e.target.value }) }, l.note),
+      el("input", { type: "text", maxlength: "80", value: l.ref, placeholder: (rf => rf && rf.auto ? "Referred by " + rf.name + " (from their link)" : "Referred by (client's name)")(leadReferrer(r)), "aria-label": "Referred by", style: "margin-top:6px", onchange: e => saveLead(r, { ref: e.target.value }) }),
+      ["won", "after"].includes(st(r)) || l.code ? referralBox(r) : null,
       r.feas ? el("button", { class: "btn sm primary", onclick: () => openFeas(r) }, "Open feasibility check") : null,
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" },
         el("button", { class: "btn sm", onclick: () => saveLead(r, { archived: !arch(r) }) }, arch(r) ? "Restore" : "Archive"),
@@ -1450,6 +1493,7 @@ function leadsScreen() {
       S.leadMsg ? el("div", { class: "note", role: "status", style: "margin-top:10px" }, S.leadMsg) : null),
     siteResults(),
     leadSources(),
+    referralSummary(),
     all.length ? filt : null, fu, sfl.bar,
     cards.length ? sfl.box : el("p", { class: "muted" }, all.length ? "Nothing in this view." : "No leads yet. Add one above or save a Feasibility check."),
     el("button", { class: "btn link", onclick: () => { S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
@@ -2128,15 +2172,15 @@ function leadSources() {
   if (!rows.length) return null;
   const recs = Store.all(), far = ["booked", "proposal", "won", "after"], g = {};
   rows.forEach(x => {
-    const raw = String(x.extra.source || "").toLowerCase(), m = raw.match(/^([a-z0-9_-]+)\/(issue-\d{4}-\d{2})(?:-(d\d|fr|related))?/), tq = raw.match(/^qr\/talk-([a-z0-9-]+)/);
-    const chan = m ? m[1] : (raw.split("/")[0] || "direct"), issue = m ? m[2].replace("issue-", "") : "", part = m && m[3] ? m[3] : tq ? "talk:" + tq[1] : "";
+    const raw = String(x.extra.source || "").toLowerCase(), m = raw.match(/^([a-z0-9_-]+)\/(issue-\d{4}-\d{2})(?:-(d\d|fr|related))?/), tq = raw.match(/^qr\/talk-([a-z0-9-]+)/), rc = raw.match(/^referral\/([a-z0-9-]+)/);
+    const chan = m ? m[1] : (raw.split("/")[0] || "direct"), issue = m ? m[2].replace("issue-", "") : "", part = m && m[3] ? m[3] : tq ? "talk:" + tq[1] : rc ? "ref:" + rc[1] : "";
     const key = chan + "|" + issue + "|" + part, r = recs.find(r => r.id === "wf-" + String(x.id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60)), stt = r && r.lead ? r.lead.status : "";
     const o = g[key] || (g[key] = { chan, issue, part, n: 0, booked: 0, won: 0 });
     o.n++; if (far.includes(stt)) o.booked++; if (stt === "won" || stt === "after") o.won++;
   });
   const list = Object.values(g).sort((a, b) => b.n - a.n), byChan = {};
   list.forEach(o => { byChan[o.chan] = (byChan[o.chan] || 0) + o.n; });
-  const label = o => (o.chan === "imetrobert-blog" ? (o.part === "related" ? "Inside the issue" : "Button inside the issue") : o.chan === "linkedin" ? "LinkedIn" + (o.part === "fr" ? " (French post)" : o.part === "related" ? " (related reading links)" : o.part ? " (follow-up " + o.part.slice(1) + ")" : "") : o.chan === "direct" ? "Direct visit or unknown" : o.part.indexOf("talk:") === 0 ? "Talk QR: " + (((S.talks && S.talks.rows.find(r => r.d.slug === o.part.slice(5))) || { d: {} }).d.title || o.part.slice(5)) : o.chan) + (o.issue ? " - issue " + o.issue : "");
+  const label = o => (o.chan === "imetrobert-blog" ? (o.part === "related" ? "Inside the issue" : "Button inside the issue") : o.chan === "linkedin" ? "LinkedIn" + (o.part === "fr" ? " (French post)" : o.part === "related" ? " (related reading links)" : o.part ? " (follow-up " + o.part.slice(1) + ")" : "") : o.chan === "direct" ? "Direct visit or unknown" : o.part.indexOf("ref:") === 0 ? "Referral: " + (((c => c ? refPerson(c) : "")(Store.all().find(y => y.lead && y.lead.code === o.part.slice(4)))) || o.part.slice(4)) : o.part.indexOf("talk:") === 0 ? "Talk QR: " + (((S.talks && S.talks.rows.find(r => r.d.slug === o.part.slice(5))) || { d: {} }).d.title || o.part.slice(5)) : o.chan) + (o.issue ? " - issue " + o.issue : "");
   return el("details", { class: "card" }, el("summary", { style: "font-weight:700;cursor:pointer;color:var(--navy)" }, "Where leads come from (" + rows.length + " website checks)"),
     el("p", { class: "muted", style: "margin:8px 0" }, "By channel: " + Object.keys(byChan).sort((a, b) => byChan[b] - byChan[a]).map(k => k + " " + byChan[k]).join(", ") + ". Uses the last 300 website messages."),
     ...list.map(o => el("p", { style: "margin:4px 0" }, el("strong", null, o.n + " "), label(o), o.booked ? " - " + o.booked + " booked or further" : "", o.won ? ", " + o.won + " won" : "")));
