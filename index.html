@@ -1364,7 +1364,9 @@ function leadNext(r, cur) {
   const afterRows = () => { const a = (r.lead && r.lead.after) || {}, t0 = (r.lead && r.lead.at) || Date.now(), due = afterDue(r); return AFTER_KINDS.map(([k, label, d]) => el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0;width:100%" },
     el("span", { style: "flex:1 1 100%;font-weight:600" }, (a[k] ? "\u2713 " : "") + label + (a[k] ? ": sent " + a[k] : due.includes(k) ? ": due now" : ": suggested " + fmtDay(t0 + d * 864e5))),
     a[k] ? go("Undo", () => saveLead(r, { after: Object.assign({}, a, { [k]: "" }) })) : [mail("Copy email", k), go("Mark sent", () => saveLead(r, { after: Object.assign({}, a, { [k]: todayStr() }) }))])); };
-  const inv = el("a", { class: "btn sm primary", href: "https://invoices.aiwithrobert.com/", target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Open invoicing app");
+  /* Opens a new invoice in the invoicing app with this client filled in (read by applyLeadParams() in that app's InvoiceForm.jsx). */
+  const invoiceUrl = "https://invoices.aiwithrobert.com/#/invoice/new?" + new URLSearchParams({ brand: r.brand, lead_name: person || "", lead_email: email, lead_org: biz && r.name && r.name !== person ? r.name : "", lead_lang: r.lang === "fr" ? "fr" : "en" }).toString();
+  const inv = el("a", { class: "btn sm primary", href: invoiceUrl, target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Create invoice");
   const N = (biz ? {
     new: ["Run the feasibility check for this lead.", [go("Start feasibility check", () => leadToFeas(r), true)]],
     checked: ["The check is done. Invite them to a free 15-minute call. (The website already showed them the booking button.)", [mail("Copy invitation email", "invite"), move("Mark invited", "contacted"), move("Call booked", "booked")]],
@@ -1372,7 +1374,7 @@ function leadNext(r, cur) {
     contacted: ["Invited. When the booking arrives in your calendar, mark the call.", [move("Call booked", "booked", true)]],
     booked: ["After the call, build the proposal from the saved check.", [r.feas ? go("Open check and build proposal", () => openFeas(r), true) : go("Start feasibility check", () => leadToFeas(r), true), move("Proposal sent", "proposal")]],
     proposal: ["Proposal sent. Record the outcome.", [move("Won", "won", true), go("Lost", () => changeStage(r, "lost"))]],
-    won: ["Won. Create the invoice in the invoicing app (Import a lead). After the work is delivered, start the follow-up.", [inv, move("Start after-session follow-up", "after")]],
+    won: ["Won. Create the invoice (the button opens a new invoice with the client filled in). After the work is delivered, start the follow-up.", [inv, move("Start after-session follow-up", "after")]],
     after: ["After the session: thank them, ask for a review or testimonial, then check in about a month later. Archive the lead when all three are sent.", [afterRows()]],
     lost: ["Closed as lost. Archive it when you no longer need it.", []]
   } : {
@@ -1380,7 +1382,7 @@ function leadNext(r, cur) {
     waiting: ["On the waitlist. Nothing to do until a spot opens, then send the follow-up.", [mail("Copy follow-up email", "reopen"), move("Mark contacted", "contacted")]],
     contacted: ["Contacted. When they confirm a session, mark it booked.", [move("Session booked", "booked", true)]],
     booked: ["After the session, record the outcome.", [move("Won", "won", true), go("Lost", () => changeStage(r, "lost"))]],
-    won: ["Won. Create the invoice in the invoicing app. After the session, start the follow-up.", [inv, move("Start after-session follow-up", "after")]],
+    won: ["Won. Create the invoice (the button opens a new invoice with the client filled in). After the session, start the follow-up.", [inv, move("Start after-session follow-up", "after")]],
     after: ["After the session: thank them, ask for a review, then check in about a month later. Archive the lead when all three are sent.", [afterRows()]],
     lost: ["Closed as lost. Archive it when you no longer need it.", []]
   })[cur] || ["Tap a stage above to place this lead in the pipeline.", []];
