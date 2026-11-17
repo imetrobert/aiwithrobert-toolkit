@@ -93,3 +93,8 @@ If the screen says "Run migration/site_hits.sql in Supabase first", the SQL has 
 unpaid invoices (invoicing table `invoices`, status "sent", read only through the same login; "over 30 days" turns the box orange), and visits for the last 7 days (table `site_hits`, loaded by
 `metLoad()`). Tapping a row opens Leads on that filter (`S.lFilter`). "Refresh" reloads invoices and visits. Leads come from this device's saved sessions, so a fresh device shows them after the cloud sync.
 To count a different invoice status, change `status=eq.sent` in `todayLoad()`. If the card says "Invoices could not be read", the signed-in user lacks access to the invoices table (its policy is "Authenticated users only").
+
+### After-session follow-up (pipeline step 7 / Seniors step 5)
+Stage id `after` ("After-session follow-up") sits after `won` in `LEAD_ST`, `LEAD_FLOW` and `leadFlow()`. Emails: `LEAD_MAIL.thanks|review|rebook` and `...Seniors` variants (EN/FR, just above `mailFrom`); `mailKind()` picks the Seniors variant automatically.
+Timing (0, 3 and 30 days) lives in `AFTER_KINDS`; `afterDue()` says what is due; `leadNext()` draws the three rows (`afterRows`); the Today card counts what is due. Sent dates are `lead.after.thanks|review|rebook` (validated in `cleanLead`).
+Change wording or the review link (`REVIEW_URL`) there. Moving a lead from Won forward to this stage needs no prompt; moving back asks as usual.
