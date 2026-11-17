@@ -2101,7 +2101,7 @@ function metricsBlock() {
       evT ? el("p", { style: "margin:4px 0" }, "Actions: " + evT + ".") : null,
       vw.length ? el("p", { class: "muted", style: "margin:4px 0" }, "Top pages: " + top(vw, x => x.name, 5, "/") + ".") : null,
       vis.length ? el("p", { class: "muted", style: "margin:4px 0" }, "Where visits came from: " + top(vis, x => x.source, 4, "direct") + ".") : el("p", { class: "muted", style: "margin:4px 0" }, "No visits counted in this period yet."));
-  }), el("p", { class: "muted", style: "margin:10px 0 0;font-size:13px" }, "To keep your own visits out of the counts, open any site once with ?countme=1 at the end of the address on each device you use (?countme=0 turns it back on)."));
+  }), el("p", { class: "muted", style: "margin:10px 0 0;font-size:13px" }, "To keep your own visits out of these counts and out of Google Analytics, open each site once with ?countme=1 at the end of the address (for example seniors.aiwithrobert.com/?countme=1) on each device you use. ?countme=0 turns counting back on."));
 }
 function analyticsScreen() {
   const saved = gaSaved(), card = (site, name, siteVal) => {

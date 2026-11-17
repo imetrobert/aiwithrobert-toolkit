@@ -84,7 +84,7 @@ the date range yet; it is not an error.
 `js/hits.js` (identical file on the Business, Seniors and Hub sites; only `CONFIG.site` differs) adds anonymous counters to Supabase table `site_hits` through the public
 RPC `track_hit` (migration/site_hits.sql, run by hand in the Supabase SQL editor first). It counts visit (first page of the day on a device), view (path), event (the same
 events GA gets; it wraps `gtag`) and source (utm_source, else referrer host). `metLoad()` / `metricsBlock()` in index.html read the last 95 days and sum per site for 7/30/90 days.
-No cookies, no IP. Bots and devices that opened any site with `?countme=1` are skipped (`?countme=0` undoes it). Numbers will differ a little from GA. New event to count:
+No cookies, no IP. Bots and devices that opened any site with `?countme=1` are skipped (`?countme=0` undoes it). The same switch also turns Google Analytics off on that device (an inline `ga-disable-G-DM4EY880K2` line before the gtag script, in each site's index.html and the page generators build_pages.py, build_articles.py, build_hub.py). Numbers will differ a little from GA. New event to count:
 add its name to `EVENTS` in all three hits.js files, to the regex-compatible names in `track_hit` (letters and underscores) and to `MET_EVENTS` for its label.
 If the screen says "Run migration/site_hits.sql in Supabase first", the SQL has not been run yet.
 
