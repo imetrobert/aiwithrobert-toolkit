@@ -111,3 +111,8 @@ pipeline; "Where leads come from" shows them as "Talk QR: <title>". Visits per t
 ### Lead to invoice handoff
 On a Won lead, "Create invoice" (in `leadNext()`, constant `invoiceUrl`) opens `https://invoices.aiwithrobert.com/#/invoice/new?brand=&lead_name=&lead_email=&lead_org=&lead_lang=`; the invoicing app's `applyLeadParams()` fills the client, address and usual services.
 Keep the parameter names equal in both repos. The details stay in the part after `#`, which the browser does not send to any server.
+
+### Referrals ("Referred by" and a referral link per client)
+On a lead card: a "Referred by" box, and for Won or After-session leads a "Referral link for this client" box (`referralBox()`). The link is `?utm_source=referral&utm_campaign=<code>` on the client's site and language (`refUrl()`, code from `refCodeFor()`, saved as `lead.code`).
+The sites already save utm_source/utm_campaign as the message's source, so no site change is needed. `leadReferrer()` shows who referred a lead (typed name, else the client whose code they used); `referralSummary()` is the "Referrals" card on the Leads screen;
+"Where leads come from" lists them as "Referral: <name>". The email with the link is `REF_MAIL` (EN/FR). `lead.ref` and `lead.code` are validated in `cleanLead()`.
