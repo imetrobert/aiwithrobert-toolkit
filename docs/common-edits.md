@@ -107,3 +107,7 @@ Functions: `talksScreen()`, `talkLoad/talkSave/talkDelete`, `talkUrl()`, `talkRe
 The QR image is drawn by the MIT-licensed qrcode-generator library, minified and inlined at the top of the talks block (no network needed). "Make QR picture" builds a PNG to press-and-hold save.
 **Attribution:** Business feasibility checks save `qr/talk-<slug>` as their source (biz js/feascheck.js); Seniors contact messages do the same (seniors js/form.js, `extra.source`). `talkResults()` counts them per talk and how far each got in the
 pipeline; "Where leads come from" shows them as "Talk QR: <title>". Visits per talk are in Google Analytics (campaign `talk-<slug>`). The Today card shows the next confirmed talk and delivered talks still needing a thank-you.
+
+### Lead to invoice handoff
+On a Won lead, "Create invoice" (in `leadNext()`, constant `invoiceUrl`) opens `https://invoices.aiwithrobert.com/#/invoice/new?brand=&lead_name=&lead_email=&lead_org=&lead_lang=`; the invoicing app's `applyLeadParams()` fills the client, address and usual services.
+Keep the parameter names equal in both repos. The details stay in the part after `#`, which the browser does not send to any server.
