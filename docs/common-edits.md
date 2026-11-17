@@ -126,3 +126,8 @@ Table `site_testimonials` (migration/site_testimonials.sql, run once by hand; un
 Flow: save their reply (or "Save a testimonial reply" on an After-session lead) > write the approved wording > "Copy approval email" (`TM_MAIL`, EN/FR) > when they agree, set how they agreed to be credited (full / first name / anonymous) and the date > "Publish to website".
 The database refuses to publish without a consent date, a credit choice and approved wording (constraint `site_testimonials_consent`). Functions in index.html: `tmScreen`, `tmLoad/tmSave/tmDelete`, `tmShown` (what visitors see), `tmMail`, `tmStart`.
 Sites read it through the public RPC `public_testimonials(site)` in `js/testimonials.js` (Seniors and Business repos), which adds the cards to the existing testimonials container.
+
+### Google review link and the Google review ask (Seniors)
+A Seniors testimonial can carry an optional Google review link (`review_url`, checked by `gUrl()`; part of `data.shown`, returned by `public_testimonials`). The Seniors site shows it as a "See this review on Google" button; Business has no Google profile, so the field only appears for Seniors.
+For Seniors, the approval email (`tmMail`), the talk testimonial email (`talkMail`) and the after-session review email (`LEAD_MAIL.reviewSeniors`) also ask for a short Google review using `REVIEW_URL` (the business page link, edit the constant to change it).
+After adding the field, the `public_testimonials` function must be re-created (the migration file has the current version).
