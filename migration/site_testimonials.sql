@@ -46,7 +46,7 @@ grant select, insert, update, delete on public.site_testimonials to authenticate
 revoke truncate, references, trigger, maintain on public.site_testimonials from authenticated;
 grant all on public.site_testimonials to service_role;
 
--- Public function the websites call. Only published rows, only the display part (name, role, organization, context, text).
+-- Public function the websites call. Only published rows, only the display part (name, role, organization, context, text, optional Google review link).
 create or replace function public.public_testimonials(p_site text)
 returns jsonb
 language sql stable security definer
@@ -59,7 +59,8 @@ as $$
              'role',    left(coalesce(data->'shown'->>'role', ''), 120),
              'org',     left(coalesce(data->'shown'->>'org', ''), 120),
              'context', left(coalesce(data->'shown'->>'context', ''), 160),
-             'text',    left(coalesce(data->'shown'->>'text', ''), 1200)
+             'text',    left(coalesce(data->'shown'->>'text', ''), 1200),
+             'review_url', left(coalesce(data->'shown'->>'review_url', ''), 300)
            ) as shown,
            published_at
     from public.site_testimonials

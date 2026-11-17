@@ -1117,8 +1117,8 @@ Object.assign(LEAD_MAIL, {
     en: { subj: "Could you share a few words about our work together?", body: "Hi {name},\n\nIf the work was useful, would you be willing to reply with two or three sentences about your experience? I would like to share it on my website, but only with your written OK. Please also tell me whether I may use your name and company, or keep it anonymous.\n\nIf now is not the right time, no reply is needed.\n\nRobert Simon\nAI with Robert for Business\n514-250-8491" },
     fr: { subj: "Pourriez-vous partager quelques mots sur notre collaboration?", body: "Bonjour {name},\n\nSi le travail vous a été utile, accepteriez-vous de répondre par deux ou trois phrases sur votre expérience? J'aimerais la partager sur mon site, mais seulement avec votre accord écrit. Dites-moi aussi si je peux utiliser votre nom et votre entreprise, ou la garder anonyme.\n\nSi ce n'est pas le bon moment, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour entreprises\n514-250-8491" } },
   reviewSeniors: {
-    en: { subj: "Would you share a short review?", body: "Hi {name},\n\nIf you enjoyed our session, would you be willing to leave a short Google review? It helps other seniors find help they can trust. You can find my page here: " + REVIEW_URL + "\n\nIf you prefer, simply reply with a sentence or two about your experience. I will ask your permission before using it anywhere.\n\nIf now is not the right time, no reply is needed.\n\nRobert Simon\nAI with Robert for Seniors\n514-250-8491" },
-    fr: { subj: "Accepteriez-vous de laisser un court avis?", body: "Bonjour {name},\n\nSi vous avez apprécié notre séance, accepteriez-vous de laisser un court avis Google? Cela aide d'autres aînés à trouver une aide de confiance. Vous trouverez ma page ici : " + REVIEW_URL + "\n\nSi vous préférez, répondez simplement par une phrase ou deux sur votre expérience. Je vous demanderai votre permission avant de l'utiliser.\n\nSi ce n'est pas le bon moment, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour aînés\n514-250-8491" } },
+    en: { subj: "Would you share a short review?", body: "Hi {name},\n\nIf you enjoyed our session, would you be willing to leave a short Google review? It helps other seniors find help they can trust. You can find my page here: " + REVIEW_URL + "\n\nIf you are also willing, reply with a sentence or two about your experience that I could share on my website. I will send you the exact wording and ask your OK before using it anywhere.\n\nIf now is not the right time, no reply is needed.\n\nRobert Simon\nAI with Robert for Seniors\n514-250-8491" },
+    fr: { subj: "Accepteriez-vous de laisser un court avis?", body: "Bonjour {name},\n\nSi vous avez apprécié notre séance, accepteriez-vous de laisser un court avis Google? Cela aide d'autres aînés à trouver une aide de confiance. Vous trouverez ma page ici : " + REVIEW_URL + "\n\nSi vous le voulez bien, répondez aussi par une phrase ou deux sur votre expérience que je pourrais partager sur mon site. Je vous enverrai le texte exact et je demanderai votre accord avant de l'utiliser.\n\nSi ce n'est pas le bon moment, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour aînés\n514-250-8491" } },
   rebook: {
     en: { subj: "Checking in", body: "Hi {name},\n\nIt has been about a month since we worked together. How is it going? If there is another workflow or a team session you would like to look at, you can pick a time for a free 15-minute call here: " + BOOKING_URL + "\n\nIf you do not need anything right now, no reply is needed.\n\nRobert Simon\nAI with Robert for Business\n514-250-8491" },
     fr: { subj: "Un petit suivi", body: "Bonjour {name},\n\nIl y a environ un mois que nous avons travaillé ensemble. Comment cela se passe-t-il? Si vous souhaitez regarder un autre flux de travail ou une séance pour votre équipe, vous pouvez choisir un moment pour un appel gratuit de 15 minutes ici : " + BOOKING_URL + "\n\nSi vous n'avez besoin de rien pour l'instant, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour entreprises\n514-250-8491" } },
@@ -2636,7 +2636,7 @@ const TALK_MAIL = {
 function talkMail(kind, d, row) {
   const c = d.contact || "", email = (c.match(/[^\s·,;]+@[^\s·,;]+\.[^\s·,;]+/) || [""])[0], who = c.split("·")[0].trim(), person = /@/.test(who) || !who ? "" : who, m = TALK_MAIL[kind][d.lang === "fr" ? "fr" : "en"];
   const about = d.title ? (d.lang === "fr" ? " sur « " + d.title + " »" : " on “" + d.title + "”") : "", sig = d.site === "business" ? (d.lang === "fr" ? "AI with Robert pour entreprises" : "AI with Robert for Business") : (d.lang === "fr" ? "AI with Robert pour aînés" : "AI with Robert for Seniors");
-  return "From: " + mailFrom(d.site) + "\nTo: " + email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(person) || (d.lang === "fr" ? "" : "there")).replace("{about}", about).replace("Bonjour ,", "Bonjour,") + "\n\nRobert Simon\n" + sig + "\n514-250-8491";
+  return "From: " + mailFrom(d.site) + "\nTo: " + email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(person) || (d.lang === "fr" ? "" : "there")).replace("{about}", about).replace("Bonjour ,", "Bonjour,") + (kind === "testimonial" && d.site === "seniors" ? "\n\n" + (d.lang === "fr" ? "Si vous avez une minute, un court avis Google aide d'autres aînés à trouver une aide de confiance : " : "If you also have a minute, a short Google review helps other seniors find help they can trust: ") + REVIEW_URL : "") + "\n\nRobert Simon\n" + sig + "\n514-250-8491";
 }
 function talksScreen() {
   const T = talksState(), today = todayStr(), say = m => { T.msg = m; render(); };
@@ -2700,14 +2700,16 @@ function talksScreen() {
    Private working copy (reply as received, consent record) + `shown`, the only part the websites can read (via RPC public_testimonials).
    The database refuses to publish a row without a consent date and approved wording. */
 const TM_CONSENT = [["none", "Not asked yet, or they did not agree"], ["full", "OK with name, role and organization"], ["first", "OK with first name only"], ["anon", "OK anonymously (no name)"]];
+/* A Google review or Google Maps link (https only), shown on the Seniors site as "See this review on Google". */
+const gUrl = v => { try { const u = new URL(String(v || "").trim()); return u.protocol === "https:" && /(^|\.)(google\.com|google\.ca|goo\.gl|g\.page|share\.google)$/.test(u.hostname) && u.href.length <= 300 ? u.href : ""; } catch (e) { return ""; } };
 const cleanTm = d => {
   d = d && typeof d === "object" ? d : {}; const s = (v, n) => isStr(v) ? v.trim().slice(0, n) : "";
   return { name: s(d.name, 80), role: s(d.role, 120), org: s(d.org, 120), context: s(d.context, 160), email: s(d.email, 120), lang: d.lang === "fr" ? "fr" : "en",
     text: isStr(d.text) ? d.text.slice(0, 1500) : "", approved: s(d.approved, 1200), consent: TM_CONSENT.some(x => x[0] === d.consent) ? d.consent : "none", consent_date: dayOk(d.consent_date),
-    consent_note: s(d.consent_note, 300), lead_id: isStr(d.lead_id) && /^[A-Za-z0-9_-]{1,60}$/.test(d.lead_id) ? d.lead_id : "" };
+    consent_note: s(d.consent_note, 300), review_url: gUrl(d.review_url), lead_id: isStr(d.lead_id) && /^[A-Za-z0-9_-]{1,60}$/.test(d.lead_id) ? d.lead_id : "" };
 };
 /* Exactly what visitors will see, from what they agreed to. */
-const tmShown = d => ({ name: d.consent === "full" ? d.name : d.consent === "first" ? firstName(d.name) : "", role: d.consent === "full" ? d.role : "", org: d.consent === "full" ? d.org : "", context: d.context, text: d.approved });
+const tmShown = d => ({ name: d.consent === "full" ? d.name : d.consent === "first" ? firstName(d.name) : "", role: d.consent === "full" ? d.role : "", org: d.consent === "full" ? d.org : "", context: d.context, text: d.approved, review_url: d.review_url });
 const tmReady = d => d.consent !== "none" && !!d.consent_date && d.approved.length >= 20;
 function tmState() { return S.tm || (S.tm = { status: "idle", rows: [], msg: "", edit: null }); }
 async function tmLoad() {
@@ -2744,7 +2746,8 @@ const TM_MAIL = {
 };
 function tmMail(row) {
   const d = row.d, m = TM_MAIL[d.lang === "fr" ? "fr" : "en"], about = d.context ? (d.lang === "fr" ? " (" + d.context + ")" : " (" + d.context + ")") : "";
-  return "From: " + mailFrom(row.site) + "\nTo: " + d.email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(d.name) || (d.lang === "fr" ? "" : "there")).replace("{about}", about).replace("{text}", d.approved || d.text).replace("Bonjour ,", "Bonjour,") + "\n\nRobert Simon\n" + (row.site === "business" ? "AI with Robert for Business" : "AI with Robert for Seniors") + "\n514-250-8491";
+  const gr = row.site === "seniors" ? "\n\n" + (d.lang === "fr" ? "Si vous avez une minute, un court avis Google aide d'autres aînés à trouver une aide de confiance : " : "If you also have a minute, a short Google review helps other seniors find help they can trust: ") + REVIEW_URL : "";
+  return "From: " + mailFrom(row.site) + "\nTo: " + d.email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(d.name) || (d.lang === "fr" ? "" : "there")).replace("{about}", about).replace("{text}", d.approved || d.text).replace("Bonjour ,", "Bonjour,") + gr + "\n\nRobert Simon\n" + (row.site === "business" ? "AI with Robert for Business" : "AI with Robert for Seniors") + "\n514-250-8491";
 }
 function tmScreen() {
   const T = tmState(), say = m => { T.msg = m; render(); };
@@ -2759,6 +2762,7 @@ function tmScreen() {
       E.status === "published" ? el("div", { class: "note warn", role: "note" }, "This one is live. Saved changes go live at once.") : null,
       inp("Name", "name", { maxlength: "80" }), inp("Role or title", "role", { maxlength: "120" }), inp("Organization", "org", { maxlength: "120" }),
       inp("What it is about (shown under the quote)", "context", { maxlength: "160", placeholder: "For example: Workshop on AI for a public library audience" }), inp("Their email (for the approval message)", "email", { maxlength: "120" }),
+      E.site === "seniors" ? inp("Google review link (optional): the website shows a \"See this review on Google\" button", "review_url", { maxlength: "300", placeholder: "https://maps.app.goo.gl/..." }) : null,
       sel("Website", "site", [["seniors", "Seniors"], ["business", "Business"]], v => { E.site = v; }), sel("Language of the quote", "lang", [["en", "English"], ["fr", "Français"]]),
       area("Their reply, as received (private, never shown)", "text", 4, 1500), area("Approved wording (this exact text is shown)", "approved", 5, 1200, "Copy their words here. Fix typos only; do not change their meaning. Send it to them with the approval email."),
       sel("How they agreed to be credited", "consent", TM_CONSENT), inp("Date they agreed", "consent_date", { type: "date" }), inp("Where the agreement is in writing (private)", "consent_note", { maxlength: "300", placeholder: "For example: email reply of Nov 20" }),
@@ -2770,6 +2774,7 @@ function tmScreen() {
       el("p", { style: "margin:0 0 4px;font-weight:700;color:var(--navy)" }, d.name || "Anonymous", el("span", { class: "pill", style: "margin-left:8px" }, pub ? "Live on " + brandFor(row.site).name : "Draft")),
       el("p", { style: "margin:4px 0;font-style:italic;white-space:pre-wrap" }, "“" + (sh.text || d.text) + "”"),
       el("p", { class: "muted", style: "margin:2px 0 6px" }, "Shown as: " + ([sh.name, sh.role, sh.org].filter(Boolean).join(", ") || "no name") + (sh.context ? " · " + sh.context : "")),
+      d.review_url && row.site === "seniors" ? el("p", { class: "muted", style: "margin:2px 0 6px" }, "Google review link attached.") : null,
       el("p", { class: "muted", style: "margin:2px 0 6px" }, ok ? "Agreed " + d.consent_date + " (" + TM_CONSENT.find(x => x[0] === d.consent)[1].replace(/^OK /, "").toLowerCase() + ")." : "Not ready to publish: needs how they agreed to be credited, the date, and approved wording."),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" },
         pub ? el("button", { class: "btn sm", onclick: () => tmSave(row.id, row.site, d, "draft") }, "Unpublish") : el("button", { class: "btn sm primary", disabled: !ok, onclick: () => tmSave(row.id, row.site, d, "published") }, "Publish to website"),
