@@ -2046,7 +2046,7 @@ async function metLoad() {
   const since = new Date(Date.now() - 95 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
   const r = await sbReq("GET", "site_hits?select=day,site,kind,name,source,n&day=gte." + since + "&order=day.desc&limit=5000");
   if (r.ok && Array.isArray(r.json)) { m.rows = r.json; m.status = "ok"; m.msg = ""; } else { m.status = "error"; m.msg = r.status === 404 || (r.json && /does not exist|schema cache|PGRST20/i.test(JSON.stringify(r.json))) ? "Run migration/site_hits.sql in Supabase first." : capErr(r); }
-  if (S.screen === "analytics") render();
+  if (S.screen === "analytics" || S.screen === "home") render();
 }
 function metricsBlock() {
   const m = S.met || (S.met = { status: "idle", rows: [], days: 7, msg: "" });
@@ -2489,6 +2489,45 @@ function feasScreen() {
     el("button", { class: "btn link", onclick: () => { f.msg = ""; S.screen = "home"; render(); window.scrollTo(0, 0); } }, t("back2")));
 }
 
+/* "Today" card at the top of home: follow-ups due, new leads not yet contacted, unpaid invoices (status "sent" in the invoicing app, read only,
+   same login) and this week's visits (table site_hits). Recipe: docs/common-edits.md "Today card". */
+async function todayLoad() {
+  const T = S.today || (S.today = { status: "idle", inv: [], msg: "" });
+  if (S.auth.status !== "in" || T.status === "loading") return; T.status = "loading";
+  const r = await sbReq("GET", "invoices?select=invoice_number,client_name,total,status,emailed_at,created_at&status=eq.sent&order=created_at.asc&limit=200");
+  if (r.ok && Array.isArray(r.json)) { T.inv = r.json; T.status = "ok"; T.msg = ""; }
+  else { T.status = "error"; T.msg = r.status === 401 ? "Sign in again." : r.status === 0 ? "Offline." : "Invoices could not be read."; }
+  if (S.screen === "home") render();
+}
+function todayCard() {
+  if (S.auth.status !== "in") return null;
+  if (!S.today) setTimeout(todayLoad, 0);
+  if (!S.met) setTimeout(metLoad, 0);
+  const T = S.today || { status: "idle", inv: [], msg: "" }, today = todayStr(), now = Date.now();
+  const recs = Store.all().filter(r => r.lead && !r.lead.archived), st = r => r.lead.status || "new", open = r => st(r) !== "won" && st(r) !== "lost";
+  const due = recs.filter(r => open(r) && r.lead.follow && r.lead.follow <= today).sort((a, b) => (a.lead.follow < b.lead.follow ? -1 : 1));
+  const fresh = recs.filter(r => st(r) === "new");
+  const days = d => Math.max(0, Math.floor((now - Date.parse(d)) / 864e5));
+  const inv = T.inv.map(i => Object.assign({}, i, { age: days(i.emailed_at || i.created_at) })), owed = inv.reduce((a, i) => a + (Number(i.total) || 0), 0), late = inv.filter(i => i.age > 30);
+  const cut = new Date(now - 7 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Toronto" }), M = S.met && S.met.status === "ok" ? S.met.rows.filter(x => x.day >= cut && x.kind === "visit") : null;
+  const visits = M ? MET_SITES.map(([id, nm]) => nm.split(" ")[0] + " " + M.filter(x => x.site === id).reduce((a, x) => a + x.n, 0)).join(", ") : "";
+  const row = (txt, go) => el("button", { class: "btn sm", style: "display:block;width:100%;text-align:left;margin:6px 0", onclick: go }, txt);
+  const goLeads = f => () => { S.lFilter = f; openInbox("leads"); };
+  const money2 = n => "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Today"),
+    due.length ? row(due.length + " follow-up" + (due.length === 1 ? "" : "s") + " due: " + due.slice(0, 3).map(r => r.name || "(no name)").join(", ") + (due.length > 3 ? "…" : ""), goLeads("due")) : el("p", { class: "muted", style: "margin:4px 0" }, "No follow-ups due."),
+    fresh.length ? row(fresh.length + " new lead" + (fresh.length === 1 ? "" : "s") + " not contacted yet", goLeads("new")) : null,
+    T.status === "ok" ? (inv.length
+      ? el("div", { class: "note" + (late.length ? " warn" : ""), style: "margin:8px 0" },
+          el("strong", null, inv.length + " unpaid invoice" + (inv.length === 1 ? "" : "s") + ", " + money2(owed) + " CAD"),
+          late.length ? el("span", null, " (" + late.length + " over 30 days)") : null,
+          ...inv.slice(0, 4).map(i => el("div", { style: "margin-top:4px;font-size:14px" }, i.invoice_number + " · " + i.client_name + " · " + money2(Number(i.total) || 0) + " · " + i.age + " day" + (i.age === 1 ? "" : "s") + " since sent")),
+          inv.length > 4 ? el("div", { class: "muted", style: "margin-top:4px;font-size:13px" }, "and " + (inv.length - 4) + " more in the invoicing app.") : null)
+      : el("p", { class: "muted", style: "margin:4px 0" }, "No unpaid sent invoices."))
+      : el("p", { class: "muted", style: "margin:4px 0" }, T.status === "error" ? T.msg : "Loading invoices…"),
+    visits ? el("p", { class: "muted", style: "margin:4px 0" }, "Visits, last 7 days: " + visits + ".") : null,
+    el("button", { class: "btn link", style: "margin:4px 0 0", onclick: () => { S.today = null; if (S.met) S.met.status = "idle"; S.met = null; render(); } }, "Refresh"));
+}
 function homeScreen() {
   const NC = newCounts(), nTot = NC.wait + NC.inq + NC.leads;
   const parts = [NC.inq ? NC.inq + " new inquir" + (NC.inq === 1 ? "y" : "ies") : "", NC.wait ? NC.wait + " new on the waitlist" : "", NC.leads ? NC.leads + " new lead" + (NC.leads === 1 ? "" : "s") : ""].filter(Boolean);
@@ -2512,7 +2551,7 @@ function homeScreen() {
   const langSeg = el("div", { class: "seg dark", role: "group" },
     ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.lang === code), onclick: () => { S.lang = code; render(); } }, code === "en" ? "English" : "Français")));
   return shell(
-    banner, capsStripe,
+    banner, capsStripe, todayCard(),
     el("h1", null, t("homeTitle")),
     el("p", { class: "muted" }, t("homeSub")),
     el("div", { class: "card" },

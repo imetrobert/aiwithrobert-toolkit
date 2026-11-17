@@ -87,3 +87,9 @@ events GA gets; it wraps `gtag`) and source (utm_source, else referrer host). `m
 No cookies, no IP. Bots and devices that opened any site with `?countme=1` are skipped (`?countme=0` undoes it). Numbers will differ a little from GA. New event to count:
 add its name to `EVENTS` in all three hits.js files, to the regex-compatible names in `track_hit` (letters and underscores) and to `MET_EVENTS` for its label.
 If the screen says "Run migration/site_hits.sql in Supabase first", the SQL has not been run yet.
+
+### Today card (top of the home screen)
+`todayCard()` / `todayLoad()` in index.html (just above `homeScreen()`). Shows: follow-ups due (lead.follow on or before today, open and not archived), new leads still at status "new",
+unpaid invoices (invoicing table `invoices`, status "sent", read only through the same login; "over 30 days" turns the box orange), and visits for the last 7 days (table `site_hits`, loaded by
+`metLoad()`). Tapping a row opens Leads on that filter (`S.lFilter`). "Refresh" reloads invoices and visits. Leads come from this device's saved sessions, so a fresh device shows them after the cloud sync.
+To count a different invoice status, change `status=eq.sent` in `todayLoad()`. If the card says "Invoices could not be read", the signed-in user lacks access to the invoices table (its policy is "Authenticated users only").
