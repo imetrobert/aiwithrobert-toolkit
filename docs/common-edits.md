@@ -98,3 +98,12 @@ To count a different invoice status, change `status=eq.sent` in `todayLoad()`. I
 Stage id `after` ("After-session follow-up") sits after `won` in `LEAD_ST`, `LEAD_FLOW` and `leadFlow()`. Emails: `LEAD_MAIL.thanks|review|rebook` and `...Seniors` variants (EN/FR, just above `mailFrom`); `mailKind()` picks the Seniors variant automatically.
 Timing (0, 3 and 30 days) lives in `AFTER_KINDS`; `afterDue()` says what is due; `leadNext()` draws the three rows (`afterRows`); the Today card counts what is due. Sent dates are `lead.after.thanks|review|rebook` (validated in `cleanLead`).
 Change wording or the review link (`REVIEW_URL`) there. Moving a lead from Won forward to this stage needs no prompt; moving back asks as usual.
+
+### Speaking engagements (home button "Speaking engagements")
+Table `toolkit_talks` (migration/toolkit_talks.sql, run once by hand in the Supabase SQL editor; until then the screen says "Run migration/toolkit_talks.sql in Supabase first."). One row per talk, details in the jsonb `data`
+(validated by `cleanTalk()` in index.html: title, org, contact, date, place, size, fee, site seniors|business, lang, status, note, slug). Statuses: `TALK_ST` (Idea, Pitched, Confirmed, Delivered, Follow-up done, Declined).
+Functions: `talksScreen()`, `talkLoad/talkSave/talkDelete`, `talkUrl()`, `talkResults()`, `talkMail()` (thank-you and testimonial request to the organizer, EN/FR, `TALK_MAIL`), `talkPng()`.
+**QR code:** each talk gets a fixed slug (`yyyy-mm-organizer`, kept when the title changes) and the link `https://<site>/?utm_source=qr&utm_campaign=talk-<slug>` (Business adds `#feas-check`; French talks use `/fr/`).
+The QR image is drawn by the MIT-licensed qrcode-generator library, minified and inlined at the top of the talks block (no network needed). "Make QR picture" builds a PNG to press-and-hold save.
+**Attribution:** Business feasibility checks save `qr/talk-<slug>` as their source (biz js/feascheck.js); Seniors contact messages do the same (seniors js/form.js, `extra.source`). `talkResults()` counts them per talk and how far each got in the
+pipeline; "Where leads come from" shows them as "Talk QR: <title>". Visits per talk are in Google Analytics (campaign `talk-<slug>`). The Today card shows the next confirmed talk and delivered talks still needing a thank-you.
