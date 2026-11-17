@@ -116,3 +116,13 @@ Keep the parameter names equal in both repos. The details stay in the part after
 On a lead card: a "Referred by" box, and for Won or After-session leads a "Referral link for this client" box (`referralBox()`). The link is `?utm_source=referral&utm_campaign=<code>` on the client's site and language (`refUrl()`, code from `refCodeFor()`, saved as `lead.code`).
 The sites already save utm_source/utm_campaign as the message's source, so no site change is needed. `leadReferrer()` shows who referred a lead (typed name, else the client whose code they used); `referralSummary()` is the "Referrals" card on the Leads screen;
 "Where leads come from" lists them as "Referral: <name>". The email with the link is `REF_MAIL` (EN/FR). `lead.ref` and `lead.code` are validated in `cleanLead()`.
+
+### Toolkit logo (red) and header logos
+The toolkit's own mark is the standard logo in red: `icon-192.png` (tab icon), `icon-512.png`, `apple-touch-icon.png` (Home Screen) and `LOGO_TK` (small copy inside index.html) shown top-left of every header.
+The Seniors or Business logo (`BRANDING.brands[x].logo`) shows on the right of the header and follows the brand toggle. To recolour or replace: re-export the three PNGs and replace the `LOGO_TK` data URI. A phone may keep the old Home Screen icon until the app is removed and added again.
+
+### Testimonials (home button "Testimonials")
+Table `site_testimonials` (migration/site_testimonials.sql, run once by hand; until then the screen says "Run migration/site_testimonials.sql in Supabase first."). Private working copy (their reply, consent record) plus `data.shown` = the only text websites can read.
+Flow: save their reply (or "Save a testimonial reply" on an After-session lead) > write the approved wording > "Copy approval email" (`TM_MAIL`, EN/FR) > when they agree, set how they agreed to be credited (full / first name / anonymous) and the date > "Publish to website".
+The database refuses to publish without a consent date, a credit choice and approved wording (constraint `site_testimonials_consent`). Functions in index.html: `tmScreen`, `tmLoad/tmSave/tmDelete`, `tmShown` (what visitors see), `tmMail`, `tmStart`.
+Sites read it through the public RPC `public_testimonials(site)` in `js/testimonials.js` (Seniors and Business repos), which adds the cards to the existing testimonials container.
