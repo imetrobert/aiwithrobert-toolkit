@@ -2706,10 +2706,10 @@ const cleanTm = d => {
   d = d && typeof d === "object" ? d : {}; const s = (v, n) => isStr(v) ? v.trim().slice(0, n) : "";
   return { name: s(d.name, 80), role: s(d.role, 120), org: s(d.org, 120), context: s(d.context, 160), email: s(d.email, 120), lang: d.lang === "fr" ? "fr" : "en",
     text: isStr(d.text) ? d.text.slice(0, 1500) : "", approved: s(d.approved, 1200), consent: TM_CONSENT.some(x => x[0] === d.consent) ? d.consent : "none", consent_date: dayOk(d.consent_date),
-    consent_note: s(d.consent_note, 300), review_url: gUrl(d.review_url), lead_id: isStr(d.lead_id) && /^[A-Za-z0-9_-]{1,60}$/.test(d.lead_id) ? d.lead_id : "" };
+    consent_note: s(d.consent_note, 300), review_url: gUrl(d.review_url), alt: s(d.alt, 1200), alt_context: s(d.alt_context, 160), alt_ok: d.alt_ok === true, lead_id: isStr(d.lead_id) && /^[A-Za-z0-9_-]{1,60}$/.test(d.lead_id) ? d.lead_id : "" };
 };
 /* Exactly what visitors will see, from what they agreed to. */
-const tmShown = d => ({ name: d.consent === "full" ? d.name : d.consent === "first" ? firstName(d.name) : "", role: d.consent === "full" ? d.role : "", org: d.consent === "full" ? d.org : "", context: d.context, text: d.approved, review_url: d.review_url });
+const tmShown = d => ({ name: d.consent === "full" ? d.name : d.consent === "first" ? firstName(d.name) : "", role: d.consent === "full" ? d.role : "", org: d.consent === "full" ? d.org : "", context: d.context, text: d.approved, review_url: d.review_url, lang: d.lang, text_alt: d.alt_ok && d.alt.length >= 20 ? d.alt : "", context_alt: d.alt_ok && d.alt.length >= 20 ? d.alt_context : "" });
 const tmReady = d => d.consent !== "none" && !!d.consent_date && d.approved.length >= 20;
 function tmState() { return S.tm || (S.tm = { status: "idle", rows: [], msg: "", edit: null }); }
 async function tmLoad() {
@@ -2747,7 +2747,7 @@ const TM_MAIL = {
 function tmMail(row) {
   const d = row.d, m = TM_MAIL[d.lang === "fr" ? "fr" : "en"], about = d.context ? (d.lang === "fr" ? " (" + d.context + ")" : " (" + d.context + ")") : "";
   const gr = row.site === "seniors" ? "\n\n" + (d.lang === "fr" ? "Si vous avez une minute, un court avis Google aide d'autres aînés à trouver une aide de confiance : " : "If you also have a minute, a short Google review helps other seniors find help they can trust: ") + REVIEW_URL : "";
-  return "From: " + mailFrom(row.site) + "\nTo: " + d.email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(d.name) || (d.lang === "fr" ? "" : "there")).replace("{about}", about).replace("{text}", d.approved || d.text).replace("Bonjour ,", "Bonjour,") + gr + "\n\nRobert Simon\n" + (row.site === "business" ? "AI with Robert for Business" : "AI with Robert for Seniors") + "\n514-250-8491";
+  return "From: " + mailFrom(row.site) + "\nTo: " + d.email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(d.name) || (d.lang === "fr" ? "" : "there")).replace("{about}", about).replace("{text}", d.approved || d.text).replace("Bonjour ,", "Bonjour,") + (d.alt ? "\n\n" + (d.lang === "fr" ? "For the English version of my website, I would show this translation (is it OK?):\n\n“" : "Pour la version française de mon site, je montrerais cette traduction (est-ce que ça vous convient?) :\n\n« ") + d.alt + (d.lang === "fr" ? "”" : " »") : "") + gr + "\n\nRobert Simon\n" + (row.site === "business" ? "AI with Robert for Business" : "AI with Robert for Seniors") + "\n514-250-8491";
 }
 function tmScreen() {
   const T = tmState(), say = m => { T.msg = m; render(); };
@@ -2765,6 +2765,9 @@ function tmScreen() {
       E.site === "seniors" ? inp("Google review link (optional): the website shows a \"See this review on Google\" button", "review_url", { maxlength: "300", placeholder: "https://maps.app.goo.gl/..." }) : null,
       sel("Website", "site", [["seniors", "Seniors"], ["business", "Business"]], v => { E.site = v; }), sel("Language of the quote", "lang", [["en", "English"], ["fr", "Français"]]),
       area("Their reply, as received (private, never shown)", "text", 4, 1500), area("Approved wording (this exact text is shown)", "approved", 5, 1200, "Copy their words here. Fix typos only; do not change their meaning. Send it to them with the approval email."),
+      area("Translation (optional): the same wording in " + (d.lang === "fr" ? "English" : "French"), "alt", 5, 1200, "Shown on the " + (d.lang === "fr" ? "English" : "French") + " page instead of the original. Only used once they have approved it. Without a translation the other-language page shows the original with a small \"original language\" label."),
+      inp("Translation of \"What it is about\" (optional)", "alt_context", { maxlength: "160" }),
+      el("label", Object.assign({}, lab, { style: "display:flex;gap:8px;align-items:center;margin:8px 0 2px" }), el("input", { type: "checkbox", checked: d.alt_ok ? "checked" : null, onchange: e => { d.alt_ok = e.target.checked; } }), "They approved the translation (the approval email includes it)"),
       sel("How they agreed to be credited", "consent", TM_CONSENT), inp("Date they agreed", "consent_date", { type: "date" }), inp("Where the agreement is in writing (private)", "consent_note", { maxlength: "300", placeholder: "For example: email reply of Nov 20" }),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" }, el("button", { class: "btn sm primary", onclick: () => tmSave(E.id, E.site, d, keep) }, E.id ? "Save" : "Save as draft"), el("button", { class: "btn sm", onclick: () => { T.edit = null; T.msg = ""; render(); } }, "Cancel")));
   };
@@ -2774,6 +2777,7 @@ function tmScreen() {
       el("p", { style: "margin:0 0 4px;font-weight:700;color:var(--navy)" }, d.name || "Anonymous", el("span", { class: "pill", style: "margin-left:8px" }, pub ? "Live on " + brandFor(row.site).name : "Draft")),
       el("p", { style: "margin:4px 0;font-style:italic;white-space:pre-wrap" }, "“" + (sh.text || d.text) + "”"),
       el("p", { class: "muted", style: "margin:2px 0 6px" }, "Shown as: " + ([sh.name, sh.role, sh.org].filter(Boolean).join(", ") || "no name") + (sh.context ? " · " + sh.context : "")),
+      d.alt ? el("p", { class: "muted", style: "margin:2px 0 6px" }, d.alt_ok && d.alt.length >= 20 ? "Translation approved: shown on the " + (d.lang === "fr" ? "English" : "French") + " page." : "Translation not approved yet: the " + (d.lang === "fr" ? "English" : "French") + " page shows the original, labelled.") : null,
       d.review_url && row.site === "seniors" ? el("p", { class: "muted", style: "margin:2px 0 6px" }, "Google review link attached.") : null,
       el("p", { class: "muted", style: "margin:2px 0 6px" }, ok ? "Agreed " + d.consent_date + " (" + TM_CONSENT.find(x => x[0] === d.consent)[1].replace(/^OK /, "").toLowerCase() + ")." : "Not ready to publish: needs how they agreed to be credited, the date, and approved wording."),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" },
