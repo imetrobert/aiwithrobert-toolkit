@@ -1085,9 +1085,9 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
    single-artifact shape (typeId/paste/result) and the current multi-artifact shape. */
 /* Optional lead-tracking fields on a saved profile (status, contact, follow-up date, note). */
 /* Sales pipeline, in order. "waiting" is the at-capacity side step between Check done and Invited to call. */
-const LEAD_ST = ["new", "checked", "waiting", "contacted", "booked", "proposal", "won", "lost"];
-const LEAD_LABEL = { new: "New lead", checked: "Check done", waiting: "On waitlist", contacted: "Invited to call", booked: "Call booked", proposal: "Proposal sent", won: "Won", lost: "Lost" };
-const LEAD_FLOW = ["new", "checked", "contacted", "booked", "proposal", "won"];
+const LEAD_ST = ["new", "checked", "waiting", "contacted", "booked", "proposal", "won", "after", "lost"];
+const LEAD_LABEL = { new: "New lead", checked: "Check done", waiting: "On waitlist", contacted: "Invited to call", booked: "Call booked", proposal: "Proposal sent", won: "Won", after: "After-session follow-up", lost: "Lost" };
+const LEAD_FLOW = ["new", "checked", "contacted", "booked", "proposal", "won", "after"];
 const BOOKING_URL = "https://calendar.app.google/4Wdg7xGxXUcyXzdr7", BIZ_FROM = "biz@aiwithrobert.com";
 /* Client emails, EN/FR. {name} = first name. Used by the Leads next-step buttons and the Waitlist follow-up. */
 const LEAD_MAIL = {
@@ -1101,8 +1101,34 @@ const LEAD_MAIL = {
 LEAD_MAIL.reopenSeniors = {
   en: { subj: "A spot has opened at AI with Robert for Seniors", body: "Hi {name},\n\nYou joined my waitlist, and I now have availability for new bookings. If you are still interested, reply to this email or call me at 514-250-8491 and we will find a time that suits you.\n\nIf the timing is no longer right, no reply is needed.\n\nRobert Simon\nAI with Robert for Seniors\n514-250-8491" },
   fr: { subj: "Une place s'est libérée chez AI with Robert pour aînés", body: "Bonjour {name},\n\nVous vous êtes inscrit à ma liste d'attente, et j'ai maintenant de la disponibilité pour de nouvelles réservations. Si cela vous intéresse toujours, répondez à ce courriel ou appelez-moi au 514-250-8491 et nous trouverons un moment qui vous convient.\n\nSi le moment ne convient plus, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour aînés\n514-250-8491" } };
+/* After-session follow-up emails (pipeline step "After-session follow-up"): thank-you, review or testimonial request, rebooking nudge. EN/FR, Seniors and Business wording.
+   Seniors review link = the Google Maps page; replace REVIEW_URL with the direct review link from the Google Business Profile ("Ask for reviews") if you have one. */
+const REVIEW_URL = "https://maps.app.goo.gl/XCDgdcPYrzbKkA5C7";
+Object.assign(LEAD_MAIL, {
+  thanks: {
+    en: { subj: "Thank you for our session", body: "Hi {name},\n\nThank you for our time together. It was a pleasure working through this with you.\n\nIf a question comes up as you put it into practice, just reply to this email.\n\nRobert Simon\nAI with Robert for Business\n514-250-8491" },
+    fr: { subj: "Merci pour notre séance", body: "Bonjour {name},\n\nMerci pour le temps que nous avons passé ensemble. Ce fut un plaisir de travailler cela avec vous.\n\nSi une question se présente lorsque vous le mettez en pratique, répondez simplement à ce courriel.\n\nRobert Simon\nAI with Robert pour entreprises\n514-250-8491" } },
+  thanksSeniors: {
+    en: { subj: "Thank you for our session", body: "Hi {name},\n\nThank you for our session. It was a pleasure working with you. Please keep the notes and examples we covered, and practise a little each day: the more you use it, the easier it gets.\n\nIf a question comes up before our next session, reply to this email or call me at 514-250-8491.\n\nRobert Simon\nAI with Robert for Seniors\n514-250-8491" },
+    fr: { subj: "Merci pour notre séance", body: "Bonjour {name},\n\nMerci pour notre séance. Ce fut un plaisir de travailler avec vous. Gardez les notes et les exemples que nous avons vus, et pratiquez un peu chaque jour : plus vous l'utilisez, plus cela devient facile.\n\nSi une question se présente avant notre prochaine séance, répondez à ce courriel ou appelez-moi au 514-250-8491.\n\nRobert Simon\nAI with Robert pour aînés\n514-250-8491" } },
+  review: {
+    en: { subj: "Could you share a few words about our work together?", body: "Hi {name},\n\nIf the work was useful, would you be willing to reply with two or three sentences about your experience? I would like to share it on my website, but only with your written OK. Please also tell me whether I may use your name and company, or keep it anonymous.\n\nIf now is not the right time, no reply is needed.\n\nRobert Simon\nAI with Robert for Business\n514-250-8491" },
+    fr: { subj: "Pourriez-vous partager quelques mots sur notre collaboration?", body: "Bonjour {name},\n\nSi le travail vous a été utile, accepteriez-vous de répondre par deux ou trois phrases sur votre expérience? J'aimerais la partager sur mon site, mais seulement avec votre accord écrit. Dites-moi aussi si je peux utiliser votre nom et votre entreprise, ou la garder anonyme.\n\nSi ce n'est pas le bon moment, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour entreprises\n514-250-8491" } },
+  reviewSeniors: {
+    en: { subj: "Would you share a short review?", body: "Hi {name},\n\nIf you enjoyed our session, would you be willing to leave a short Google review? It helps other seniors find help they can trust. You can find my page here: " + REVIEW_URL + "\n\nIf you prefer, simply reply with a sentence or two about your experience. I will ask your permission before using it anywhere.\n\nIf now is not the right time, no reply is needed.\n\nRobert Simon\nAI with Robert for Seniors\n514-250-8491" },
+    fr: { subj: "Accepteriez-vous de laisser un court avis?", body: "Bonjour {name},\n\nSi vous avez apprécié notre séance, accepteriez-vous de laisser un court avis Google? Cela aide d'autres aînés à trouver une aide de confiance. Vous trouverez ma page ici : " + REVIEW_URL + "\n\nSi vous préférez, répondez simplement par une phrase ou deux sur votre expérience. Je vous demanderai votre permission avant de l'utiliser.\n\nSi ce n'est pas le bon moment, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour aînés\n514-250-8491" } },
+  rebook: {
+    en: { subj: "Checking in", body: "Hi {name},\n\nIt has been about a month since we worked together. How is it going? If there is another workflow or a team session you would like to look at, you can pick a time for a free 15-minute call here: " + BOOKING_URL + "\n\nIf you do not need anything right now, no reply is needed.\n\nRobert Simon\nAI with Robert for Business\n514-250-8491" },
+    fr: { subj: "Un petit suivi", body: "Bonjour {name},\n\nIl y a environ un mois que nous avons travaillé ensemble. Comment cela se passe-t-il? Si vous souhaitez regarder un autre flux de travail ou une séance pour votre équipe, vous pouvez choisir un moment pour un appel gratuit de 15 minutes ici : " + BOOKING_URL + "\n\nSi vous n'avez besoin de rien pour l'instant, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour entreprises\n514-250-8491" } },
+  rebookSeniors: {
+    en: { subj: "Checking in", body: "Hi {name},\n\nIt has been about a month since our session. How is it going? If there is something you would like to go over or learn next, reply to this email or call me at 514-250-8491 and we will find a time.\n\nIf you do not need anything right now, no reply is needed.\n\nRobert Simon\nAI with Robert for Seniors\n514-250-8491" },
+    fr: { subj: "Un petit suivi", body: "Bonjour {name},\n\nIl y a environ un mois que nous avons eu notre séance. Comment cela se passe-t-il? Si vous aimeriez revoir quelque chose ou apprendre autre chose, répondez à ce courriel ou appelez-moi au 514-250-8491 et nous trouverons un moment.\n\nSi vous n'avez besoin de rien pour l'instant, aucune réponse n'est nécessaire.\n\nRobert Simon\nAI with Robert pour aînés\n514-250-8491" } }
+});
+const AFTER_KINDS = [["thanks", "Thank-you email", 0], ["review", "Review or testimonial request", 3], ["rebook", "Rebooking nudge", 30]];
+/* Which after-session emails are due for a lead in the "After-session follow-up" stage: thank-you at once, review request 3 days later, rebooking nudge 30 days later (counted from entering the stage). */
+const afterDue = r => { const l = r.lead || {}; if (l.status !== "after" || l.archived) return []; const a = l.after || {}, t0 = l.at || 0; return AFTER_KINDS.filter(([k, , d]) => !a[k] && Date.now() >= t0 + d * 864e5).map(x => x[0]); };
 const mailFrom = brand => brand === "seniors" ? "seniors@aiwithrobert.com" : BIZ_FROM;
-const mailKind = (kind, brand) => kind === "reopen" && brand === "seniors" ? "reopenSeniors" : kind;
+const mailKind = (kind, brand) => brand === "seniors" && LEAD_MAIL[kind + "Seniors"] ? kind + "Seniors" : kind;
 const firstName = n => String(n || "").trim().split(/\s+/)[0] || "";
 const mailText = (kind, lang, name, email, brand) => { const m = LEAD_MAIL[mailKind(kind, brand)][lang === "fr" ? "fr" : "en"]; return "From: " + mailFrom(brand) + "\nTo: " + email + "\nSubject: " + m.subj + "\n\n" + m.body.replace("{name}", firstName(name) || (lang === "fr" ? "" : "there")).replace("Bonjour ,", "Bonjour,"); };
 /* One paste for the email agent: instructions, both templates, then one line per recipient. */
@@ -1112,13 +1138,15 @@ function agentBatch(kind, people, brand) {
     "--- ENGLISH TEMPLATE ---\nSubject: " + m.en.subj + "\n\n" + m.en.body, "--- FRENCH TEMPLATE ---\nSubject: " + m.fr.subj + "\n\n" + m.fr.body,
     "--- RECIPIENTS (" + people.length + ") ---\n" + people.map(x => (x.lang === "fr" ? "FR" : "EN") + " | " + (firstName(x.name) || "-") + " | " + x.email).join("\n")].join("\n\n");
 }
+const dayOk = v => isStr(v) && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
 function cleanLead(l) {
   if (!l || typeof l !== "object" || Array.isArray(l)) return null;
   const hist = {};
   if (l.hist && typeof l.hist === "object" && !Array.isArray(l.hist)) LEAD_ST.forEach(k => { const h = l.hist[k]; if (h && Number.isFinite(h.d) && ["done", "skipped", "auto"].includes(h.how)) hist[k] = { d: h.d, how: h.how }; });
   return { status: LEAD_ST.includes(l.status) ? l.status : "new", contact: isStr(l.contact) ? l.contact.trim().slice(0, 120) : "",
     follow: isStr(l.follow) && /^\d{4}-\d{2}-\d{2}$/.test(l.follow) ? l.follow : "", note: isStr(l.note) ? l.note.slice(0, 1500) : "", archived: l.archived === true,
-    hist, at: Number.isFinite(l.at) ? l.at : 0 };
+    hist, at: Number.isFinite(l.at) ? l.at : 0,
+    after: (a => ({ thanks: dayOk(a.thanks), review: dayOk(a.review), rebook: dayOk(a.rebook) }))(l.after && typeof l.after === "object" ? l.after : {}) };
 }
 /* A saved Feasibility check attached to a saved profile (optional). */
 function cleanFeas(f) {
@@ -1271,17 +1299,17 @@ function leadFromEmail(text) {
 /* ---- Pipeline tracking. Each lead keeps hist[stage] = { d: when it left that stage, how: done | skipped | auto } and at = when it
    entered the current stage. Tapping a stage asks whether the action for the current stage was really done (done = green tick,
    moved anyway = grey "skipped"). The Next step buttons are the action itself, so they record "done" without asking. ---- */
-const leadFlow = r => r.brand === "seniors" ? ["new", "contacted", "booked", "won"] : LEAD_FLOW;
+const leadFlow = r => r.brand === "seniors" ? ["new", "contacted", "booked", "won", "after"] : LEAD_FLOW;
 const leadLabel = (r, k) => r.brand === "seniors" && k === "contacted" ? "Contacted" : r.brand === "seniors" && k === "booked" ? "Session booked" : LEAD_LABEL[k];
 const leadPos = (r, k) => { const f = leadFlow(r); return k === "lost" ? 99 : k === "waiting" ? Math.max(0, f.indexOf("checked")) : f.indexOf(k); };
 const leadAct = (r, k) => (r.brand === "seniors"
-  ? { new: "contact them", waiting: "send the follow-up email", contacted: "confirm a session with them", booked: "hold the session" }
-  : { new: "run the feasibility check", checked: "send the invitation to a call", waiting: "send the follow-up email", contacted: "get a call booked", booked: "hold the call and send the proposal", proposal: "get the client's decision" })[k] || "finish this step";
+  ? { new: "contact them", waiting: "send the follow-up email", contacted: "confirm a session with them", booked: "hold the session", won: "create the invoice" }
+  : { new: "run the feasibility check", checked: "send the invitation to a call", waiting: "send the follow-up email", contacted: "get a call booked", booked: "hold the call and send the proposal", proposal: "get the client's decision", won: "create the invoice" })[k] || "finish this step";
 const fmtDay = d => { try { return new Date(d).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" }); } catch (e) { return ""; } };
 function stagePatch(r, to, how) {
   const l = r.lead || {}, cur = l.status || "new", now = Date.now(), hist = Object.assign({}, l.hist || {}), f = leadFlow(r), pc = leadPos(r, cur), pt = leadPos(r, to);
   if (to === "lost") hist.lost = { d: now, how: "done" };
-  else if (cur === "lost" || cur === "won" || pt < pc || (pt === pc && cur === "waiting")) { f.forEach((k, i) => { if (i >= pt) delete hist[k]; }); delete hist.lost; if (to !== "waiting" && pt <= leadPos(r, "waiting")) delete hist.waiting; }
+  else if (cur === "lost" || (cur === "won" && pt <= pc) || pt < pc || (pt === pc && cur === "waiting")) { f.forEach((k, i) => { if (i >= pt) delete hist[k]; }); delete hist.lost; if (to !== "waiting" && pt <= leadPos(r, "waiting")) delete hist.waiting; }
   else {
     hist[cur] = { d: now, how };
     f.forEach((k, i) => { if (i > pc && i < pt && !hist[k]) hist[k] = { d: now, how: "skipped" }; });
@@ -1304,7 +1332,7 @@ async function changeStage(r, to) {
   if (to === cur) return;
   if (to === "lost") { if (await askBox("Mark " + who + " as Lost?", [["Yes, mark as Lost", 1, true]])) moveStage(r, to, "done"); return; }
   const pc = leadPos(r, cur), pt = leadPos(r, to);
-  if (cur === "lost" || cur === "won" || pt < pc || (pt === pc && cur === "waiting")) { if (await askBox("Move " + who + " back to \u201C" + leadLabel(r, to) + "\u201D? The later steps will be cleared from its history.", [["Yes, move it back", 1, true]])) moveStage(r, to, "done"); return; }
+  if (cur === "lost" || (cur === "won" && pt <= pc) || pt < pc || (pt === pc && cur === "waiting")) { if (await askBox("Move " + who + " back to \u201C" + leadLabel(r, to) + "\u201D? The later steps will be cleared from its history.", [["Yes, move it back", 1, true]])) moveStage(r, to, "done"); return; }
   if (to === "waiting") { if (await askBox("Put " + who + " on the waitlist?", [["Yes", 1, true]])) moveStage(r, to, "done"); return; }
   const act = leadAct(r, cur);
   const a = await askBox("You are about to leave the status \u201C" + leadLabel(r, cur) + "\u201D. Did you already " + act + "?", [["Yes, I did", "y", true], ["No", "n"]]);
@@ -1332,6 +1360,10 @@ function leadNext(r, cur) {
   const move = (label, status, primary) => go(label, () => moveStage(r, status, "done"), primary);
   const mail = (label, kind) => go(label, async () => { msg.textContent = !email ? "Add the client's email in Contact first." : (await copyText(mailText(kind, r.lang, person, email, r.brand))) ? "Email copied. Paste it into your email agent." : "Could not copy."; }, true);
   const biz = r.brand === "business";
+  /* Stage "After-session follow-up": three emails (thank-you, review or testimonial request, rebooking nudge), each copied for the email agent, then marked sent with its date. */
+  const afterRows = () => { const a = (r.lead && r.lead.after) || {}, t0 = (r.lead && r.lead.at) || Date.now(), due = afterDue(r); return AFTER_KINDS.map(([k, label, d]) => el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0;width:100%" },
+    el("span", { style: "flex:1 1 100%;font-weight:600" }, (a[k] ? "\u2713 " : "") + label + (a[k] ? ": sent " + a[k] : due.includes(k) ? ": due now" : ": suggested " + fmtDay(t0 + d * 864e5))),
+    a[k] ? go("Undo", () => saveLead(r, { after: Object.assign({}, a, { [k]: "" }) })) : [mail("Copy email", k), go("Mark sent", () => saveLead(r, { after: Object.assign({}, a, { [k]: todayStr() }) }))])); };
   const inv = el("a", { class: "btn sm primary", href: "https://invoices.aiwithrobert.com/", target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Open invoicing app");
   const N = (biz ? {
     new: ["Run the feasibility check for this lead.", [go("Start feasibility check", () => leadToFeas(r), true)]],
@@ -1340,14 +1372,16 @@ function leadNext(r, cur) {
     contacted: ["Invited. When the booking arrives in your calendar, mark the call.", [move("Call booked", "booked", true)]],
     booked: ["After the call, build the proposal from the saved check.", [r.feas ? go("Open check and build proposal", () => openFeas(r), true) : go("Start feasibility check", () => leadToFeas(r), true), move("Proposal sent", "proposal")]],
     proposal: ["Proposal sent. Record the outcome.", [move("Won", "won", true), go("Lost", () => changeStage(r, "lost"))]],
-    won: ["Won. Create the invoice in the invoicing app (Import a lead).", [inv]],
+    won: ["Won. Create the invoice in the invoicing app (Import a lead). After the work is delivered, start the follow-up.", [inv, move("Start after-session follow-up", "after")]],
+    after: ["After the session: thank them, ask for a review or testimonial, then check in about a month later. Archive the lead when all three are sent.", [afterRows()]],
     lost: ["Closed as lost. Archive it when you no longer need it.", []]
   } : {
     new: ["Contact them to see what they need.", [move("Mark contacted", "contacted", true)]],
     waiting: ["On the waitlist. Nothing to do until a spot opens, then send the follow-up.", [mail("Copy follow-up email", "reopen"), move("Mark contacted", "contacted")]],
     contacted: ["Contacted. When they confirm a session, mark it booked.", [move("Session booked", "booked", true)]],
     booked: ["After the session, record the outcome.", [move("Won", "won", true), go("Lost", () => changeStage(r, "lost"))]],
-    won: ["Won. Create the invoice in the invoicing app.", [inv]],
+    won: ["Won. Create the invoice in the invoicing app. After the session, start the follow-up.", [inv, move("Start after-session follow-up", "after")]],
+    after: ["After the session: thank them, ask for a review, then check in about a month later. Archive the lead when all three are sent.", [afterRows()]],
     lost: ["Closed as lost. Archive it when you no longer need it.", []]
   })[cur] || ["Tap a stage above to place this lead in the pipeline.", []];
   return el("div", { class: "pnext" }, el("div", { style: "font-weight:700;color:var(--navy)" }, "Next step"), el("div", { style: "margin:2px 0 8px" }, N[0]), el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, N[1]), msg);
@@ -2090,13 +2124,13 @@ function analyticsScreen() {
 function leadSources() {
   const rows = (S.cap.inq || []).filter(x => x.site === "business" && x.extra && x.extra.kind === "feasibility");
   if (!rows.length) return null;
-  const recs = Store.all(), far = ["booked", "proposal", "won"], g = {};
+  const recs = Store.all(), far = ["booked", "proposal", "won", "after"], g = {};
   rows.forEach(x => {
     const raw = String(x.extra.source || "").toLowerCase(), m = raw.match(/^([a-z0-9_-]+)\/(issue-\d{4}-\d{2})(?:-(d\d|fr|related))?/);
     const chan = m ? m[1] : (raw.split("/")[0] || "direct"), issue = m ? m[2].replace("issue-", "") : "", part = m && m[3] ? m[3] : "";
     const key = chan + "|" + issue + "|" + part, r = recs.find(r => r.id === "wf-" + String(x.id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60)), stt = r && r.lead ? r.lead.status : "";
     const o = g[key] || (g[key] = { chan, issue, part, n: 0, booked: 0, won: 0 });
-    o.n++; if (far.includes(stt)) o.booked++; if (stt === "won") o.won++;
+    o.n++; if (far.includes(stt)) o.booked++; if (stt === "won" || stt === "after") o.won++;
   });
   const list = Object.values(g).sort((a, b) => b.n - a.n), byChan = {};
   list.forEach(o => { byChan[o.chan] = (byChan[o.chan] || 0) + o.n; });
@@ -2506,7 +2540,7 @@ function todayCard() {
   const T = S.today || { status: "idle", inv: [], msg: "" }, today = todayStr(), now = Date.now();
   const recs = Store.all().filter(r => r.lead && !r.lead.archived), st = r => r.lead.status || "new", open = r => st(r) !== "won" && st(r) !== "lost";
   const due = recs.filter(r => open(r) && r.lead.follow && r.lead.follow <= today).sort((a, b) => (a.lead.follow < b.lead.follow ? -1 : 1));
-  const fresh = recs.filter(r => st(r) === "new");
+  const fresh = recs.filter(r => st(r) === "new"), aft = recs.filter(r => afterDue(r).length);
   const days = d => Math.max(0, Math.floor((now - Date.parse(d)) / 864e5));
   const inv = T.inv.map(i => Object.assign({}, i, { age: days(i.emailed_at || i.created_at) })), owed = inv.reduce((a, i) => a + (Number(i.total) || 0), 0), late = inv.filter(i => i.age > 30);
   const cut = new Date(now - 7 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Toronto" }), M = S.met && S.met.status === "ok" ? S.met.rows.filter(x => x.day >= cut && x.kind === "visit") : null;
@@ -2516,6 +2550,7 @@ function todayCard() {
   const money2 = n => "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Today"),
     due.length ? row(due.length + " follow-up" + (due.length === 1 ? "" : "s") + " due: " + due.slice(0, 3).map(r => r.name || "(no name)").join(", ") + (due.length > 3 ? "…" : ""), goLeads("due")) : el("p", { class: "muted", style: "margin:4px 0" }, "No follow-ups due."),
+    aft.length ? row(aft.reduce((n, r) => n + afterDue(r).length, 0) + " after-session email" + (aft.reduce((n, r) => n + afterDue(r).length, 0) === 1 ? "" : "s") + " to send: " + aft.slice(0, 3).map(r => r.name || "(no name)").join(", ") + (aft.length > 3 ? "…" : ""), goLeads("after")) : null,
     fresh.length ? row(fresh.length + " new lead" + (fresh.length === 1 ? "" : "s") + " not contacted yet", goLeads("new")) : null,
     T.status === "ok" ? (inv.length
       ? el("div", { class: "note" + (late.length ? " warn" : ""), style: "margin:8px 0" },

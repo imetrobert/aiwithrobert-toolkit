@@ -89,7 +89,7 @@ The Business site's main call to action is the free feasibility check (`js/feasc
 preliminary result (verdicts only) and needs no manual step, open or at capacity. Links to send clients:
 `https://aiwithrobert.com/feasibility` (EN) and `https://aiwithrobert.com/faisabilite` (FR); the same paths work on biz.aiwithrobert.com.
 
-Pipeline stages in the toolkit (Leads): 1 New lead, 2 Check done, 3 Invited to call, 4 Call booked, 5 Proposal sent, 6 Won;
+Pipeline stages in the toolkit (Leads): 1 New lead, 2 Check done, 3 Invited to call, 4 Call booked, 5 Proposal sent, 6 Won, 7 After-session follow-up;
 side stages On waitlist and Lost. Each lead card shows the stage and one Next step.
 
 - A website check arrives by itself as **Check done** (or **On waitlist** when it was done at capacity; the person is also on the Waitlist).
@@ -104,10 +104,18 @@ side stages On waitlist and Lost. Each lead card shows the stage and one Next st
 Inquiries and Waitlist are no longer separate screens. Rows from `site_inquiries` and `waitlist_requests` become leads by
 themselves (`inqAutoLeads`, `wlAutoLeads`; lead ids `wf-` website check, `iq-` contact-form message, `wl-` waitlist sign-up).
 The Leads filter row is the pipeline (All active, Follow up, each stage, Archived). Seniors leads use a shorter pipeline:
-New lead, Contacted, Session booked, Won.
+New lead, Contacted, Session booked, Won, After-session follow-up.
 
 Changing a stage by tapping it asks "Did you already <action for the current stage>?". Yes records the step as done (green tick);
 No, then "change it anyway", records it as skipped (grey dash). The "i" on each card lists the date of every step and how long
 the lead has been in its current stage. Next step buttons record "done" without asking, because they are the action.
 Under the "On waitlist" filter: "Copy follow-up for my email agent" (one block per brand, Business from biz@, Seniors from
 seniors@) and "Mark these as invited".
+
+## After-session follow-up (last pipeline step)
+After a lead is Won and the session or work is delivered, tap "Start after-session follow-up" (or the stage chip). The card then lists three emails, each with
+"Copy email" (paste into your email agent) and "Mark sent" (records the date): 1 Thank-you email (due at once), 2 Review or testimonial request (due 3 days later),
+3 Rebooking nudge (due 30 days later). Seniors wording asks for a Google review (link = REVIEW_URL, the Google Maps page); Business wording asks for 2-3 sentences and written
+permission to use them (and whether the name may be used). The home "Today" card lists emails that are due. Archive the lead when all three are sent.
+Templates: `LEAD_MAIL` keys thanks/review/rebook (+ `Seniors` variants), timing in `AFTER_KINDS`, due logic in `afterDue()` (index.html). Lead field: `lead.after = {thanks, review, rebook}` (dates).
+Leads in this stage still count as Won in "Where leads come from".
