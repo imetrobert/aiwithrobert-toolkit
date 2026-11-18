@@ -2704,13 +2704,13 @@ const TM_CONSENT = [["none", "Not asked yet, or they did not agree"], ["full", "
 const gUrl = v => { try { const u = new URL(String(v || "").trim()); return u.protocol === "https:" && /(^|\.)(google\.com|google\.ca|goo\.gl|g\.page|share\.google)$/.test(u.hostname) && u.href.length <= 300 ? u.href : ""; } catch (e) { return ""; } };
 const cleanTm = d => {
   d = d && typeof d === "object" ? d : {}; const s = (v, n) => isStr(v) ? v.trim().slice(0, n) : "";
-  return { name: s(d.name, 80), role: s(d.role, 120), org: s(d.org, 120), context: s(d.context, 160), email: s(d.email, 120), lang: d.lang === "fr" ? "fr" : "en",
+  return { name: s(d.name, 80), role: s(d.role, 120), org: s(d.org, 120), context: s(d.context, 160), email: s(d.email, 120), lang: d.lang === "fr" ? "fr" : d.lang === "en" ? "en" : "",
     text: isStr(d.text) ? d.text.slice(0, 1500) : "", approved: s(d.approved, 1200), consent: TM_CONSENT.some(x => x[0] === d.consent) ? d.consent : "none", consent_date: dayOk(d.consent_date),
     consent_note: s(d.consent_note, 300), review_url: gUrl(d.review_url), alt: s(d.alt, 1200), alt_context: s(d.alt_context, 160), alt_ok: d.alt_ok === true, lead_id: isStr(d.lead_id) && /^[A-Za-z0-9_-]{1,60}$/.test(d.lead_id) ? d.lead_id : "" };
 };
 /* Exactly what visitors will see, from what they agreed to. */
 const tmShown = d => ({ name: d.consent === "full" ? d.name : d.consent === "first" ? firstName(d.name) : "", role: d.consent === "full" ? d.role : "", org: d.consent === "full" ? d.org : "", context: d.context, text: d.approved, review_url: d.review_url, lang: d.lang, text_alt: d.alt_ok && d.alt.length >= 20 ? d.alt : "", context_alt: d.alt_ok && d.alt.length >= 20 ? d.alt_context : "" });
-const tmReady = d => d.consent !== "none" && !!d.consent_date && d.approved.length >= 20;
+const tmReady = d => d.consent !== "none" && !!d.consent_date && d.approved.length >= 20 && (d.lang === "en" || d.lang === "fr");
 function tmState() { return S.tm || (S.tm = { status: "idle", rows: [], msg: "", edit: null }); }
 async function tmLoad() {
   const T = tmState(); if (S.auth.status !== "in" || T.status === "loading") return; T.status = "loading";
@@ -2722,7 +2722,7 @@ async function tmLoad() {
 async function tmSave(id, site, d, status) {
   const T = tmState(), clean = cleanTm(d), old = T.rows.find(x => x.id === id);
   if (!clean.text && !clean.approved) { T.msg = "Paste their reply or write the approved wording first."; render(); return false; }
-  if (status === "published" && !tmReady(clean)) { T.msg = "To publish: choose how they agreed to be credited, enter the date they agreed, and write the approved wording (at least 20 characters)."; render(); return false; }
+  if (status === "published" && !tmReady(clean)) { T.msg = "To publish: choose the language the testimonial was written in, choose how they agreed to be credited, enter the date they agreed, and write the approved wording (at least 20 characters)."; render(); return false; }
   const body = { site, status, data: Object.assign({}, clean, { shown: tmShown(clean) }), updated_at: new Date().toISOString() };
   if (status === "published") { if (!(old && old.status === "published" && old.at)) body.published_at = new Date().toISOString(); } else body.published_at = null;
   const r = id ? await sbReq("PATCH", "site_testimonials?id=eq." + encodeURIComponent(id), body, "return=representation") : await sbReq("POST", "site_testimonials", body, "return=representation");
@@ -2738,7 +2738,7 @@ function tmOpen() { const T = tmState(); T.msg = ""; T.edit = null; if (T.status
 /* From a lead: start a new testimonial with the client's details filled in. */
 function tmStart(r) {
   const T = tmState(), e = ((r.lead && r.lead.contact || "").match(/[^\s·,;]+@[^\s·,;]+\.[^\s·,;]+/) || [""])[0];
-  T.edit = { id: null, site: r.brand, status: "draft", d: cleanTm({ name: refPerson(r), org: r.brand === "business" ? r.name : "", email: e, lang: r.lang, lead_id: r.id }) }; T.msg = ""; S.screen = "testimonials"; render(); window.scrollTo(0, 0); if (T.status === "idle") tmLoad();
+  T.edit = { id: null, site: r.brand, status: "draft", d: cleanTm({ name: refPerson(r), org: r.brand === "business" ? r.name : "", email: e, lang: "", lead_id: r.id }) }; T.msg = ""; S.screen = "testimonials"; render(); window.scrollTo(0, 0); if (T.status === "idle") tmLoad();
 }
 const TM_MAIL = {
   en: { subj: "Is it OK to share your kind words?", body: "Hi {name},\n\nThank you for your kind words{about}. I would like to share them on my website, exactly as written here:\n\n“{text}”\n\nCould you reply to confirm two things?\n1. You are happy for me to publish this wording.\n2. How you would like to be credited: full name, role and organization / first name only / anonymously.\n\nYou can change your mind at any time by writing to me, and I will remove it." },
@@ -2763,11 +2763,12 @@ function tmScreen() {
       inp("Name", "name", { maxlength: "80" }), inp("Role or title", "role", { maxlength: "120" }), inp("Organization", "org", { maxlength: "120" }),
       inp("What it is about (shown under the quote)", "context", { maxlength: "160", placeholder: "For example: Workshop on AI for a public library audience" }), inp("Their email (for the approval message)", "email", { maxlength: "120" }),
       E.site === "seniors" ? inp("Google review link (optional): the website shows a \"See this review on Google\" button", "review_url", { maxlength: "300", placeholder: "https://maps.app.goo.gl/..." }) : null,
-      sel("Website", "site", [["seniors", "Seniors"], ["business", "Business"]], v => { E.site = v; }), sel("Language of the quote", "lang", [["en", "English"], ["fr", "Français"]]),
+      sel("Website", "site", [["seniors", "Seniors"], ["business", "Business"]], v => { E.site = v; }), el("label", lab, "Language the testimonial was written in (required to publish)", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { d.lang = e.target.value; render(); } }, [["", "Choose…"], ["en", "English"], ["fr", "Français"]].map(([v, n]) => el("option", Object.assign({ value: v }, d.lang === v ? { selected: true } : {}), n)))),
       area("Their reply, as received (private, never shown)", "text", 4, 1500), area("Approved wording (this exact text is shown)", "approved", 5, 1200, "Copy their words here. Fix typos only; do not change their meaning. Send it to them with the approval email."),
-      area("Translation (optional): the same wording in " + (d.lang === "fr" ? "English" : "French"), "alt", 5, 1200, "Shown on the " + (d.lang === "fr" ? "English" : "French") + " page instead of the original. Only used once they have approved it. Without a translation the other-language page shows the original with a small \"original language\" label."),
-      inp("Translation of \"What it is about\" (optional)", "alt_context", { maxlength: "160" }),
-      el("label", Object.assign({}, lab, { style: "display:flex;gap:8px;align-items:center;margin:8px 0 2px" }), el("input", { type: "checkbox", checked: d.alt_ok ? "checked" : null, onchange: e => { d.alt_ok = e.target.checked; } }), "They approved the translation (the approval email includes it)"),
+      d.lang ? area("Translation (optional) into " + (d.lang === "fr" ? "English" : "French"), "alt", 5, 1200, "Skip it and the " + (d.lang === "fr" ? "English" : "French") + " page shows the original text with a small \"original language\" note at the top of the card. If you add one, it is shown there instead, but only once they have approved it.") : el("p", { class: "muted" }, "Choose the language above to add an optional translation."),
+      d.lang ? el("button", { class: "btn sm", style: "margin-top:6px", onclick: async () => { const src = d.approved || d.text; say(!src ? "Write the approved wording first." : (await copyText("Translate this testimonial from " + (d.lang === "fr" ? "French into English" : "English into French") + ". Keep the meaning, tone and first person exactly. Do not add, remove or improve anything. Reply with the translation only.\n\n" + src + (d.context ? "\n\nAlso translate this short line the same way: " + d.context : ""))) ? "Translation request copied. Paste it into a free AI chat, then paste the result here." : "Could not copy."); } }, "Copy a translation request for an AI chat") : null,
+      d.lang ? inp("Translation of \"What it is about\" (optional)", "alt_context", { maxlength: "160" }) : null,
+      d.lang ? el("label", Object.assign({}, lab, { style: "display:flex;gap:8px;align-items:center;margin:8px 0 2px" }), el("input", { type: "checkbox", checked: d.alt_ok ? "checked" : null, onchange: e => { d.alt_ok = e.target.checked; } }), "They approved the translation (the approval email includes it)") : null,
       sel("How they agreed to be credited", "consent", TM_CONSENT), inp("Date they agreed", "consent_date", { type: "date" }), inp("Where the agreement is in writing (private)", "consent_note", { maxlength: "300", placeholder: "For example: email reply of Nov 20" }),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" }, el("button", { class: "btn sm primary", onclick: () => tmSave(E.id, E.site, d, keep) }, E.id ? "Save" : "Save as draft"), el("button", { class: "btn sm", onclick: () => { T.edit = null; T.msg = ""; render(); } }, "Cancel")));
   };
@@ -2779,10 +2780,10 @@ function tmScreen() {
       el("p", { class: "muted", style: "margin:2px 0 6px" }, "Shown as: " + ([sh.name, sh.role, sh.org].filter(Boolean).join(", ") || "no name") + (sh.context ? " · " + sh.context : "")),
       d.alt ? el("p", { class: "muted", style: "margin:2px 0 6px" }, d.alt_ok && d.alt.length >= 20 ? "Translation approved: shown on the " + (d.lang === "fr" ? "English" : "French") + " page." : "Translation not approved yet: the " + (d.lang === "fr" ? "English" : "French") + " page shows the original, labelled.") : null,
       d.review_url && row.site === "seniors" ? el("p", { class: "muted", style: "margin:2px 0 6px" }, "Google review link attached.") : null,
-      el("p", { class: "muted", style: "margin:2px 0 6px" }, ok ? "Agreed " + d.consent_date + " (" + TM_CONSENT.find(x => x[0] === d.consent)[1].replace(/^OK /, "").toLowerCase() + ")." : "Not ready to publish: needs how they agreed to be credited, the date, and approved wording."),
+      el("p", { class: "muted", style: "margin:2px 0 6px" }, ok ? "Agreed " + d.consent_date + " (" + TM_CONSENT.find(x => x[0] === d.consent)[1].replace(/^OK /, "").toLowerCase() + ")." : "Not ready to publish: needs the language of the quote, how they agreed to be credited, the date, and approved wording."),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" },
         pub ? el("button", { class: "btn sm", onclick: () => tmSave(row.id, row.site, d, "draft") }, "Unpublish") : el("button", { class: "btn sm primary", disabled: !ok, onclick: () => tmSave(row.id, row.site, d, "published") }, "Publish to website"),
-        el("button", { class: "btn sm", onclick: async () => say(!d.email ? "Add their email under Edit first." : !(d.approved || d.text) ? "Write the approved wording first." : (await copyText(tmMail(row))) ? "Approval email copied. Paste it into your email agent." : "Could not copy.") }, "Copy approval email"),
+        el("button", { class: "btn sm", onclick: async () => say(!d.email ? "Add their email under Edit first." : !d.lang ? "Choose the language of the quote under Edit first." : !(d.approved || d.text) ? "Write the approved wording first." : (await copyText(tmMail(row))) ? "Approval email copied. Paste it into your email agent." : "Could not copy.") }, "Copy approval email"),
         el("button", { class: "btn sm", onclick: () => { T.edit = { id: row.id, site: row.site, status: row.status, d: Object.assign({}, d) }; T.msg = ""; render(); window.scrollTo(0, 0); } }, "Edit"),
         el("button", { class: "btn sm danger", onclick: () => { if (confirm("Delete this testimonial? If it is live it disappears from the website. This cannot be undone.")) tmDelete(row); } }, "Delete")));
   };
