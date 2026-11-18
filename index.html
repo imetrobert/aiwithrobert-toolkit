@@ -2733,7 +2733,28 @@ async function tmSave(id, site, d, status) {
   const r = id ? await sbReq("PATCH", "site_testimonials?id=eq." + encodeURIComponent(id), body, "return=representation") : await sbReq("POST", "site_testimonials", body, "return=representation");
   if (!(r.ok && Array.isArray(r.json) && r.json[0])) { T.msg = "Not saved. " + (r.json && /consent/i.test(JSON.stringify(r.json)) ? "The database requires consent and approved wording to publish." : capErr(r)); render(); return false; }
   const row = { id: r.json[0].id, site, status, d: clean, at: r.json[0].published_at }, i = T.rows.findIndex(x => x.id === row.id); if (i >= 0) T.rows[i] = row; else T.rows.unshift(row);
-  T.msg = status === "published" ? "Published. It shows on the website after a page reload." : ""; T.edit = null; render(); return true;
+  T.msg = status === "published" ? "Published. It shows on the website after a page reload." : ""; T.edit = null; render();
+  if (status === "published") tmSyncBox(site, "published"); else if (old && old.status === "published") tmSyncBox(site, "unpublished");
+  return true;
+}
+/* After publishing, unpublishing or editing a live testimonial: explain when the saved copy for search engines refreshes, and how to run it now. */
+const TM_SYNC = { seniors: { repo: "imetrobert/aiwithrobert", name: "Seniors site", min: 17 }, business: { repo: "imetrobert/aiwithrobert-biz", name: "Business site", min: 27 } };
+function nextDailyRun(min) {
+  const n = new Date(), t = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate(), 9, min, 0));
+  if (t <= n) t.setUTCDate(t.getUTCDate() + 1);
+  return t.toLocaleString("en-CA", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Toronto", timeZoneName: "short" });
+}
+function tmSyncBox(site, action) {
+  const c = TM_SYNC[site] || TM_SYNC.business, url = "https://github.com/" + c.repo + "/actions/workflows/sync-testimonials.yml";
+  const close = () => ov.remove(), p = (t, st) => el("p", { style: "margin:0 0 12px;font-size:16px;line-height:1.5;color:var(--navy)" + (st || "") }, t);
+  const ov = el("div", { class: "modal", role: "dialog", "aria-modal": "true" }, el("div", { class: "mbox" },
+    p(action === "unpublished" ? "Unpublished." : "Saved and live.", ";font-weight:700;font-size:18px"),
+    p(action === "unpublished" ? "Visitors may still see it on the " + c.name + " until the refresh below, because a saved copy of the page holds it." : "Visitors to the " + c.name + " see it right away (after a page reload)."),
+    p("The saved copy that search engines and AI crawlers read refreshes by itself on " + nextDailyRun(c.min) + "."),
+    p("Want it sooner? Tap the button below (GitHub may ask you to sign in), tap \u201CRun workflow\u201D, then the green \u201CRun workflow\u201D button. It takes about a minute."),
+    el("a", { class: "btn primary", href: url, target: "_blank", rel: "noopener", style: "display:block;text-align:center;text-decoration:none" }, "Open GitHub to refresh now"),
+    el("button", { class: "btn link", onclick: close }, "Close")));
+  document.body.append(ov);
 }
 async function tmDelete(row) {
   const r = await sbReq("DELETE", "site_testimonials?id=eq." + encodeURIComponent(row.id)), T = tmState();
