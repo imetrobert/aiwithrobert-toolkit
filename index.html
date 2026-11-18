@@ -2083,6 +2083,8 @@ function feasNote(x, tool) {
   bits.push("Website feasibility check" + (ex.capacity === "yes" ? ", done while at capacity (on the waitlist)" : "") + ".");
   bits.push("Entered: name " + (x.name || "-") + "; organization " + (x.organization || "-") + "; email " + (x.email || "-") + "; phone " + (x.phone || "-") + ".");
   bits.push("Plan: " + (ex.plan || tool) + ". Team size: " + (ex.team_size || "-") + ". Handles personal information: " + (pi || "-") + ".");
+  if (ex.plan_other_text) bits.push("Plan they typed under Other: " + String(ex.plan_other_text).slice(0, 80) + ".");
+  if (ex.need_other_text) bits.push("They typed under Something else: " + String(ex.need_other_text).slice(0, 200) + ". (No verdict was given; the page says it will be read, and promises a reply within 1 to 2 business days only when the site was open.)");
   if (res) bits.push("Result shown on screen: " + res + ".");
   if (ex.source) bits.push("Came from: " + String(ex.source).slice(0, 80) + ".");
   if (x.created_at) bits.push("Submitted: " + String(x.created_at).slice(0, 10) + ".");
@@ -2099,11 +2101,14 @@ function siteResults() {
   const block = (site, name, what, pick, ask) => {
     const rows = inq.filter(x => x.site === site && pick(x)), w = wl.filter(x => x.site === site);
     const tops = top(rows.filter(within(30)), ask);
+    /* what visitors typed under "Other" in the website feasibility check (plan question and needs question): new ideas for the capability table */
+    const typed = []; rows.filter(within(30)).forEach(x => { const e = x.extra || {}; if (e.need_other_text) typed.push("wants: " + String(e.need_other_text).slice(0, 80)); if (e.plan_other_text) typed.push("plan: " + String(e.plan_other_text).slice(0, 60)); });
     return el("div", { style: "margin:10px 0 0;padding-top:8px;border-top:1px solid #d9dee5" },
       el("p", { style: "margin:0;font-weight:700;color:var(--navy)" }, name),
       el("p", { style: "margin:4px 0" }, el("strong", null, rows.filter(within(7)).length + " "), what + " in the last 7 days, ", el("strong", null, rows.filter(within(30)).length + " "), "in the last 30 days, ", el("strong", null, rows.filter(x => x.status === "new").length + " "), "still new."),
       el("p", { style: "margin:4px 0" }, "Waitlist: ", el("strong", null, w.filter(within(30)).length + " "), "sign-ups in the last 30 days (" + w.length + " in total)."),
       tops ? el("p", { class: "muted", style: "margin:4px 0" }, ask.label + " (30 days): " + tops + ".") : null,
+      typed.length ? el("p", { class: "muted", style: "margin:4px 0" }, "Typed under Other (30 days, newest first): " + typed.slice(0, 8).join(" | ") + (typed.length > 8 ? " | and " + (typed.length - 8) + " more" : "") + ".") : null,
       el("p", { style: "margin:4px 0" }, el("a", { href: ANALYTICS_LINKS[site], target: "_blank", rel: "noopener" }, "Open Google Analytics for visits and traffic")));
   };
   const askS = x => (x.extra && (x.extra.interest || x.extra["session-type"])) || ""; askS.label = "Most interested in";
