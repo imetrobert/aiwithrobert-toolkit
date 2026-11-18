@@ -138,3 +138,10 @@ Update 2026-11-17: the language is now chosen explicitly (no silent English defa
 
 ### Feasibility check "Other" answers (2026-11-17)
 The Business site's check has "Other (tell me which)" on the plan question (`extra.plan` = other, `extra.plan_other_text`) and "Something else" on the needs question (`extra.need_other`, `extra.need_other_text`). The lead note (`feasNote`) shows both, and the "Results by website" card on Leads lists what was typed in the last 30 days (`typed` in `siteResults`). Review it monthly: repeated answers are candidates for a new row in the capability table.
+
+## Testimonial publish note ("refresh now" box)
+
+After Publish, Unpublish or saving a live testimonial, `tmSyncBox()` (index.html, next to `tmSave`) shows a box with the next automatic refresh time of the site's
+"Sync testimonials" workflow (`TM_SYNC`: Seniors repo imetrobert/aiwithrobert 09:17 UTC, Business repo imetrobert/aiwithrobert-biz 09:27 UTC; keep equal to the cron
+lines in those repos' `sync-testimonials.yml`) and a button to the workflow page to run it now. If a cron time or repo name changes, edit `TM_SYNC`.
+
