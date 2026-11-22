@@ -990,8 +990,11 @@ function loginScreen() {
     if (r === "ok") applyVerify("ok");
     else { S.auth = { status: "out", msg: r, email: "", busy: false }; render(); }
   } }, el("label", { class: "muted" }, t("email")), email, el("label", { class: "muted", style: "display:block;margin-top:12px" }, t("password")), pw, btn);
+  const reqHref = "mailto:robert@imetrobert.com?subject=" + encodeURIComponent("Access request: AI with Robert Toolkit") +
+    "&body=" + encodeURIComponent("Hi Robert,\n\nI would like an account or access to AI with Robert Toolkit (https://toolkit.aiwithrobert.com).\n\nMy name: \nMy email address: \n\nThank you");
+  const reqNote = el("p", { class: "muted", style: "margin-top:16px;font-size:13px" }, "Need an account or access? Email ", el("a", { href: reqHref }, "robert@imetrobert.com"), " and Robert will send you a link to register.");
   return shell(el("h1", null, t("loginTitle")), el("p", { class: "muted" }, t("loginSub")),
-    S.auth.msg ? el("div", { class: "err", role: "alert" }, t(A_MSG[S.auth.msg] || "a_error")) : null, form);
+    S.auth.msg ? el("div", { class: "err", role: "alert" }, t(A_MSG[S.auth.msg] || "a_error")) : null, form, reqNote);
 }
 
 /* ---- Saved sessions (localStorage, this device only) ---------------------- */
