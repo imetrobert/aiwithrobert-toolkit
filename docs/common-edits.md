@@ -145,3 +145,11 @@ After Publish, Unpublish or saving a live testimonial, `tmSyncBox()` (index.html
 "Sync testimonials" workflow (`TM_SYNC`: Seniors repo imetrobert/aiwithrobert 09:17 UTC, Business repo imetrobert/aiwithrobert-biz 09:27 UTC; keep equal to the cron
 lines in those repos' `sync-testimonials.yml`) and a button to the workflow page to run it now. If a cron time or repo name changes, edit `TM_SYNC`.
 
+
+## Pitch builder (home button "Pitch builder: find clients", added 2026-11-26)
+
+Code block `PITCH BUILDER` in index.html (grep `ptScreen`, `ptPrompt`, `ptRead`, `ptPage`, `ptAddLead`). Flow: details (business, website, pasted text, optional logo upload held in memory only) -> prompt for a free AI chat (asks it to open the site if it can browse) -> paste reply, `readAiJson` + `ptRead` check every field -> preview, plain-text email, LinkedIn message, one-page PDF (English and/or French, `ptPage` is one fixed A4 template in the Business brand, drawn by html2canvas + jsPDF like `pdfBuild`).
+"I sent it: add to Leads" (`ptAddLead`) creates a Business lead at stage "Invited to call" with a follow-up date (default +4 days), so it shows in Leads and on the Today card. No new table, nothing else is stored.
+- Wording of the page (EN/FR): `PT_TXT`. Services named in the prompt, rules about no invented numbers or "runs by itself": `ptPrompt`. Keep these equal to the Pricing section and `CLAUDE.md` rules of biz.aiwithrobert.com.
+- Tracked link per prospect: `ptLink` = `?utm_source=pitch&utm_campaign=pitch-YYYYMM-company#feas-check`; the website's feasibility check saves it as `extra.source` and the Leads "Where leads come from" card shows it. Add `pitch` to the blog repo's list of tags in the Business CLAUDE.md if it is ever tidied.
+- Email is plain text on purpose (inbox delivery); includes an opt-out line (CASL). Never add invented results to the template.
