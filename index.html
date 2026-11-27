@@ -2884,40 +2884,51 @@ const PT_TXT = {
     note: "Les exemples illustrent ce qu’un forfait d’IA abordable peut faire; les résultats dépendent de vos propres tâches et sont confirmés avec vous au préalable. Préparé à partir de renseignements publics sur votre site Web. Cabinet indépendant, sans lien avec {c} ni avec un fournisseur de logiciels.",
     hi: "Bonjour {n},", hi0: "Bonjour,", chk: "Vérification de faisabilité gratuite (2 minutes) : ", off: "Si vous préférez que je ne vous écrive plus, répondez simplement « non merci » et je ne le ferai plus.", lang: "Français" }
 };
+const PT_INDUSTRY_S = [["", "Choose..."], ["public library", "Public library"], ["retirement residence", "Retirement residence"], ["community or senior centre", "Community or senior centre"], ["municipal recreation department", "Municipal recreation department"], ["cultural or religious community", "Cultural or religious community"], ["club or association", "Club or association"], ["other organization serving seniors", "Other organization serving seniors"]];
+const PT_SEN = {
+  en: { steps: ["A short, no-obligation call about your members", "We choose a topic and date that suit them", "A friendly workshop, in person or online, in English or French"], cta: "Let's talk about a workshop for your members", chk: "More about the workshops: ",
+    note: "Examples show the kind of topics we can cover; the content is adapted with you and to your members' needs. Prepared from public information on your website. Independent tutoring practice, not connected to {c} or to any technology company or employer." },
+  fr: { steps: ["Un court appel, sans engagement, au sujet de vos membres", "Nous choisissons un sujet et une date qui leur conviennent", "Un atelier convivial, en personne ou en ligne, en fran\u00E7ais ou en anglais"], cta: "Parlons d\u2019un atelier pour vos membres", chk: "En savoir plus sur les ateliers : ",
+    note: "Les exemples montrent le genre de sujets possibles; le contenu est adapt\u00E9 avec vous et aux besoins de vos membres. Pr\u00E9par\u00E9 \u00E0 partir de renseignements publics sur votre site Web. Pratique de formation ind\u00E9pendante, sans lien avec {c}, avec une entreprise de technologie ni avec un employeur." } };
+const ptT = (o, L) => o.brand === "seniors" ? Object.assign({}, PT_TXT[L], PT_SEN[L]) : PT_TXT[L];
+const ptSig = o => o.brand === "seniors" ? "Robert Simon\nAI with Robert for Seniors\n514-250-8491 | seniors@aiwithrobert.com" : "Robert Simon\nAI with Robert for Business\n514-250-8491 | biz@aiwithrobert.com";
 const PT_FIELDS = L => ["headline_" + L, "intro_" + L, "email_subject_" + L, "email_body_" + L, "linkedin_" + L];
-const PT = { stage: "form", o: { company: "", url: "", industry: "", text: "", first: "", email: "", lang: "both", logo: "" }, prompt: "", reply: "", out: null, err: "", msg: "", view: "en", pdf: {}, busy: "", leadId: null, follow: "" };
+const PT = { stage: "form", o: { brand: "business", company: "", url: "", industry: "", text: "", first: "", email: "", lang: "both", logo: "" }, prompt: "", reply: "", out: null, err: "", msg: "", view: "en", pdf: {}, busy: "", leadId: null, follow: "" };
 const ptLangs = o => o.lang === "both" ? ["en", "fr"] : [o.lang];
 const ptSlug = o => { const d = new Date(), c = String(o.company || "client").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "client"; return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + "-" + c; };
-const ptLink = (o, L) => "https://biz.aiwithrobert.com/" + (L === "fr" ? "fr/" : "") + "?utm_source=pitch&utm_campaign=pitch-" + ptSlug(o) + "#feas-check";
+const ptAnchor = o => o.brand === "seniors" ? "#contact" : "#feas-check";
+const ptLink = (o, L) => (o.brand === "seniors" ? "https://seniors.aiwithrobert.com/" : "https://biz.aiwithrobert.com/") + (L === "fr" ? "fr/" : "") + "?utm_source=pitch&utm_campaign=pitch-" + ptSlug(o) + ptAnchor(o);
 const ptLocalDay = add => { const d = new Date(Date.now() + add * 864e5); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 function ptPrompt(o) {
   const langs = ptLangs(o), shape = L => ['"headline_' + L + '": "up to 12 words"', '"intro_' + L + '": "up to 40 words"', '"benefits_' + L + '": [{"title": "up to 8 words", "text": "up to 35 words", "example": "up to 30 words"}, {"title": "", "text": "", "example": ""}, {"title": "", "text": "", "example": ""}]', '"email_subject_' + L + '": "up to 8 words"', '"email_body_' + L + '": "70 to 110 words, plain text, paragraphs separated by \\n\\n"', '"linkedin_' + L + '": "up to 60 words"'].join(", ");
-  return ["You are helping Robert Simon, an independent AI consultant in Montréal (AI with Robert for Business), write a short, friendly pitch to ONE local small business. He helps businesses of about 5 to 20 people get more from the low-cost AI plans they already pay for (ChatGPT, Gemini, Copilot, Claude). His services: AI opportunity assessment (where AI can save time); AI workflow automation (one recurring task turned into a documented, reusable workflow, with a walkthrough); AI agents and advanced automation; practical AI training for the team.",
-    "",
-    "THE PROSPECT",
-    "Business: " + o.company, o.url ? "Website: " + o.url : "", o.industry ? "Type: " + o.industry : "", o.first ? "Contact first name: " + o.first : "",
-    o.url ? "FIRST: if you can open web pages, open " + o.url + " and read the home page, the services or products page and the about page (and any page that shows how they take bookings, orders or client questions). Use what you actually read to find repeating tasks, their tone and their customers. If you cannot open web pages, say nothing about it and use the text below." : "",
+  const sen = o.brand === "seniors";
+  const who = sen
+    ? "You are helping Robert Simon, a patient AI tutor in Montr\u00E9al (AI with Robert for Seniors), write a short, warm pitch to ONE organization that serves seniors (a library, residence, community or senior centre, club, cultural or religious community, or municipal recreation department). He teaches people 60 and over to use ChatGPT and other AI tools safely, in English or French, through group workshops at the organization's location or online, and one-on-one lessons. He is independent and not connected to any employer."
+    : "You are helping Robert Simon, an independent AI consultant in Montr\u00E9al (AI with Robert for Business), write a short, friendly pitch to ONE local small business. He helps businesses of about 5 to 20 people get more from the low-cost AI plans they already pay for (ChatGPT, Gemini, Copilot, Claude). His services: AI opportunity assessment (where AI can save time); AI workflow automation (one recurring task turned into a documented, reusable workflow, with a walkthrough); AI agents and advanced automation; practical AI training for the team.";
+  const what = sen
+    ? ["Three workshop ideas for THIS organization's members. Each one is a practical everyday topic their members would care about (for example staying in touch with family, planning a trip, spotting scams and staying safe, writing emails and letters, understanding forms and appointments, hobbies and family history), chosen to fit what the organization says about itself, its programs and its members. Say what members could do afterwards, in plain words. Never promise results and never claim to give medical, financial or legal help.",
+      "Each example starts with a concrete everyday scene for one member.",
+      "Email body: plain text, no links, no bullet points, no signature and no greeting (the app adds them). Written for the person who runs programs or activities. Mention one specific thing from their website (a program, event or their mission), one workshop idea, and ask for nothing bigger than a short phone call. Say \"your members\", never \"your team\". Do not mention prices (Robert discusses fees directly). Subject: warm, no clickbait, no capitals for emphasis."]
+    : ["Three benefits. Each one is a REPEATING job in THIS business (name it, using their own words from the text), what Robert would set up (documented prompts or a reusable workflow), and what the owner gets back each time. Each must be doable on a normal low-cost AI plan: writing and rewriting, summarising documents, reusing prompts, working with the business's own files and templates, drafting replies, preparing checklists. Never say anything runs by itself.",
+      "Each example starts with a concrete everyday scene for this kind of business.",
+      "Email body: plain text, no links, no bullet points, no signature and no greeting (the app adds them). Mention one specific thing from their website, one benefit, and ask for nothing bigger than a free 2-minute feasibility check. Subject: no clickbait, no capitals for emphasis."];
+  const rules = sen
+    ? ["- Use only facts in the pasted text or in pages you actually opened. Do NOT invent partners, numbers, attendance figures, awards, prices or results.",
+      "- Headline: name something specific to THIS organization (a real program, activity or group of members from their site). Never use a generic headline. The intro must not say or imply they already have a technology budget or staff.",
+      "- Safety is part of every workshop: any example that touches money, health or personal documents must teach caution (never share passwords or bank or health card numbers with an AI; double-check important answers).",
+      "- Warm, plain language: short sentences, no jargon, no hype, no fear of technology, never talking down to seniors. No emoji. Never claim a connection with the organization."]
+    : ["- Use only facts in the pasted text or in pages you actually opened. Do NOT invent clients, numbers, percentages, hours saved, awards, prices or results. If you give a size of benefit, say \"for example\" and keep it qualitative.",
+      "- Never propose anything about clinical, medical, legal or financial advice, emergencies, triage, diagnoses or urgent client matters. Keep to administrative and communication work: appointment and hours questions, reminders, follow-up messages, document and template preparation, internal checklists, summarising notes the business already has. Do not assume they already pay for any AI tool; say \"AI tools like ChatGPT or Gemini\" instead.",
+      "- Headline: name something specific to THIS business (a real task or service from their site). Never use a generic headline such as \"Practical AI workflows for your team\". The intro must not say or imply they already pay for AI tools or have a team of any size.",
+      "- Regulated or confidential work (law, notary, accounting, health, financial): every example must use templates, anonymised or public information, or the firm's own standard wording. Never suggest pasting client files, names or confidential details into an AI chat. Add \"with client details removed\" or similar where an example touches client material.",
+      "- Friendly, plain-spoken, respectful of their time. No jargon (no leverage, synergy, revolutionize, game-changer). No emoji. Never claim a connection with the business or its software suppliers."];
+  return [who, "", "THE PROSPECT", (sen ? "Organization: " : "Business: ") + o.company, o.url ? "Website: " + o.url : "", o.industry ? "Type: " + o.industry : "", o.first ? "Contact first name: " + o.first : "",
+    o.url ? "FIRST: if you can open web pages, open " + o.url + " and read the home page, the programs, services or activities pages and the about page. Use what you actually read to find their programs, tone and members or customers. If you cannot open web pages, say nothing about it and use the text below." : "",
     o.text.trim() ? "What their website says (pasted by Robert, may be partial):" : "", o.text.trim() ? '"""' : "", o.text.trim(), o.text.trim() ? '"""' : "",
-    "",
-    "WHAT TO WRITE",
-    "Three benefits. Each one is a REPEATING job in THIS business (name it, using their own words from the text), what Robert would set up (documented prompts or a reusable workflow), and what the owner gets back each time. Each must be doable on a normal low-cost AI plan: writing and rewriting, summarising documents, reusing prompts, working with the business's own files and templates, drafting replies, preparing checklists. Never say anything runs by itself.",
-    "Each example starts with a concrete everyday scene for this kind of business.",
-    "Email body: plain text, no links, no bullet points, no signature and no greeting (the app adds them). Mention one specific thing from their website, one benefit, and ask for nothing bigger than a free 2-minute feasibility check. Subject: no clickbait, no capitals for emphasis.",
-    "LinkedIn message: no links, no greeting needed, friendly and short.",
-    "",
-    "RULES (strict)",
-    "- Use only facts in the pasted text or in pages you actually opened. Do NOT invent clients, numbers, percentages, hours saved, awards, prices or results. If you give a size of benefit, say \"for example\" and keep it qualitative.",
-    "- Never propose anything about clinical, medical, legal or financial advice, emergencies, triage, diagnoses or urgent client matters. Keep to administrative and communication work: appointment and hours questions, reminders, follow-up messages, document and template preparation, internal checklists, summarising notes the business already has. Do not assume they already pay for any AI tool; say \"AI tools like ChatGPT or Gemini\" instead.",
-    "- Headline: name something specific to THIS business (a real task or service from their site). Never use a generic headline such as \"Practical AI workflows for your team\". The intro must not say or imply they already pay for AI tools or have a team of any size.",
-    "- Regulated or confidential work (law, notary, accounting, health, financial): every example must use templates, anonymised or public information, or the firm's own standard wording. Never suggest pasting client files, names or confidential details into an AI chat. Add \"with client details removed\" or similar where an example touches client material.",
-    "- Friendly, plain-spoken, respectful of their time. No jargon (no leverage, synergy, revolutionize, game-changer). No emoji. Never claim a connection with the business or its software suppliers.",
-    langs.includes("fr") ? "- French: Québécois, formal \"vous\", natural wording, not a word-for-word translation." : "",
+    "", "WHAT TO WRITE"].concat(what, ["LinkedIn message: no links, no greeting needed, friendly and short.", "", "RULES (strict)"], rules, [
+    langs.includes("fr") ? "- French: Qu\u00E9b\u00E9cois, formal \"vous\", natural wording, not a word-for-word translation." : "",
     "- Write each language field in its own language: " + langs.map(L => PT_TXT[L].lang).join(" and ") + ".",
-    "",
-    "Reply with this JSON object only:",
-    "{" + langs.map(shape).join(", ") + "}",
-    "",
-    JSON_RULES].filter(x => x !== "").join("\n");
+    "", "Reply with this JSON object only:", "{" + langs.map(shape).join(", ") + "}", "", JSON_RULES]).filter(x => x !== "").join("\n");
 }
 function ptRead(text, o) {
   const raw = readAiJson(text), langs = ptLangs(o), bad = [];
@@ -2936,12 +2947,12 @@ function ptRead(text, o) {
   return out;
 }
 function ptEmail(o, d, L) {
-  const T = PT_TXT[L], hi = o.first ? T.hi.replace("{n}", o.first) : T.hi0;
-  return hi + "\n\n" + d.body + "\n\n" + T.chk + ptLink(o, L) + "\n\nRobert Simon\nAI with Robert for Business\n514-250-8491 | biz@aiwithrobert.com\n\n" + T.off;
+  const T = ptT(o, L), hi = o.first ? T.hi.replace("{n}", o.first) : T.hi0;
+  return hi + "\n\n" + d.body + "\n\n" + T.chk + ptLink(o, L) + "\n\n" + ptSig(o) + "\n\n" + T.off;
 }
 /* One A4 page (794 x 1123 px), inline styles only so html2canvas draws it exactly. */
 function ptPage(o, d, L) {
-  const T = PT_TXT[L], B = brandFor("business"), c = B.colors, url = ptLink(o, L);
+  const T = ptT(o, L), B = brandFor(o.brand), c = B.colors, url = ptLink(o, L), acc = c.accentText || c.blue, ctaC = o.brand === "seniors" ? c.sky : c.blue, sen = o.brand === "seniors";
   const st = s => ({ style: s });
   const qr = el("div", { style: "width:92px;height:92px;flex:none;background:#fff;padding:4px;border-radius:6px" }); qr.innerHTML = talkQr(url).createSvgTag({ cellSize: 3, margin: 0, scalable: true });
   const svg = qr.querySelector("svg"); if (svg) { svg.setAttribute("width", "84"); svg.setAttribute("height", "84"); }
@@ -2952,9 +2963,9 @@ function ptPage(o, d, L) {
     el("div", { style: "flex:none;width:30px;height:30px;border-radius:50%;background:" + c.navy + ";color:#fff;font:700 16px/30px Arial,sans-serif;text-align:center" }, String(i + 1)),
     el("div", { style: "min-width:0" }, el("div", { style: "font:700 17px/1.25 Arial,sans-serif;color:" + c.navy }, x.title),
       el("div", { style: "font:14px/1.4 Arial,sans-serif;color:#1f2933;margin-top:3px" }, x.text),
-      el("div", { style: "font:italic 13px/1.4 Arial,sans-serif;color:" + c.accentText + ";margin-top:4px" }, T.ex + ": " + x.example)));
+      el("div", { style: "font:italic 13px/1.4 Arial,sans-serif;color:" + acc + ";margin-top:4px" }, T.ex + ": " + x.example)));
   const step = (s, i) => el("div", { style: "flex:1;min-width:0;background:#fff;border:1px solid #d9dee5;border-radius:10px;padding:9px 10px;text-align:center" },
-    el("div", { style: "font:700 20px/1 Arial,sans-serif;color:" + c.accentText }, String(i + 1)), el("div", { style: "font:13px/1.3 Arial,sans-serif;color:" + c.navy + ";margin-top:4px" }, s));
+    el("div", { style: "font:700 20px/1 Arial,sans-serif;color:" + acc }, String(i + 1)), el("div", { style: "font:13px/1.3 Arial,sans-serif;color:" + c.navy + ";margin-top:4px" }, s));
   return el("div", { style: "width:794px;height:1123px;box-sizing:border-box;overflow:hidden;background:#fff;position:relative;font-family:Arial,Helvetica,sans-serif" },
     el("div", { style: "background:" + c.navy + ";padding:22px 44px 20px;color:#fff" }, logos,
       el("div", { style: "font:13px/1.3 Arial,sans-serif;color:" + c.sky + ";margin-top:12px;letter-spacing:.4px;text-transform:uppercase" }, T.prep),
@@ -2967,9 +2978,9 @@ function ptPage(o, d, L) {
       el("div", { style: "font:700 14px/1 Arial,sans-serif;color:" + c.navy + ";margin:18px 0 8px;text-transform:uppercase;letter-spacing:.4px" }, T.how),
       el("div", { style: "display:flex;gap:10px" }, T.steps.map(step)),
       el("div", { style: "display:flex;align-items:center;gap:16px;margin-top:16px;background:" + c.navy + ";border-radius:12px;padding:14px 18px;color:#fff" }, qr,
-        el("div", { style: "min-width:0" }, el("div", { style: "font:700 17px/1.25 Arial,sans-serif;color:" + c.blue }, T.cta),
-          el("div", { style: "font:12px/1.35 Arial,sans-serif;color:#fff;margin-top:4px;word-break:break-all" }, url.split("?")[0] + "#feas-check"),
-          el("div", { style: "font:13px/1.35 Arial,sans-serif;color:#fff;margin-top:4px" }, "Robert Simon | 514-250-8491 | biz@aiwithrobert.com"))),
+        el("div", { style: "min-width:0" }, el("div", { style: "font:700 17px/1.25 Arial,sans-serif;color:" + ctaC }, T.cta),
+          el("div", { style: "font:12px/1.35 Arial,sans-serif;color:#fff;margin-top:4px;word-break:break-all" }, url.split("?")[0] + ptAnchor(o)),
+          el("div", { style: "font:13px/1.35 Arial,sans-serif;color:#fff;margin-top:4px" }, "Robert Simon | 514-250-8491 | " + (sen ? "seniors@aiwithrobert.com" : "biz@aiwithrobert.com")))),
       el("div", { style: "font:10.5px/1.4 Arial,sans-serif;color:#52606d;margin-top:10px" }, T.note.replace("{c}", o.company))),
     el("div", { style: "position:absolute;left:0;right:0;bottom:0;padding:9px 44px;border-top:1px solid #d9dee5;font:10.5px/1.4 Arial,sans-serif;color:#52606d;text-align:center" }, B.line1, el("br"), B.line2));
 }
@@ -3001,28 +3012,30 @@ function ptAddLead() {
   if (dupe && !confirm("There is already a lead called \"" + dupe.name + "\". Add another one anyway?")) return "Not added: that lead already exists.";
   const L = ptLangs(o)[0], follow = /^\d{4}-\d{2}-\d{2}$/.test(PT.follow) ? PT.follow : ptLocalDay(4);
   const note = ("Outbound pitch sent " + ptLocalDay(0) + (o.url ? ". Website: " + o.url : "") + (o.industry ? ". Type: " + o.industry : "") + ". Subject: " + d.subject + ". Tracking tag: pitch/pitch-" + ptSlug(o) + ".").slice(0, 1500);
-  const rec = { id: newId(), brand: "business", sel: [BASE.business], typeId: BASE.business, lang: L, name: o.company.trim().slice(0, 80), created: now, updated: now, step: 0, answers: {}, pastes: {}, results: {}, feas: null,
+  const br = o.brand === "seniors" ? "seniors" : "business", rec = { id: newId(), brand: br, sel: [BASE[br]], typeId: BASE[br], lang: L, name: o.company.trim().slice(0, 80), created: now, updated: now, step: 0, answers: {}, pastes: {}, results: {}, feas: null,
     lead: { status: "new", contact: [o.first, o.email].map(x => (x || "").trim()).filter(Boolean).join(" · ").slice(0, 120), follow, note, hist: {}, at: now } };
   Object.assign(rec.lead, stagePatch(rec, "contacted", "auto"), { follow });
   if (!Store.upsert(rec)) return "Could not save the lead on this device.";
   Cloud.push(rec); PT.leadId = rec.id;
-  return "Added to Leads: " + rec.name + " (Invited to call). Follow up on " + follow + ". It also shows on the Today card then.";
+  return "Added to Leads: " + rec.name + " (" + leadLabel(rec, "contacted") + "). Follow up on " + follow + ". It also shows on the Today card then.";
 }
 function ptScreen() {
   const o = PT.o, say = m => { PT.msg = m; render(); }, go = st => { PT.stage = st; PT.err = ""; PT.msg = ""; render(); window.scrollTo(0, 0); };
   const lab = (label, ...kids) => el("label", { class: "muted", style: "display:block;margin:10px 0 2px" }, label, ...kids);
   const inp = (label, key, attrs) => lab(label, el("input", Object.assign({ type: "text", value: o[key] || "", style: "display:block;width:100%;margin-top:2px", onchange: e => { o[key] = e.target.value; } }, attrs || {})));
   const banner = PT.msg ? el("div", { class: "note", role: "status" }, PT.msg) : null, errBox = PT.err ? el("div", { class: "note warn", role: "alert" }, PT.err) : null;
-  const head = [el("h1", null, "Pitch builder"), el("p", { class: "muted" }, "Find clients: paste what a local business says about itself, get a one-page pitch in English and French with your branding, a plain-text email and a LinkedIn message. Free AI chat does the writing; nothing is sent from here.")];
+  const sen = o.brand === "seniors";
+  const head = [el("h1", null, "Pitch builder"), el("p", { class: "muted" }, "Find clients: paste what a local business or an organization serving seniors says about itself, get a one-page pitch in English and French with the right branding, a plain-text email and a LinkedIn message. Free AI chat does the writing; nothing is sent from here.")];
   if (PT.stage === "form") {
     const logoBox = el("div", null, o.logo ? el("img", { src: o.logo, alt: "Their logo", style: "display:block;max-height:60px;max-width:200px;margin:6px 0;background:#fff;border:1px solid #d9dee5;border-radius:6px;padding:4px" }) : null,
       lab("Their logo (optional, a picture saved from their website; used only in this one pitch)", el("input", { type: "file", accept: "image/*", style: "display:block;margin-top:4px", onchange: e => { const f = e.target.files && e.target.files[0]; ptLogoFile(f, (u, m) => { o.logo = u; PT.err = m; render(); }); } })),
       o.logo ? el("button", { class: "btn sm", onclick: () => { o.logo = ""; render(); } }, "Remove logo") : null);
     return shell(...head, banner, errBox, el("div", { class: "card" },
       el("h2", { style: "margin-top:0" }, "1. The prospect"),
-      inp("Business name", "company", { maxlength: "80", placeholder: "For example: Clinique dentaire Exemple" }), inp("Website address (optional)", "url", { maxlength: "200", type: "url", inputmode: "url", placeholder: "https://" }),
-      lab("Type of business", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { o.industry = e.target.value; } }, PT_INDUSTRY.map(([v, n]) => el("option", Object.assign({ value: v }, o.industry === v ? { selected: "" } : {}), n)))),
-      inp("Contact first name (optional)", "first", { maxlength: "40" }), inp("Contact email (optional, only if it is published for business)", "email", { maxlength: "120", type: "email", inputmode: "email" }),
+      el("div", { class: "seg", role: "group", "aria-label": "Who is this pitch for", style: "margin-bottom:6px" }, [["business", "Business (AI with Robert for Business)"], ["seniors", "Seniors organization (workshops)"]].map(([k, n]) => el("button", { "aria-pressed": String(o.brand === k), onclick: () => { if (o.brand !== k) { o.brand = k; o.industry = ""; PT.err = ""; render(); } } }, n))),
+      inp(sen ? "Organization name" : "Business name", "company", { maxlength: "80", placeholder: sen ? "For example: Biblioth\u00E8que Exemple" : "For example: Clinique dentaire Exemple" }), inp("Website address (optional)", "url", { maxlength: "200", type: "url", inputmode: "url", placeholder: "https://" }),
+      lab(sen ? "Type of organization" : "Type of business", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { o.industry = e.target.value; } }, (sen ? PT_INDUSTRY_S : PT_INDUSTRY).map(([v, n]) => el("option", Object.assign({ value: v }, o.industry === v ? { selected: "" } : {}), n)))),
+      inp((sen ? "Contact first name (optional, for example the programs coordinator)" : "Contact first name (optional)"), "first", { maxlength: "40" }), inp("Contact email (optional, only if it is published for business)", "email", { maxlength: "120", type: "email", inputmode: "email" }),
       lab("What their website says: copy the home page and services text (about 100 to 600 words). Optional if you gave the address and your chatbot can browse, but pasting gives better results", el("textarea", { rows: "9", maxlength: "5000", style: "display:block;width:100%;margin-top:2px", oninput: e => { o.text = e.target.value; } }, o.text)),
       lab("Language of the pitch", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { o.lang = e.target.value; } }, [["both", "English and French"], ["en", "English only"], ["fr", "French only"]].map(([v, n]) => el("option", Object.assign({ value: v }, o.lang === v ? { selected: "" } : {}), n)))),
       logoBox,
@@ -3060,7 +3073,7 @@ function ptScreen() {
       PT.leadId ? el("p", { style: "margin:0" }, "Added to your Leads.") : el("p", { class: "muted", style: "margin:0 0 6px" }, "When you have sent it, add it to your Leads. It starts at \"Invited to call\" and appears on the Today card on the follow-up date. If they use the tracked link, their feasibility check shows where it came from."),
       PT.leadId ? null : lab("Follow up on", el("input", { type: "date", value: PT.follow, style: "display:block;margin-top:2px", onchange: e => { PT.follow = e.target.value; } })),
       PT.leadId ? el("button", { class: "btn primary", onclick: () => openInbox("leads") }, "Open Leads") : el("button", { class: "btn primary", onclick: () => say(ptAddLead()) }, "I sent it: add to Leads")),
-    el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, el("button", { class: "btn", onclick: () => go("paste") }, "Paste a different reply"), el("button", { class: "btn", onclick: () => { Object.assign(PT, { stage: "form", prompt: "", reply: "", out: null, err: "", msg: "", pdf: {}, leadId: null, o: { company: "", url: "", industry: "", text: "", first: "", email: "", lang: o.lang, logo: "" } }); render(); window.scrollTo(0, 0); } }, "New prospect")));
+    el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, el("button", { class: "btn", onclick: () => go("paste") }, "Paste a different reply"), el("button", { class: "btn", onclick: () => { Object.assign(PT, { stage: "form", prompt: "", reply: "", out: null, err: "", msg: "", pdf: {}, leadId: null, o: { company: "", url: "", industry: "", text: "", first: "", email: "", lang: o.lang, logo: "", brand: o.brand } }); render(); window.scrollTo(0, 0); } }, "New prospect")));
 }
 
 function homeScreen() {
