@@ -3153,7 +3153,12 @@ function fdPrompt(f) {
     "", JSON_RULES].filter(x => x !== "").join("\n");
 }
 function fdRead(text, brand) {
-  const raw = readAiJson(text), arr = Array.isArray(raw && raw.prospects) ? raw.prospects : Array.isArray(raw && raw.businesses) ? raw.businesses : null;
+  /* Tolerant: the list may sit under any key (prospects, businesses, results...), be a bare [ ... ] list, or be a single object. */
+  let raw = null, rerr = null; try { raw = readAiJson(text); } catch (e) { rerr = e; }
+  const pick = r => { if (Array.isArray(r)) return r; if (!r || typeof r !== "object") return null; const k = ["prospects", "businesses", "organizations", "organisations", "results", "list", "items", "leads", "companies"].find(x => Array.isArray(r[x])) || Object.keys(r).find(x => Array.isArray(r[x]) && r[x].some(y => y && typeof y === "object")); return k ? r[k] : (r.name ? [r] : null); };
+  let arr = pick(raw);
+  if (!arr || !arr.length) { const t = String(text || "").replace(/```[A-Za-z]*/g, ""), i = t.search(/\[\s*\{/), j = t.lastIndexOf("]"); if (i >= 0 && j > i) { try { arr = JSON.parse(t.slice(i, j + 1).replace(/[\u201C\u201D]/g, '"').replace(/,\s*([}\]])/g, "$1")); } catch (e) { /* fall through */ } } }
+  if ((!arr || !arr.length) && rerr && !raw) throw rerr;
   if (!arr || !arr.length) throw new Error("No list found. The reply should contain {\"prospects\": [ ... ]}. In the AI chat say: \"Send the same list again as the JSON object, inside one code block\", then copy that.");
   const one = (s, n) => String(s == null ? "" : s).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").replace(/\s+/g, " ").trim().slice(0, n), types = fdTypes(brand), seen = {}, out = [];
   arr.forEach((x, i) => {
