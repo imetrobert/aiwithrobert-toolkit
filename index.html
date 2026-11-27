@@ -2879,16 +2879,16 @@ const PT_INDUSTRY = [["", "Choose..."], ["dental or health practice", "Dental or
 const PT_TXT = {
   en: { prep: "Prepared for", how: "How we would start", steps: ["Free feasibility check (2 minutes)", "A short call, no obligation", "A documented workflow built around your task"], cta: "Start with the free feasibility check", ex: "For example",
     note: "Examples illustrate what a standard low-cost AI plan can do; results depend on your own tasks and are confirmed with you first. Prepared from public information on your website. Independent consultancy, not connected to {c} or any software vendor.",
-    hi: "Hi {n},", hi0: "Hello,", chk: "Free feasibility check (2 minutes): ", off: "If you would rather not hear from me again, just reply \"no thanks\" and I will not write again.", lang: "English" },
+    who: "Robert Simon, Montr\u00E9al. 25+ years in digital innovation.", chkLine: "Tell us your tools and what you would like to speed up. We tell you, in plain words, what a standard plan can and cannot do for it.", hi: "Hi {n},", hi0: "Hello,", chk: "Free feasibility check (2 minutes): ", off: "If you would rather not hear from me again, just reply \"no thanks\" and I will not write again.", lang: "English" },
   fr: { prep: "Préparé pour", how: "Comment nous commencerions", steps: ["Vérification de faisabilité gratuite (2 minutes)", "Un court appel, sans engagement", "Un flux de travail documenté, conçu autour de votre tâche"], cta: "Commencez par la vérification de faisabilité gratuite", ex: "Par exemple",
     note: "Les exemples illustrent ce qu’un forfait d’IA abordable peut faire; les résultats dépendent de vos propres tâches et sont confirmés avec vous au préalable. Préparé à partir de renseignements publics sur votre site Web. Cabinet indépendant, sans lien avec {c} ni avec un fournisseur de logiciels.",
-    hi: "Bonjour {n},", hi0: "Bonjour,", chk: "Vérification de faisabilité gratuite (2 minutes) : ", off: "Si vous préférez que je ne vous écrive plus, répondez simplement « non merci » et je ne le ferai plus.", lang: "Français" }
+    who: "Robert Simon, Montr\u00E9al. Plus de 25 ans en innovation num\u00E9rique.", chkLine: "Dites-nous quels outils vous utilisez et ce que vous aimeriez acc\u00E9l\u00E9rer. Nous vous disons, en mots simples, ce qu\u2019un forfait standard peut et ne peut pas faire.", hi: "Bonjour {n},", hi0: "Bonjour,", chk: "Vérification de faisabilité gratuite (2 minutes) : ", off: "Si vous préférez que je ne vous écrive plus, répondez simplement « non merci » et je ne le ferai plus.", lang: "Français" }
 };
 const PT_INDUSTRY_S = [["", "Choose..."], ["public library", "Public library"], ["retirement residence", "Retirement residence"], ["community or senior centre", "Community or senior centre"], ["municipal recreation department", "Municipal recreation department"], ["cultural or religious community", "Cultural or religious community"], ["club or association", "Club or association"], ["other organization serving seniors", "Other organization serving seniors"]];
 const PT_SEN = {
-  en: { steps: ["A short, no-obligation call about your members", "We choose a topic and date that suit them", "A friendly workshop, in person or online, in English or French"], cta: "Let's talk about a workshop for your members", chk: "More about the workshops: ",
+  en: { who: "Robert Simon, patient AI tutor, Montr\u00E9al. 25+ years in digital innovation.", chkLine: "A short call to hear what your members would enjoy learning. No cost, no commitment.", steps: ["A short, no-obligation call about your members", "We choose a topic and date that suit them", "A friendly workshop, in person or online, in English or French"], cta: "Let's talk about a workshop for your members", chk: "More about the workshops: ",
     note: "Examples show the kind of topics we can cover; the content is adapted with you and to your members' needs. Prepared from public information on your website. Independent tutoring practice, not connected to {c} or to any technology company or employer." },
-  fr: { steps: ["Un court appel, sans engagement, au sujet de vos membres", "Nous choisissons un sujet et une date qui leur conviennent", "Un atelier convivial, en personne ou en ligne, en fran\u00E7ais ou en anglais"], cta: "Parlons d\u2019un atelier pour vos membres", chk: "En savoir plus sur les ateliers : ",
+  fr: { who: "Robert Simon, tuteur patient en IA, Montr\u00E9al. Plus de 25 ans en innovation num\u00E9rique.", chkLine: "Un court appel pour savoir ce que vos membres aimeraient apprendre. Sans frais, sans engagement.", steps: ["Un court appel, sans engagement, au sujet de vos membres", "Nous choisissons un sujet et une date qui leur conviennent", "Un atelier convivial, en personne ou en ligne, en fran\u00E7ais ou en anglais"], cta: "Parlons d\u2019un atelier pour vos membres", chk: "En savoir plus sur les ateliers : ",
     note: "Les exemples montrent le genre de sujets possibles; le contenu est adapt\u00E9 avec vous et aux besoins de vos membres. Pr\u00E9par\u00E9 \u00E0 partir de renseignements publics sur votre site Web. Pratique de formation ind\u00E9pendante, sans lien avec {c}, avec une entreprise de technologie ni avec un employeur." } };
 const ptT = (o, L) => o.brand === "seniors" ? Object.assign({}, PT_TXT[L], PT_SEN[L]) : PT_TXT[L];
 const ptSig = o => o.brand === "seniors" ? "Robert Simon\nAI with Robert for Seniors\n514-250-8491 | seniors@aiwithrobert.com" : "Robert Simon\nAI with Robert for Business\n514-250-8491 | biz@aiwithrobert.com";
@@ -2900,7 +2900,7 @@ const ptAnchor = o => o.brand === "seniors" ? "#contact" : "#feas-check";
 const ptLink = (o, L) => (o.brand === "seniors" ? "https://seniors.aiwithrobert.com/" : "https://biz.aiwithrobert.com/") + (L === "fr" ? "fr/" : "") + "?utm_source=pitch&utm_campaign=pitch-" + ptSlug(o) + ptAnchor(o);
 const ptLocalDay = add => { const d = new Date(Date.now() + add * 864e5); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 function ptPrompt(o) {
-  const langs = ptLangs(o), shape = L => ['"headline_' + L + '": "up to 12 words"', '"intro_' + L + '": "up to 40 words"', '"benefits_' + L + '": [{"title": "up to 8 words", "text": "up to 35 words", "example": "up to 30 words"}, {"title": "", "text": "", "example": ""}, {"title": "", "text": "", "example": ""}]', '"email_subject_' + L + '": "up to 8 words"', '"email_body_' + L + '": "70 to 110 words, plain text, paragraphs separated by \\n\\n"', '"linkedin_' + L + '": "up to 60 words"'].join(", ");
+  const langs = ptLangs(o), shape = L => ['"headline_' + L + '": "up to 12 words"', '"intro_' + L + '": "ONE sentence, up to 25 words"', '"benefits_' + L + '": [{"title": "up to 8 words", "text": "up to 35 words", "example": "up to 30 words"}, {"title": "", "text": "", "example": ""}, {"title": "", "text": "", "example": ""}]', '"email_subject_' + L + '": "up to 8 words"', '"email_body_' + L + '": "70 to 110 words, plain text, paragraphs separated by \\n\\n"', '"linkedin_' + L + '": "up to 60 words"'].join(", ");
   const sen = o.brand === "seniors";
   const who = sen
     ? "You are helping Robert Simon, a patient AI tutor in Montr\u00E9al (AI with Robert for Seniors), write a short, warm pitch to ONE organization that serves seniors (a library, residence, community or senior centre, club, cultural or religious community, or municipal recreation department). He teaches people 60 and over to use ChatGPT and other AI tools safely, in English or French, through group workshops at the organization's location or online, and one-on-one lessons. He is independent and not connected to any employer."
@@ -2926,6 +2926,8 @@ function ptPrompt(o) {
     o.url ? "FIRST: if you can open web pages, open " + o.url + " and read the home page, the programs, services or activities pages and the about page. Use what you actually read to find their programs, tone and members or customers. If you cannot open web pages, say nothing about it and use the notes below." : "",
     o.text.trim() ? "Notes from Robert about this prospect (treat as given facts; may be partial):" : "", o.text.trim() ? '"""' : "", o.text.trim(), o.text.trim() ? '"""' : "",
     "", "WHAT TO WRITE"].concat(what, ["LinkedIn message: no links, no greeting needed, friendly and short.", "", "RULES (strict)"], rules, [
+    "- SWAP TEST: if a benefit would still make sense after replacing this organization's name with any similar one, rewrite it. At least one of the three must be specific to their kind of work or members (name the real thing: a form, a program, a type of enquiry), not generic admin.",
+    "- No absolutes or guarantees: never write nothing, never, always, every, guaranteed, in seconds, instantly or zero. Use plain words (reusable message templates, checklists your staff can follow, a draft ready to review), not jargon such as documented prompts, workflows you control, or leverage.",
     langs.includes("fr") ? "- French: Qu\u00E9b\u00E9cois, formal \"vous\", natural wording, not a word-for-word translation." : "",
     "- Write each language field in its own language: " + langs.map(L => PT_TXT[L].lang).join(" and ") + ".",
     "", "Reply with this JSON object only:", "{" + langs.map(shape).join(", ") + "}", "", JSON_RULES]).filter(x => x !== "").join("\n");
@@ -2959,7 +2961,7 @@ function ptPage(o, d, L) {
   const logos = el("div", { style: "display:flex;align-items:center;gap:14px" },
     el("img", { src: B.logo, alt: B.name, style: "height:54px;width:54px;border-radius:8px;background:#fff" }),
     o.logo ? el("img", { src: o.logo, alt: o.company, style: "max-height:54px;max-width:170px;background:#fff;border-radius:8px;padding:5px 8px;object-fit:contain" }) : null);
-  const card = (x, i) => el("div", { style: "display:flex;gap:14px;border-left:6px solid " + c.blue + ";background:" + c.light + ";border-radius:0 10px 10px 0;padding:12px 16px" },
+  const card = (x, i) => el("div", { style: "display:flex;gap:14px;border-left:6px solid " + c.blue + ";background:" + c.light + ";border-radius:0 10px 10px 0;padding:10px 16px" },
     el("div", { style: "flex:none;width:30px;height:30px;border-radius:50%;background:" + c.navy + ";color:#fff;font:700 16px/30px Arial,sans-serif;text-align:center" }, String(i + 1)),
     el("div", { style: "min-width:0" }, el("div", { style: "font:700 17px/1.25 Arial,sans-serif;color:" + c.navy }, x.title),
       el("div", { style: "font:14px/1.4 Arial,sans-serif;color:#1f2933;margin-top:3px" }, x.text),
@@ -2967,7 +2969,7 @@ function ptPage(o, d, L) {
   const step = (s, i) => el("div", { style: "flex:1;min-width:0;background:#fff;border:1px solid #d9dee5;border-radius:10px;padding:9px 10px;text-align:center" },
     el("div", { style: "font:700 20px/1 Arial,sans-serif;color:" + acc }, String(i + 1)), el("div", { style: "font:13px/1.3 Arial,sans-serif;color:" + c.navy + ";margin-top:4px" }, s));
   return el("div", { style: "width:794px;height:1123px;box-sizing:border-box;overflow:hidden;background:#fff;position:relative;font-family:Arial,Helvetica,sans-serif" },
-    el("div", { style: "background:" + c.navy + ";padding:22px 44px 20px;color:#fff" }, logos,
+    el("div", { style: "background:" + c.navy + ";padding:18px 44px 16px;color:#fff" }, logos,
       el("div", { style: "font:13px/1.3 Arial,sans-serif;color:" + c.sky + ";margin-top:12px;letter-spacing:.4px;text-transform:uppercase" }, T.prep),
       el("div", { style: "font:700 26px/1.2 Arial,sans-serif;margin-top:2px" }, o.company)),
     el("div", { style: "height:5px;background:" + c.blue }),
@@ -2975,12 +2977,14 @@ function ptPage(o, d, L) {
       el("div", { style: "font:700 27px/1.22 Arial,sans-serif;color:" + c.navy }, d.headline),
       el("div", { style: "font:15px/1.45 Arial,sans-serif;color:#1f2933;margin-top:8px" }, d.intro),
       el("div", { style: "display:flex;flex-direction:column;gap:10px;margin-top:16px" }, d.benefits.map(card)),
-      el("div", { style: "font:700 14px/1 Arial,sans-serif;color:" + c.navy + ";margin:18px 0 8px;text-transform:uppercase;letter-spacing:.4px" }, T.how),
+      el("div", { style: "font:700 14px/1 Arial,sans-serif;color:" + c.navy + ";margin:14px 0 8px;text-transform:uppercase;letter-spacing:.4px" }, T.how),
       el("div", { style: "display:flex;gap:10px" }, T.steps.map(step)),
-      el("div", { style: "display:flex;align-items:center;gap:16px;margin-top:16px;background:" + c.navy + ";border-radius:12px;padding:14px 18px;color:#fff" }, qr,
+      el("div", { style: "font:13px/1.4 Arial,sans-serif;color:#1f2933;margin-top:8px" }, T.chkLine),
+      el("div", { style: "display:flex;align-items:center;gap:16px;margin-top:12px;background:" + c.navy + ";border-radius:12px;padding:14px 18px;color:#fff" }, qr,
         el("div", { style: "min-width:0" }, el("div", { style: "font:700 17px/1.25 Arial,sans-serif;color:" + ctaC }, T.cta),
           el("div", { style: "font:12px/1.35 Arial,sans-serif;color:#fff;margin-top:4px;word-break:break-all" }, url.split("?")[0] + ptAnchor(o)),
-          el("div", { style: "font:13px/1.35 Arial,sans-serif;color:#fff;margin-top:4px" }, "Robert Simon | 514-250-8491 | " + (sen ? "seniors@aiwithrobert.com" : "biz@aiwithrobert.com")))),
+          el("div", { style: "font:13px/1.35 Arial,sans-serif;color:#fff;margin-top:4px" }, "514-250-8491 | " + (sen ? "seniors@aiwithrobert.com" : "biz@aiwithrobert.com")),
+          el("div", { style: "font:12px/1.35 Arial,sans-serif;color:" + c.sky + ";margin-top:3px" }, T.who))),
       el("div", { style: "font:10.5px/1.4 Arial,sans-serif;color:#52606d;margin-top:10px" }, T.note.replace("{c}", o.company))),
     el("div", { style: "position:absolute;left:0;right:0;bottom:0;padding:9px 44px;border-top:1px solid #d9dee5;font:10.5px/1.4 Arial,sans-serif;color:#52606d;text-align:center" }, B.line1, el("br"), B.line2));
 }
