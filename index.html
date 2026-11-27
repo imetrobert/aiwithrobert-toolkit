@@ -3175,7 +3175,7 @@ function fdScreen() {
   if (FD.stage === "form") {
     return shell(...head, banner, errBox, el("div", { class: "card" },
       el("h2", { style: "margin-top:0" }, "1. What are you looking for?"),
-      el("div", { class: "seg", role: "group", "aria-label": "Who are you looking for", style: "margin-bottom:6px" }, [["business", "Businesses"], ["seniors", "Seniors organizations"]].map(([k, n]) => el("button", { "aria-pressed": String(f.brand === k), onclick: () => { f.brand = k; render(); } }, n))),
+      el("p", { class: "muted", style: "margin:0 0 6px" }, "For: " + brandFor(f.brand).name + " (change it with the choice at the top of the home screen)."),
       lab("Area (city, borough or neighbourhood)", el("input", { type: "text", value: f.area, maxlength: "100", placeholder: "For example: Côte Saint-Luc, Hampstead, Montréal-Ouest", style: "display:block;width:100%;margin-top:2px", onchange: e => { f.area = e.target.value; } })),
       lab("Kinds to look for (optional, in your own words)", el("input", { type: "text", value: f.types, maxlength: "200", placeholder: sen ? "For example: public libraries, retirement residences" : "For example: dental clinics, notaries, accountants", style: "display:block;width:100%;margin-top:2px", onchange: e => { f.types = e.target.value; } })),
       lab("Anything else (optional)", el("textarea", { rows: "2", maxlength: "300", placeholder: "For example: bilingual, independent, 2 to 10 staff", style: "display:block;width:100%;margin-top:2px", onchange: e => { f.notes = e.target.value; } }, f.notes)),
@@ -3185,7 +3185,7 @@ function fdScreen() {
         lab("Do they already run tech sessions?", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { f.warm = e.target.value; } }, [["any", "No preference"], ["yes", "Yes: they host talks or computer classes (easier to book)"], ["no", "No: new topic for them"]].map(([v, n]) => el("option", Object.assign({ value: v }, f.warm === v ? { selected: "" } : {}), n)))),
         el("label", { style: "display:flex;gap:10px;align-items:center;margin:12px 0 2px" }, (() => { const c = el("input", { type: "checkbox", style: "width:22px;height:22px", onchange: e => { f.room = e.target.checked; } }); c.checked = !!f.room; return c; })(), el("span", null, "Prefer ones with a room for an in-person group session"))) : null,
       el("button", { class: "btn primary", style: "margin-top:14px", onclick: () => { if (!f.area.trim() && !f.types.trim()) { FD.err = "Add an area or a kind of " + (sen ? "organization" : "business") + "."; render(); return; } FD.prompt = fdPrompt(f); go("paste"); } }, "Make the chatbot prompt"),
-      FD.items.length ? el("button", { class: "btn", style: "margin-top:8px", onclick: () => go("list") }, "Back to my list (" + FD.items.length + ")") : null));
+      FD.items.some(x => (x.brand || "business") === f.brand) ? el("button", { class: "btn", style: "margin-top:8px", onclick: () => go("list") }, "Back to my list (" + FD.items.filter(x => (x.brand || "business") === f.brand).length + ")") : null));
   }
   if (FD.stage === "paste") {
     return shell(...head, banner, errBox, el("div", { class: "card" },
@@ -3198,7 +3198,7 @@ function fdScreen() {
         el("button", { class: "btn primary", onclick: () => { let n; try { n = fdRead(FD.reply, f.brand); } catch (e) { FD.err = e.message; render(); return; } const have = new Set(FD.items.map(fdKey)); const add = n.filter(x => !have.has(fdKey(x))); FD.items = add.concat(FD.items).slice(0, 60); fdSave(); FD.reply = ""; go("list"); FD.msg = add.length + " added" + (n.length - add.length ? ", " + (n.length - add.length) + " already on your list" : "") + ". Check each website before you pitch."; render(); } }, "Read the reply"),
         el("button", { class: "btn", onclick: () => go("form") }, "Back"))));
   }
-  const pick = FD.items.filter(x => x.sel && !x.done && !fdInLeads(x)).length;
+  const mine = FD.items.filter(x => (x.brand || "business") === f.brand), pick = mine.filter(x => x.sel && !x.done && !fdInLeads(x)).length;
   const card = x => {
     const inL = fdInLeads(x), off = x.done || inL, cb = el("input", { type: "checkbox", style: "width:22px;height:22px;flex:none;margin-top:2px", "aria-label": "Target " + x.name, disabled: off ? "" : null, onchange: e => { x.sel = e.target.checked; fdSave(); render(); } });
     cb.checked = !!x.sel && !off;
@@ -3218,10 +3218,10 @@ function fdScreen() {
     el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin:8px 0" },
       el("button", { class: "btn primary", disabled: !pick, onclick: fdSend }, "Send " + pick + " ticked to the Pitch builder"),
       el("button", { class: "btn", onclick: () => go("form") }, "New search"),
-      el("button", { class: "btn", onclick: () => { FD.items.forEach(x => { if (!x.done && !fdInLeads(x)) x.sel = true; }); fdSave(); render(); } }, "Tick all"),
-      el("button", { class: "btn", onclick: () => { if (confirm("Clear the whole list? Prospects already added to Leads stay there.")) { FD.items = []; fdSave(); go("form"); } } }, "Clear list")),
-    el("p", { class: "muted", style: "margin:0 0 8px" }, FD.items.length + " on your list, kept on this device only. Open each website to check it is real and a good fit before you pitch. Only write to addresses published for business use, and honour any \"no thanks\" (CASL)."),
-    ...FD.items.map(card));
+      el("button", { class: "btn", onclick: () => { mine.forEach(x => { if (!x.done && !fdInLeads(x)) x.sel = true; }); fdSave(); render(); } }, "Tick all"),
+      el("button", { class: "btn", onclick: () => { if (confirm("Clear this list? Prospects already added to Leads stay there.")) { FD.items = FD.items.filter(x => (x.brand || "business") !== f.brand); fdSave(); go("form"); } } }, "Clear list")),
+    el("p", { class: "muted", style: "margin:0 0 8px" }, mine.length + " on your list, kept on this device only. Open each website to check it is real and a good fit before you pitch. Only write to addresses published for business use, and honour any \"no thanks\" (CASL)."),
+    ...mine.map(card));
 }
 
 function homeScreen() {
@@ -3268,9 +3268,8 @@ function homeScreen() {
         el("span", null, x.name.split(" ")[0] + ": " + { on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[k])); }) : el("span", { class: "muted", style: "display:block;margin-top:4px;font-weight:400" }, "Loading...")),
     el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => openInbox("leads") }, "Leads", newPill(NC.leads)),
     el("button", { class: "btn", onclick: () => { const T = talksState(); T.msg = ""; T.edit = null; if (T.status !== "loading") T.status = "idle"; S.screen = "talks"; render(); window.scrollTo(0, 0); talkLoad(); } }, "Speaking engagements"),
-    el("button", { class: "btn", onclick: () => { fdLoad(); FD.msg = ""; FD.err = ""; FD.f.brand = "business"; if (FD.stage !== "list") FD.stage = "form"; S.screen = "finder"; render(); window.scrollTo(0, 0); } }, "Prospect finder: businesses"),
-    el("button", { class: "btn", onclick: () => { fdLoad(); FD.msg = ""; FD.err = ""; FD.f.brand = "seniors"; if (FD.stage !== "list") FD.stage = "form"; S.screen = "finder"; render(); window.scrollTo(0, 0); } }, "Prospect finder: seniors organizations"),
-    el("button", { class: "btn", onclick: () => { PT.msg = ""; PT.err = ""; S.screen = "pitch"; render(); window.scrollTo(0, 0); } }, "Pitch builder: find clients"),
+    el("button", { class: "btn", onclick: () => { fdLoad(); FD.msg = ""; FD.err = ""; FD.f.brand = S.brand; FD.stage = FD.items.some(x => (x.brand || "business") === S.brand) ? "list" : "form"; S.screen = "finder"; render(); window.scrollTo(0, 0); } }, "Prospect finder: " + (S.brand === "seniors" ? "seniors organizations" : "businesses")),
+    el("button", { class: "btn", onclick: () => { PT.msg = ""; PT.err = ""; if (!PT.queue.length && !PT.out && !PT.o.company.trim()) PT.o.brand = S.brand; S.screen = "pitch"; render(); window.scrollTo(0, 0); } }, "Pitch builder: find clients"),
     el("button", { class: "btn", onclick: tmOpen }, "Testimonials"),
     el("button", { class: "btn", onclick: () => { S.screen = "analytics"; render(); window.scrollTo(0, 0); if (S.met) S.met.status = "idle"; metLoad(); } }, "Website metrics and analytics"),
     el("button", { class: "btn", disabled: S.brand === "business", "aria-disabled": String(S.brand === "business"), onclick: () => { if (S.brand === "business") return; svState().msg = ""; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad(); } }, "Surveys" + (S.sv && S.sv.rows ? " (" + S.sv.rows.length + ")" : "")),
