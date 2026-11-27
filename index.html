@@ -2960,6 +2960,24 @@ function ptPrompt(o) {
     "- Write each language field in its own language: " + langs.map(L => PT_TXT[L].lang).join(" and ") + ".",
     "", "Reply with this JSON object only:", "{" + langs.map(shape).join(", ") + "}", "", JSON_RULES]).filter(x => x !== "").join("\n");
 }
+/* Wording check: warns (never blocks) about outcome claims, absolutes and clinical-sounding words in a pitch, and builds a prompt asking the chatbot to rewrite only those lines. */
+const PT_FLAGS = [/\b(?:faster|quicker|sooner|saving time|save time|saves time|time saved|fewer|calmer|less stress|more time|back-and-forth|hours saved)\b/i, /\b(?:instantly|in seconds|guarantee[sd]?|effortless(?:ly)?|never|always|zero)\b/i, /\b(?:plus vite|gain de temps|moins de|plus rapide|instantanément|garanti[es]?|jamais|toujours)\b/i];
+const PT_FLAGS_REG = /\b(?:session notes?|session follow-up|intake|clinical|diagnos\w*|patient records?|treatment plans?|case notes?|dossiers? cliniques?|notes? de séance|accueil clinique)\b/i;
+function ptFlags(out, o) {
+  const regulated = /health|dental|clinic|psych|therap|medical|law|legal|notary|account|tax|financ|insurance|santé|dent|avocat|notaire|compta/i.test(String(o.industry || "") + " " + String(o.company || "") + " " + String(o.url || ""));
+  const res = [], chk = (L, field, txt) => { String(txt || "").split(/(?<=[.!?])\s+|\n+/).forEach(sn => { const m = PT_FLAGS.concat(o.brand === "seniors" ? [] : [PT_FLAGS_REG]).map(r => sn.match(r)).find(Boolean); if (m && !res.some(x => x.L === L && x.field === field && x.word.toLowerCase() === m[0].toLowerCase())) res.push({ L, field, word: m[0], line: sn.trim().slice(0, 140) }); }); };
+  ptLangs(o).forEach(L => { const d = out && out[L]; if (!d) return; chk(L, "headline_" + L, d.headline); chk(L, "intro_" + L, d.intro); chk(L, "email_subject_" + L, d.subject); chk(L, "email_body_" + L, d.body); chk(L, "linkedin_" + L, d.linkedin);
+    (d.benefits || []).forEach((b, i) => { ["title", "text", "example"].forEach(k => chk(L, "benefits_" + L + "[" + (i + 1) + "]." + k, b[k])); }); });
+  void regulated; return res;
+}
+function ptFixPrompt(out, o, flags) {
+  const raw = {}; ptLangs(o).forEach(L => { const d = out[L]; raw["headline_" + L] = d.headline; raw["intro_" + L] = d.intro; raw["benefits_" + L] = d.benefits.map(b => ({ title: b.title, text: b.text, example: b.example })); raw["email_subject_" + L] = d.subject; raw["email_body_" + L] = d.body; raw["linkedin_" + L] = d.linkedin; });
+  const words = [...new Set(flags.map(f => '"' + f.word + '"'))].join(", ");
+  return ["Below is the pitch JSON you wrote for " + o.company + ". Rewrite it with these changes only.", "", "AVOID these words and phrases everywhere, and close synonyms of them (for example faster, quicker, sooner for outcome claims): " + words + ".",
+    "Fields that contain them: " + flags.map(f => f.field).join(", ") + ". Rewrite only those fields. Copy every other field exactly as it is.",
+    "In place of an outcome claim, end the sentence with a neutral deliverable, for example \"ready for you to review before sending\" or \"a checklist your team can follow\". Do not promise results such as saving time, fewer messages, calmer days or faster replies. Keep each item tied to something on their website.",
+    "Keep the same JSON keys, languages and length limits. Keep accents and apostrophes in French.", "", JSON.stringify(raw, null, 1), "", JSON_RULES].join("\n");
+}
 function ptRead(text, o) {
   const raw = readAiJson(text), langs = ptLangs(o), bad = [];
   const one = (s, n) => String(s == null ? "" : s).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -3089,7 +3107,7 @@ function ptScreen() {
       el("button", { class: "btn sm primary", onclick: async () => say((await copyText(PT.prompt)) ? "Prompt copied. Paste it into your AI chat." : "Could not copy. Press and hold the text to copy it.") }, "Copy the prompt"),
       lab("The AI's reply", el("textarea", { rows: "7", placeholder: "Paste the whole reply here", style: "display:block;width:100%;margin-top:2px", oninput: e => { PT.reply = e.target.value; } }, PT.reply)),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" },
-        el("button", { class: "btn primary", onclick: () => { try { PT.out = ptRead(PT.reply, o); } catch (e) { PT.err = e.message; render(); return; } PT.view = ptLangs(o)[0]; PT.pdf = {}; PT.leadId = null; PT.follow = ptLocalDay(4); go("result"); } }, "Read the reply"),
+        el("button", { class: "btn primary", onclick: () => { try { PT.out = ptRead(PT.reply, o); } catch (e) { PT.err = e.message; render(); return; } PT.view = ptLangs(o)[0]; PT.pdf = {}; if (!PT.fixing) PT.leadId = null; PT.fixing = false; PT.follow = PT.follow || ptLocalDay(4); go("result"); } }, "Read the reply"),
         el("button", { class: "btn", onclick: () => go("form") }, "Back to the details"))));
   }
   const langs = ptLangs(o), L = langs.includes(PT.view) ? PT.view : langs[0], d = PT.out[L], T = PT_TXT[L];
@@ -3097,7 +3115,13 @@ function ptScreen() {
   const mail = ptEmail(o, d, L), sc = Math.min(1, (window.innerWidth - 48) / 794);
   const pageBox = el("div", { style: "width:" + Math.round(794 * sc) + "px;height:" + Math.round(1123 * sc) + "px;overflow:hidden;border:1px solid #d9dee5;margin:8px 0" }, el("div", { style: "transform:scale(" + sc + ");transform-origin:0 0;width:794px;height:1123px" }, ptPage(o, d, L)));
   const cp = (label, txt, ok) => el("button", { class: "btn sm", onclick: async () => say((await copyText(txt)) ? ok : "Could not copy.") }, label);
-  return shell(...head, banner, errBox, seg,
+  const flags = ptFlags(PT.out, o);
+  const flagBox = flags.length ? el("div", { class: "note warn", role: "alert" }, el("strong", null, "Check the wording before you send."),
+    el("ul", { style: "margin:6px 0 8px;padding-left:18px" }, flags.slice(0, 8).map(f => el("li", null, "\"" + f.word + "\" (" + f.L.toUpperCase() + "): " + f.line))),
+    el("p", { style: "margin:0 0 8px;font-size:13px" }, "These can read as a promise of results, or as clinical work. Edit them by hand, or copy a prompt that asks the chatbot to rewrite only these lines. Paste it into the SAME chat."),
+    el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, cp("Copy a fix prompt", ptFixPrompt(PT.out, o, flags), "Fix prompt copied. Paste it into the same AI chat, then use Paste the fixed reply."),
+      el("button", { class: "btn sm", onclick: () => { PT.fixing = true; PT.reply = ""; PT.err = ""; PT.msg = "Paste the corrected reply below."; PT.stage = "paste"; render(); window.scrollTo(0, 0); } }, "Paste the fixed reply"))) : null;
+  return shell(...head, banner, errBox, seg, flagBox,
     el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "3. Email (plain text)"),
       el("p", { style: "margin:0;font-weight:700" }, "Subject: " + d.subject), el("pre", { style: "white-space:pre-wrap;word-break:break-word;font:inherit;margin:8px 0" }, mail),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, cp("Copy subject", d.subject, "Subject copied."), cp("Copy email", mail, "Email copied."), cp("Copy tracked link", ptLink(o, L), "Link copied.")),
