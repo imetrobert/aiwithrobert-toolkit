@@ -57,6 +57,11 @@ header.top{border-bottom:6px solid var(--blue)}
 .bswb .bsel{position:absolute;top:8px;right:8px;font-size:11px;font-weight:800;letter-spacing:.6px;background:#fff;color:#11304C;border-radius:999px;padding:2px 8px}
 .bnd{margin-top:10px;border-radius:14px;padding:12px 14px;font-size:14.5px;line-height:1.4}
 .bnd strong{display:block;font-size:16px;margin-bottom:2px}
+.sech{margin:26px 0 8px;padding-top:12px;border-top:2px solid var(--line)}.sech h2{margin:0;font-size:19px;color:var(--navy)}.sech p{margin:2px 0 0;font-size:14px}
+.pls{display:flex;gap:12px;position:relative}.pnum{flex:none;width:32px;height:32px;border-radius:50%;background:var(--blue);color:var(--onblue);font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:10px;z-index:1}
+.pls:not(.last)::before{content:"";position:absolute;left:15px;top:42px;bottom:-10px;width:2px;background:var(--blue);opacity:.45}
+.pbody{flex:1;min-width:0}.phint{margin:-4px 2px 12px;font-size:13px;color:var(--muted);line-height:1.35}
+
 input[type=date]{box-sizing:border-box;max-width:100%;min-width:0;min-height:50px;-webkit-appearance:none;appearance:none;background:#fff;text-align:left}
 input,textarea{font:inherit;font-size:17px;width:100%;border:2px solid var(--line);border-radius:12px;padding:12px;color:var(--ink)}
 textarea{min-height:140px;resize:vertical}
@@ -3239,6 +3244,9 @@ function fdScreen() {
     ...mine.map(card));
 }
 
+/* Home layout helpers: numbered pipeline steps with a connecting line, and section headings. */
+const secHead = (title, sub, first) => el("div", { class: "sech", style: first ? "margin-top:6px" : "" }, el("h2", null, title), sub ? el("p", { class: "muted" }, sub) : null);
+const pstep = (n, btn, hint, last) => el("div", { class: "pls" + (last ? " last" : "") }, el("span", { class: "pnum", "aria-hidden": "true" }, String(n)), el("div", { class: "pbody" }, btn, hint ? el("p", { class: "phint" }, hint) : null));
 /* The Business / Seniors switch is the most important control in the toolkit: it decides which tools, wording, branding and finders you get. */
 const BRAND_TOOLS = {
   seniors: "Seniors workshop materials (handout, workbook, deck, survey), Surveys, Speaking engagements, and the Prospect finder and Pitch builder for organizations that serve seniors.",
@@ -3284,6 +3292,13 @@ function homeScreen() {
     todayCard(), banner, capsStripe, brandSwitch(),
     el("h1", null, t("homeTitle")),
     el("p", { class: "muted" }, t("homeSub")),
+    secHead("Win clients", "Your sales pipeline. Each step feeds the next: work from top to bottom.", true),
+    pstep(1, el("button", { class: "btn", onclick: () => { S.screen = "analytics"; render(); window.scrollTo(0, 0); if (S.met) S.met.status = "idle"; metLoad(); } }, "Website metrics and analytics"), "Who visits your websites and what they do. Shows what is bringing people in."),
+    pstep(2, el("button", { class: "btn", onclick: () => { fdLoad(); FD.msg = ""; FD.err = ""; FD.f.brand = S.brand; FD.stage = FD.items.some(x => (x.brand || "business") === S.brand) ? "list" : "form"; S.screen = "finder"; render(); window.scrollTo(0, 0); } }, "Prospect finder: " + (S.brand === "seniors" ? "seniors organizations" : "businesses")), "Tick the ones to target and send them to the Pitch builder."),
+    pstep(3, el("button", { class: "btn", onclick: () => { PT.msg = ""; PT.err = ""; if (!PT.queue.length && !PT.out && !PT.o.company.trim()) PT.o.brand = S.brand; S.screen = "pitch"; render(); window.scrollTo(0, 0); } }, "Pitch builder: find clients"), "Writes the email, PDF and LinkedIn message. Marking a pitch as sent adds it to Leads."),
+    pstep(4, el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => openInbox("leads") }, "Leads", newPill(NC.leads)), S.brand === "business" ? "Every lead lands here: website checks, messages, your pitches and talk QR codes. Open one to run its feasibility check." : "Every lead lands here: website messages, your pitches and talk QR codes. A won lead gets an invoice, then the after-session follow-up.", S.brand !== "business"),
+    S.brand === "business" ? pstep(5, el("button", { class: "btn", onclick: () => { S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"), "Can the client's plan do it? Builds the proposal; a won lead goes on to an invoice.", true) : null,
+    secHead("Run the sessions", "Prepare the session, deliver it, keep the materials."),
     el("div", { class: "card" },
       el("h2", { style: "margin-top:0" }, t("startNew")),
       el("p", { class: "muted" }, "Brand for this session: ", el("strong", null, brandFor(S.brand).name), " (change it with the switch at the top)."),
@@ -3295,22 +3310,17 @@ function homeScreen() {
         S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; S.typeId = S.sel[0];
         S.sid = newId(); S.name = ""; S.feasSaved = null; S.lead = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
       } }, t("start"))),
+    el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
+    el("button", { class: "btn", onclick: () => { const T = talksState(); T.msg = ""; T.edit = null; if (T.status !== "loading") T.status = "idle"; S.screen = "talks"; render(); window.scrollTo(0, 0); talkLoad(); } }, "Speaking engagements"),
+    secHead("After the event", "Capture what you learned and what clients say."),
+    el("button", { class: "btn", onclick: tmOpen }, "Testimonials"),
+    S.brand === "seniors" ? el("button", { class: "btn", onclick: () => { svState().msg = ""; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad(); } }, "Surveys" + (S.sv && S.sv.rows ? " (" + S.sv.rows.length + ")" : "")) : null,
+    secHead("Settings and backup", ""),
     el("button", { class: "btn", style: "text-align:left", onclick: () => { S.cap.status = "idle"; S.cap.msg = ""; S.screen = "cap"; render(); window.scrollTo(0, 0); capLoad(); } },
       el("span", { style: "display:block;font-weight:700" }, "Site availability"),
       S.cap.rows ? CAP_SITES.filter(x => x.id === S.brand).map(x => { const k = capState(S.cap.rows[x.id], Date.now()).k; return el("span", { style: "display:flex;align-items:center;gap:10px;margin-top:6px;font-weight:600" },
         el("span", { "aria-hidden": "true", style: "flex:none;width:16px;height:16px;border-radius:50%;background:" + { on: "#B42318", scheduled: "#B45309", off: "#14632F" }[k] }),
         el("span", null, x.name.split(" ")[0] + ": " + { on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[k])); }) : el("span", { class: "muted", style: "display:block;margin-top:4px;font-weight:400" }, "Loading...")),
-    el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => openInbox("leads") }, "Leads", newPill(NC.leads)),
-    el("button", { class: "btn", onclick: () => { const T = talksState(); T.msg = ""; T.edit = null; if (T.status !== "loading") T.status = "idle"; S.screen = "talks"; render(); window.scrollTo(0, 0); talkLoad(); } }, "Speaking engagements"),
-    el("button", { class: "btn", onclick: () => { fdLoad(); FD.msg = ""; FD.err = ""; FD.f.brand = S.brand; FD.stage = FD.items.some(x => (x.brand || "business") === S.brand) ? "list" : "form"; S.screen = "finder"; render(); window.scrollTo(0, 0); } }, "Prospect finder: " + (S.brand === "seniors" ? "seniors organizations" : "businesses")),
-    el("button", { class: "btn", onclick: () => { PT.msg = ""; PT.err = ""; if (!PT.queue.length && !PT.out && !PT.o.company.trim()) PT.o.brand = S.brand; S.screen = "pitch"; render(); window.scrollTo(0, 0); } }, "Pitch builder: find clients"),
-    el("button", { class: "btn", onclick: tmOpen }, "Testimonials"),
-    el("button", { class: "btn", onclick: () => { S.screen = "analytics"; render(); window.scrollTo(0, 0); if (S.met) S.met.status = "idle"; metLoad(); } }, "Website metrics and analytics"),
-    el("button", { class: "btn", disabled: S.brand === "business", "aria-disabled": String(S.brand === "business"), onclick: () => { if (S.brand === "business") return; svState().msg = ""; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad(); } }, "Surveys" + (S.sv && S.sv.rows ? " (" + S.sv.rows.length + ")" : "")),
-    S.brand === "business" ? el("p", { class: "muted", style: "margin:-6px 2px 10px;font-size:13px" }, "Seniors workshops only. Choose AI with Robert for Seniors above to use it.") : null,
-    el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
-    el("button", { class: "btn", disabled: S.brand === "seniors", "aria-disabled": String(S.brand === "seniors"), onclick: () => { if (S.brand === "seniors") return; S.sid = null; S.name = ""; S.feasSaved = null; S.lead = null; lastSaved = ""; S.fx = { tool: "claude", reqs: [], request: "", msg: "", imp: "", users: 5, flows: 1, assess: false, train: 0 }; S.screen = "feas"; render(); window.scrollTo(0, 0); } }, "Feasibility check: can the client's plan do it?"),
-    S.brand === "seniors" ? el("p", { class: "muted", style: "margin:-6px 2px 10px;font-size:13px" }, "Business only. Choose AI with Robert for Business above to use it.") : null,
     el("button", { class: "btn", onclick: () => pickBackup(() => { S.screen = "sessions"; render(); window.scrollTo(0, 0); }) }, t("importBackup")),
     cloudLine(),
     el("div", { class: "note" }, t("standing")),
