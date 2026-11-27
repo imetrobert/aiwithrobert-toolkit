@@ -171,3 +171,7 @@ Code block `PROSPECT FINDER` in index.html (grep `fdScreen`, `fdPrompt`, `fdRead
 ## Home screen layout (sales pipeline, 2026-11-27)
 
 The home screen buttons are grouped in `homeScreen()` (index.html): "Win clients" = numbered pipeline steps built with `pstep(n, button, hint)` (1 Website metrics, 2 Prospect finder, 3 Pitch builder, 4 Leads, 5 Feasibility check for Business only), "Run the sessions" (Start a new session card, Saved materials, Speaking engagements), "After the event" (Testimonials; Surveys for Seniors only), "Settings and backup" (Site availability, backup import, cloud line, sign out). The hint lines under each step say how it feeds the next; edit them there. To add a tool, add a `pstep` or a button in the right group. CSS: `.sech` (section heading), `.pls` (step row), `.pnum`, `.phint`. Do not reuse the class name `pstep` for CSS: it already styles the lead stage chips.
+
+## Lead back-links to the pitch (2026-11-27)
+
+A lead made by "I sent it" in the Pitch builder stores `lead.pitch = { o, out, fid }` (prospect details without the logo or notes, the generated pitch, and the finder card id), written in `ptAddLead()`. `leadNext()` shows "Where this lead came from" under the next step: Open the pitch I sent (restores `PT` and opens the result stage), Open their website, Open the prospect list (finder). Leads made before this change, or typed in by hand, have no `pitch` and show nothing.

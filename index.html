@@ -1407,7 +1407,12 @@ function leadNext(r, cur) {
     after: ["After the session: thank them, ask for a review, then check in about a month later. Archive the lead when all three are sent.", [afterRows(), go("Save a testimonial reply", () => tmStart(r))]],
     lost: ["Closed as lost. Archive it when you no longer need it.", []]
   })[cur] || ["Tap a stage above to place this lead in the pipeline.", []];
-  return el("div", { class: "pnext" }, el("div", { style: "font-weight:700;color:var(--navy)" }, "Next step"), el("div", { style: "margin:2px 0 8px" }, N[0]), el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, N[1]), msg);
+  /* Back-links from a lead made by "I sent it": reopen the pitch, their website, or the finder card. */
+  const pi = r.lead && r.lead.pitch, back = pi ? el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid var(--line)" }, el("div", { style: "font-weight:700;color:var(--navy);margin-bottom:6px" }, "Where this lead came from"), el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },
+    pi.out ? go("Open the pitch I sent", () => { fdLoad(); Object.assign(PT.o, { logo: "", text: "" }, pi.o); PT.out = pi.out; PT.view = ptLangs(PT.o)[0]; PT.pdf = {}; PT.prompt = ""; PT.reply = ""; PT.err = ""; PT.msg = ""; PT.busy = ""; PT.leadId = r.id; PT.queue = []; PT.qi = -1; PT.curId = null; PT.stage = "result"; S.screen = "pitch"; render(); window.scrollTo(0, 0); }) : null,
+    pi.o && /^https?:\/\/\S+\.\S+/i.test(pi.o.url || "") ? el("a", { class: "btn sm", href: pi.o.url, target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Open their website") : null,
+    pi.fid ? go("Open the prospect list", () => { fdLoad(); FD.msg = ""; FD.err = ""; FD.f.brand = r.brand; FD.stage = "list"; S.screen = "finder"; render(); window.scrollTo(0, 0); }) : null)) : null;
+  return el("div", { class: "pnext" }, el("div", { style: "font-weight:700;color:var(--navy)" }, "Next step"), el("div", { style: "margin:2px 0 8px" }, N[0]), el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, N[1]), msg, back);
 }
 /* Follow-up for everyone shown under the "On waitlist" filter: one paste per brand for the email agent, then mark them invited. */
 async function leadsFollowUp(rows) {
@@ -3037,7 +3042,8 @@ function ptAddLead() {
   const L = ptLangs(o)[0], follow = /^\d{4}-\d{2}-\d{2}$/.test(PT.follow) ? PT.follow : ptLocalDay(4);
   const note = ("Outbound pitch sent " + ptLocalDay(0) + (o.url ? ". Website: " + o.url : "") + (o.industry ? ". Type: " + o.industry : "") + ". Subject: " + d.subject + ". Tracking tag: pitch/pitch-" + ptSlug(o) + ".").slice(0, 1500);
   const br = o.brand === "seniors" ? "seniors" : "business", rec = { id: newId(), brand: br, sel: [BASE[br]], typeId: BASE[br], lang: L, name: o.company.trim().slice(0, 80), created: now, updated: now, step: 0, answers: {}, pastes: {}, results: {}, feas: null,
-    lead: { status: "new", contact: [o.first, o.email].map(x => (x || "").trim()).filter(Boolean).join(" · ").slice(0, 120), follow, note, hist: {}, at: now } };
+    lead: { status: "new", contact: [o.first, o.email].map(x => (x || "").trim()).filter(Boolean).join(" · ").slice(0, 120), follow, note, hist: {}, at: now,
+      pitch: { o: { brand: br, company: o.company, url: o.url || "", industry: o.industry || "", first: o.first || "", email: o.email || "", lang: o.lang || "both", logoUrl: o.logoUrl || "" }, out: PT.out, fid: PT.curId || "" } } };
   Object.assign(rec.lead, stagePatch(rec, "contacted", "auto"), { follow });
   if (!Store.upsert(rec)) return "Could not save the lead on this device.";
   Cloud.push(rec); PT.leadId = rec.id; if (PT.curId) { const it = FD.items.find(x => x.id === PT.curId); if (it) { it.done = true; it.sel = false; fdSave(); } }
