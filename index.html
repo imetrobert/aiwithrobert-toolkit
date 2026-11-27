@@ -3072,16 +3072,18 @@ function ptScreen() {
       lab(sen ? "Type of organization" : "Type of business", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { o.industry = e.target.value; } }, (sen ? PT_INDUSTRY_S : PT_INDUSTRY).map(([v, n]) => el("option", Object.assign({ value: v }, o.industry === v ? { selected: "" } : {}), n)))),
       inp((sen ? "Contact first name (optional, for example the programs coordinator)" : "Contact first name (optional)"), "first", { maxlength: "40" }), inp("Contact email (optional, only if it is published for business)", "email", { maxlength: "120", type: "email", inputmode: "email" }),
       lab("Your notes (optional): anything the website will not show, such as size, who you spoke to, or a site the chatbot cannot read. Only needed if you leave the website address empty", el("textarea", { rows: "3", maxlength: "3000", placeholder: "For example: two lawyers and an assistant; met the owner at a networking event", style: "display:block;width:100%;margin-top:2px", oninput: e => { o.text = e.target.value; } }, o.text)),
-      lab("Language of the pitch", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { o.lang = e.target.value; } }, [["both", "English and French"], ["en", "English only"], ["fr", "French only"]].map(([v, n]) => el("option", Object.assign({ value: v }, o.lang === v ? { selected: "" } : {}), n)))),
+      lab("Language of the pitch", el("select", { id: "pt-lang", style: "display:block;width:100%;margin-top:2px", onchange: e => { o.lang = e.target.value; } }, [["both", "English and French"], ["en", "English only"], ["fr", "French only"]].map(([v, n]) => el("option", Object.assign({ value: v }, o.lang === v ? { selected: "" } : {}), n)))),
       logoBox,
       el("button", { class: "btn primary", style: "margin-top:14px", onclick: () => {
         if (!o.company.trim()) { PT.err = "Add the business name."; render(); return; }
         if (o.text.trim().length < 60 && !/^https?:\/\/\S+\.\S+/i.test(o.url.trim())) { PT.err = "Add their website address so the chatbot can read it, or paste some text about them in the notes."; render(); return; }
+        const ls = document.getElementById("pt-lang"); if (ls && ["both", "en", "fr"].includes(ls.value)) o.lang = ls.value;
         PT.prompt = ptPrompt(o); go("paste"); } }, "Make the chatbot prompt")));
   }
   if (PT.stage === "paste") {
     return shell(...head, banner, errBox, el("div", { class: "card" },
       el("h2", { style: "margin-top:0" }, "2. Ask a free AI chat"),
+      el("p", { class: "muted", style: "margin:0 0 6px" }, "Pitch language: " + ptLangs(o).map(x => PT_TXT[x].lang).join(" and ") + ". (Change it under Back to the details.)"),
       el("p", null, "Copy the prompt, paste it into a free chat (Gemini, ChatGPT or Claude), then copy the whole reply and paste it below."),
       el("textarea", { rows: "5", readonly: "", "aria-label": "Prompt", style: "display:block;width:100%;font-size:13px" }, PT.prompt),
       el("button", { class: "btn sm primary", onclick: async () => say((await copyText(PT.prompt)) ? "Prompt copied. Paste it into your AI chat." : "Could not copy. Press and hold the text to copy it.") }, "Copy the prompt"),
@@ -3198,7 +3200,7 @@ function ptTryLogo() {
 function ptNext() {
   PT.qi++; const id = PT.queue[PT.qi], it = id && FD.items.find(x => x.id === id);
   if (!it) { PT.queue = []; PT.qi = -1; PT.curId = null; FD.msg = "That was the last ticked prospect."; S.screen = "finder"; render(); window.scrollTo(0, 0); return; }
-  Object.assign(PT, { stage: "form", prompt: "", reply: "", out: null, err: "", msg: "", pdf: {}, leadId: null, curId: id, o: { brand: it.brand || "business", company: it.name, url: it.url, industry: it.type, text: "", first: it.first, email: it.email, lang: it.brand === "seniors" && it.mlang ? (it.mlang === "english" ? "en" : it.mlang === "french" ? "fr" : "both") : PT.o.lang, logo: "", logoUrl: it.logo || "" } });
+  Object.assign(PT, { stage: "form", prompt: "", reply: "", out: null, err: "", msg: "", pdf: {}, leadId: null, curId: id, o: { brand: it.brand || "business", company: it.name, url: it.url, industry: it.type, text: "", first: it.first, email: it.email, lang: it.brand === "seniors" && it.mlang ? (it.mlang === "english" ? "en" : it.mlang === "french" ? "fr" : "both") : "both", logo: "", logoUrl: it.logo || "" } });
   S.screen = "pitch"; render(); window.scrollTo(0, 0); ptTryLogo();
 }
 function fdScreen() {
