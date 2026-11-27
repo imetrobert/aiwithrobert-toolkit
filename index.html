@@ -2964,7 +2964,7 @@ function ptRead(text, o) {
   const out = {};
   langs.forEach(L => {
     const b = Array.isArray(raw["benefits_" + L]) ? raw["benefits_" + L].filter(x => x && typeof x === "object") : [];
-    const d = { headline: one(raw["headline_" + L], 110), intro: one(raw["intro_" + L], 320), subject: one(raw["email_subject_" + L], 90), body: para(raw["email_body_" + L], 1100), linkedin: one(raw["linkedin_" + L], 520),
+    const d = { headline: one(raw["headline_" + L], 110), intro: one(raw["intro_" + L], 320), subject: one(raw["email_subject_" + L], 90), body: para(String(raw["email_body_" + L] == null ? "" : raw["email_body_" + L]).replace(/^\s*(?:hi|hello|hey|dear|bonjour|salut)\b[^\n]{0,60}?[,:]?\s*(?:\\n|\n)+/i, "").replace(/(?:\\n|\n)+\s*(?:best(?: regards)?|kind regards|regards|sincerely|thanks|thank you|cordialement|bien cordialement|merci)\b[^\n]{0,60}(?:(?:\\n|\n)[^\n]{0,40})?$/i, ""), 1100), linkedin: one(raw["linkedin_" + L], 520),
       benefits: b.slice(0, 3).map(x => ({ title: one(x.title, 80), text: one(x.text, 250), example: one(x.example, 230) })) };
     if (!d.headline) bad.push("headline_" + L); if (!d.intro) bad.push("intro_" + L); if (!d.subject) bad.push("email_subject_" + L); if (!d.body) bad.push("email_body_" + L); if (!d.linkedin) bad.push("linkedin_" + L);
     if (d.benefits.length < 3 || d.benefits.some(x => !x.title || !x.text || !x.example)) bad.push("benefits_" + L + " (needs 3 with title, text and example)");
