@@ -1553,7 +1553,7 @@ function headerBack() {
   else if (sc === "composer") fn = go("hub");
   else if (sc === "import") fn = go("composer");
   else if (sc === "edit") fn = () => { if (currentType().local) { S.screen = "feas"; render(); window.scrollTo(0, 0); } else if (isDirty()) { S.modal = true; render(); } else goStart(); };
-  else if (["hub", "cap", "leads", "analytics", "sessions", "feas", "inq", "surveys", "talks", "testimonials"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
+  else if (["hub", "cap", "leads", "analytics", "sessions", "feas", "inq", "surveys", "talks", "testimonials", "pitch"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
   if (sc === "wspreview") fn = go("feas");
   if (sc === "svadd") fn = () => { const v = svState(); if (["review", "saving"].includes(v.stage) && !confirm("Discard this survey without saving?")) return; if (v.stage === "start") S.screen = "surveys"; else { v.stage = "start"; v.err = ""; } render(); window.scrollTo(0, 0); };
   if (!fn) return null;
@@ -2869,6 +2869,197 @@ function todayCard() {
     visits ? el("p", { class: "muted", style: "margin:4px 0" }, "Visits, last 7 days: " + visits + ".") : null,
     el("button", { class: "btn link", style: "margin:4px 0 0", onclick: () => { S.today = null; if (S.met) S.met.status = "idle"; S.met = null; render(); } }, "Refresh"));
 }
+/* ==========================================================================
+   PITCH BUILDER  -  find clients. Paste what a local business says on its website, get a prompt for a free AI chat, paste the
+   reply back, get a branded one-page pitch (PDF, English and/or French), a plain-text email with subject, and a short LinkedIn
+   message. "I sent it" adds the prospect to Leads (stage "Invited to call", with a follow-up date). Nothing is saved except that
+   lead; the prospect's logo stays in memory only. Business brand only. See docs/common-edits.md "Pitch builder".
+   ========================================================================== */
+const PT_INDUSTRY = [["", "Choose..."], ["dental or health practice", "Dental or health practice"], ["trades and contractors", "Trades and contractors"], ["accounting and bookkeeping", "Accounting and bookkeeping"], ["legal and notary", "Legal and notary"], ["real estate and property", "Real estate and property"], ["retail or online shop", "Retail or online shop"], ["restaurant and food", "Restaurant and food"], ["fitness and wellness", "Fitness and wellness"], ["marketing and creative", "Marketing and creative"], ["other professional services", "Other professional services"]];
+const PT_TXT = {
+  en: { prep: "Prepared for", how: "How we would start", steps: ["Free feasibility check (2 minutes)", "A short call, no obligation", "A documented workflow built around your task"], cta: "Start with the free feasibility check", ex: "For example",
+    note: "Examples illustrate what a standard low-cost AI plan can do; results depend on your own tasks and are confirmed with you first. Prepared from public information on your website. Independent consultancy, not connected to {c} or any software vendor.",
+    hi: "Hi {n},", hi0: "Hello,", chk: "Free feasibility check (2 minutes): ", off: "If you would rather not hear from me again, just reply \"no thanks\" and I will not write again.", lang: "English" },
+  fr: { prep: "Préparé pour", how: "Comment nous commencerions", steps: ["Vérification de faisabilité gratuite (2 minutes)", "Un court appel, sans engagement", "Un flux de travail documenté, conçu autour de votre tâche"], cta: "Commencez par la vérification de faisabilité gratuite", ex: "Par exemple",
+    note: "Les exemples illustrent ce qu’un forfait d’IA abordable peut faire; les résultats dépendent de vos propres tâches et sont confirmés avec vous au préalable. Préparé à partir de renseignements publics sur votre site Web. Cabinet indépendant, sans lien avec {c} ni avec un fournisseur de logiciels.",
+    hi: "Bonjour {n},", hi0: "Bonjour,", chk: "Vérification de faisabilité gratuite (2 minutes) : ", off: "Si vous préférez que je ne vous écrive plus, répondez simplement « non merci » et je ne le ferai plus.", lang: "Français" }
+};
+const PT_FIELDS = L => ["headline_" + L, "intro_" + L, "email_subject_" + L, "email_body_" + L, "linkedin_" + L];
+const PT = { stage: "form", o: { company: "", url: "", industry: "", text: "", first: "", email: "", lang: "both", logo: "" }, prompt: "", reply: "", out: null, err: "", msg: "", view: "en", pdf: {}, busy: "", leadId: null, follow: "" };
+const ptLangs = o => o.lang === "both" ? ["en", "fr"] : [o.lang];
+const ptSlug = o => { const d = new Date(), c = String(o.company || "client").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "client"; return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + "-" + c; };
+const ptLink = (o, L) => "https://biz.aiwithrobert.com/" + (L === "fr" ? "fr/" : "") + "?utm_source=pitch&utm_campaign=pitch-" + ptSlug(o) + "#feas-check";
+const ptLocalDay = add => { const d = new Date(Date.now() + add * 864e5); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+function ptPrompt(o) {
+  const langs = ptLangs(o), shape = L => ['"headline_' + L + '": "up to 12 words"', '"intro_' + L + '": "up to 40 words"', '"benefits_' + L + '": [{"title": "up to 8 words", "text": "up to 35 words", "example": "up to 30 words"}, {"title": "", "text": "", "example": ""}, {"title": "", "text": "", "example": ""}]', '"email_subject_' + L + '": "up to 8 words"', '"email_body_' + L + '": "70 to 110 words, plain text, paragraphs separated by \\n\\n"', '"linkedin_' + L + '": "up to 60 words"'].join(", ");
+  return ["You are helping Robert Simon, an independent AI consultant in Montréal (AI with Robert for Business), write a short, friendly pitch to ONE local small business. He helps businesses of about 5 to 20 people get more from the low-cost AI plans they already pay for (ChatGPT, Gemini, Copilot, Claude). His services: AI opportunity assessment (where AI can save time); AI workflow automation (one recurring task turned into a documented, reusable workflow, with a walkthrough); AI agents and advanced automation; practical AI training for the team.",
+    "",
+    "THE PROSPECT",
+    "Business: " + o.company, o.url ? "Website: " + o.url : "", o.industry ? "Type: " + o.industry : "", o.first ? "Contact first name: " + o.first : "",
+    o.url ? "FIRST: if you can open web pages, open " + o.url + " and read the home page, the services or products page and the about page (and any page that shows how they take bookings, orders or client questions). Use what you actually read to find repeating tasks, their tone and their customers. If you cannot open web pages, say nothing about it and use the text below." : "",
+    o.text.trim() ? "What their website says (pasted by Robert, may be partial):" : "", o.text.trim() ? '"""' : "", o.text.trim(), o.text.trim() ? '"""' : "",
+    "",
+    "WHAT TO WRITE",
+    "Three benefits. Each one is a REPEATING job in THIS business (name it, using their own words from the text), what Robert would set up (documented prompts or a reusable workflow), and what the owner gets back each time. Each must be doable on a normal low-cost AI plan: writing and rewriting, summarising documents, reusing prompts, working with the business's own files and templates, drafting replies, preparing checklists. Never say anything runs by itself.",
+    "Each example starts with a concrete everyday scene for this kind of business.",
+    "Email body: plain text, no links, no bullet points, no signature and no greeting (the app adds them). Mention one specific thing from their website, one benefit, and ask for nothing bigger than a free 2-minute feasibility check. Subject: no clickbait, no capitals for emphasis.",
+    "LinkedIn message: no links, no greeting needed, friendly and short.",
+    "",
+    "RULES (strict)",
+    "- Use only facts in the pasted text or in pages you actually opened. Do NOT invent clients, numbers, percentages, hours saved, awards, prices or results. If you give a size of benefit, say \"for example\" and keep it qualitative.",
+    "- Friendly, plain-spoken, respectful of their time. No jargon (no leverage, synergy, revolutionize, game-changer). No emoji. Never claim a connection with the business or its software suppliers.",
+    langs.includes("fr") ? "- French: Québécois, formal \"vous\", natural wording, not a word-for-word translation." : "",
+    "- Write each language field in its own language: " + langs.map(L => PT_TXT[L].lang).join(" and ") + ".",
+    "",
+    "Reply with this JSON object only:",
+    "{" + langs.map(shape).join(", ") + "}",
+    "",
+    JSON_RULES].filter(x => x !== "").join("\n");
+}
+function ptRead(text, o) {
+  const raw = readAiJson(text), langs = ptLangs(o), bad = [];
+  const one = (s, n) => String(s == null ? "" : s).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").replace(/\s+/g, " ").trim().slice(0, n);
+  const para = (s, n) => String(s == null ? "" : s).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").replace(/\r/g, "").split(/\n{2,}|\\n\\n/).map(x => x.replace(/[ \t]*\n[ \t]*/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean).join("\n\n").slice(0, n);
+  const out = {};
+  langs.forEach(L => {
+    const b = Array.isArray(raw["benefits_" + L]) ? raw["benefits_" + L].filter(x => x && typeof x === "object") : [];
+    const d = { headline: one(raw["headline_" + L], 110), intro: one(raw["intro_" + L], 320), subject: one(raw["email_subject_" + L], 90), body: para(raw["email_body_" + L], 1100), linkedin: one(raw["linkedin_" + L], 520),
+      benefits: b.slice(0, 3).map(x => ({ title: one(x.title, 80), text: one(x.text, 250), example: one(x.example, 230) })) };
+    if (!d.headline) bad.push("headline_" + L); if (!d.intro) bad.push("intro_" + L); if (!d.subject) bad.push("email_subject_" + L); if (!d.body) bad.push("email_body_" + L); if (!d.linkedin) bad.push("linkedin_" + L);
+    if (d.benefits.length < 3 || d.benefits.some(x => !x.title || !x.text || !x.example)) bad.push("benefits_" + L + " (needs 3 with title, text and example)");
+    out[L] = d;
+  });
+  if (bad.length) throw new Error("The reply is missing: " + bad.join(", ") + ". In the AI chat say: \"Send the full JSON again with every field filled\", then copy that.");
+  return out;
+}
+function ptEmail(o, d, L) {
+  const T = PT_TXT[L], hi = o.first ? T.hi.replace("{n}", o.first) : T.hi0;
+  return hi + "\n\n" + d.body + "\n\n" + T.chk + ptLink(o, L) + "\n\nRobert Simon\nAI with Robert for Business\n514-250-8491 | biz@aiwithrobert.com\n\n" + T.off;
+}
+/* One A4 page (794 x 1123 px), inline styles only so html2canvas draws it exactly. */
+function ptPage(o, d, L) {
+  const T = PT_TXT[L], B = brandFor("business"), c = B.colors, url = ptLink(o, L);
+  const st = s => ({ style: s });
+  const qr = el("div", { style: "width:92px;height:92px;flex:none;background:#fff;padding:4px;border-radius:6px" }); qr.innerHTML = talkQr(url).createSvgTag({ cellSize: 3, margin: 0, scalable: true });
+  const svg = qr.querySelector("svg"); if (svg) { svg.setAttribute("width", "84"); svg.setAttribute("height", "84"); }
+  const logos = el("div", { style: "display:flex;align-items:center;gap:14px" },
+    el("img", { src: B.logo, alt: B.name, style: "height:54px;width:54px;border-radius:8px;background:#fff" }),
+    o.logo ? el("img", { src: o.logo, alt: o.company, style: "max-height:54px;max-width:170px;background:#fff;border-radius:8px;padding:5px 8px;object-fit:contain" }) : null);
+  const card = (x, i) => el("div", { style: "display:flex;gap:14px;border-left:6px solid " + c.blue + ";background:" + c.light + ";border-radius:0 10px 10px 0;padding:12px 16px" },
+    el("div", { style: "flex:none;width:30px;height:30px;border-radius:50%;background:" + c.navy + ";color:#fff;font:700 16px/30px Arial,sans-serif;text-align:center" }, String(i + 1)),
+    el("div", { style: "min-width:0" }, el("div", { style: "font:700 17px/1.25 Arial,sans-serif;color:" + c.navy }, x.title),
+      el("div", { style: "font:14px/1.4 Arial,sans-serif;color:#1f2933;margin-top:3px" }, x.text),
+      el("div", { style: "font:italic 13px/1.4 Arial,sans-serif;color:" + c.accentText + ";margin-top:4px" }, T.ex + ": " + x.example)));
+  const step = (s, i) => el("div", { style: "flex:1;min-width:0;background:#fff;border:1px solid #d9dee5;border-radius:10px;padding:9px 10px;text-align:center" },
+    el("div", { style: "font:700 20px/1 Arial,sans-serif;color:" + c.accentText }, String(i + 1)), el("div", { style: "font:13px/1.3 Arial,sans-serif;color:" + c.navy + ";margin-top:4px" }, s));
+  return el("div", { style: "width:794px;height:1123px;box-sizing:border-box;overflow:hidden;background:#fff;position:relative;font-family:Arial,Helvetica,sans-serif" },
+    el("div", { style: "background:" + c.navy + ";padding:22px 44px 20px;color:#fff" }, logos,
+      el("div", { style: "font:13px/1.3 Arial,sans-serif;color:" + c.sky + ";margin-top:12px;letter-spacing:.4px;text-transform:uppercase" }, T.prep),
+      el("div", { style: "font:700 26px/1.2 Arial,sans-serif;margin-top:2px" }, o.company)),
+    el("div", { style: "height:5px;background:" + c.blue }),
+    el("div", { style: "padding:22px 44px 0" },
+      el("div", { style: "font:700 27px/1.22 Arial,sans-serif;color:" + c.navy }, d.headline),
+      el("div", { style: "font:15px/1.45 Arial,sans-serif;color:#1f2933;margin-top:8px" }, d.intro),
+      el("div", { style: "display:flex;flex-direction:column;gap:10px;margin-top:16px" }, d.benefits.map(card)),
+      el("div", { style: "font:700 14px/1 Arial,sans-serif;color:" + c.navy + ";margin:18px 0 8px;text-transform:uppercase;letter-spacing:.4px" }, T.how),
+      el("div", { style: "display:flex;gap:10px" }, T.steps.map(step)),
+      el("div", { style: "display:flex;align-items:center;gap:16px;margin-top:16px;background:" + c.navy + ";border-radius:12px;padding:14px 18px;color:#fff" }, qr,
+        el("div", { style: "min-width:0" }, el("div", { style: "font:700 17px/1.25 Arial,sans-serif;color:" + c.blue }, T.cta),
+          el("div", { style: "font:12px/1.35 Arial,sans-serif;color:#fff;margin-top:4px;word-break:break-all" }, url.split("?")[0] + "#feas-check"),
+          el("div", { style: "font:13px/1.35 Arial,sans-serif;color:#fff;margin-top:4px" }, "Robert Simon | 514-250-8491 | biz@aiwithrobert.com"))),
+      el("div", { style: "font:10.5px/1.4 Arial,sans-serif;color:#52606d;margin-top:10px" }, T.note.replace("{c}", o.company))),
+    el("div", { style: "position:absolute;left:0;right:0;bottom:0;padding:9px 44px;border-top:1px solid #d9dee5;font:10.5px/1.4 Arial,sans-serif;color:#52606d;text-align:center" }, B.line1, el("br"), B.line2));
+}
+async function ptPdf(o, d, L) {
+  for (const u of PDF_LIBS) await loadScriptOnce(u);
+  const node = ptPage(o, d, L), stage = el("div", { style: "position:fixed;left:-10000px;top:0;width:794px;background:#fff" }, node); document.body.append(stage);
+  try {
+    await new Promise(r => setTimeout(r, 30));
+    const cv = await window.html2canvas(node, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
+    const pdf = new window.jspdf.jsPDF({ unit: "pt", format: "a4", compress: true });
+    pdf.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 595.28, 841.89);
+    return pdf.output("blob");
+  } finally { stage.remove(); }
+}
+function ptLogoFile(file, done) {
+  if (!file || !/^image\//.test(file.type)) { done("", "That file is not a picture."); return; }
+  const fr = new FileReader();
+  fr.onload = () => { const im = new Image(); im.onload = () => {
+    const k = Math.min(1, 360 / im.width, 150 / im.height), cv = document.createElement("canvas"); cv.width = Math.max(1, Math.round(im.width * k)); cv.height = Math.max(1, Math.round(im.height * k));
+    cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height); done(cv.toDataURL("image/png"), ""); };
+    im.onerror = () => done("", "Could not read that picture."); im.src = fr.result; };
+  fr.onerror = () => done("", "Could not read that file."); fr.readAsDataURL(file);
+}
+function ptAddLead() {
+  const o = PT.o, d = PT.out && PT.out[ptLangs(o)[0]];
+  if (!d) return "Make the pitch first.";
+  const email = (o.email || "").trim().toLowerCase(), now = Date.now();
+  const dupe = Store.all().find(r => r.lead && !r.lead.archived && ((email && (r.lead.contact || "").toLowerCase().includes(email)) || (r.name || "").toLowerCase() === o.company.trim().toLowerCase()));
+  if (dupe && !confirm("There is already a lead called \"" + dupe.name + "\". Add another one anyway?")) return "Not added: that lead already exists.";
+  const L = ptLangs(o)[0], follow = /^\d{4}-\d{2}-\d{2}$/.test(PT.follow) ? PT.follow : ptLocalDay(4);
+  const note = ("Outbound pitch sent " + ptLocalDay(0) + (o.url ? ". Website: " + o.url : "") + (o.industry ? ". Type: " + o.industry : "") + ". Subject: " + d.subject + ". Tracking tag: pitch/pitch-" + ptSlug(o) + ".").slice(0, 1500);
+  const rec = { id: newId(), brand: "business", sel: [BASE.business], typeId: BASE.business, lang: L, name: o.company.trim().slice(0, 80), created: now, updated: now, step: 0, answers: {}, pastes: {}, results: {}, feas: null,
+    lead: { status: "new", contact: [o.first, o.email].map(x => (x || "").trim()).filter(Boolean).join(" · ").slice(0, 120), follow, note, hist: {}, at: now } };
+  Object.assign(rec.lead, stagePatch(rec, "contacted", "auto"), { follow });
+  if (!Store.upsert(rec)) return "Could not save the lead on this device.";
+  Cloud.push(rec); PT.leadId = rec.id;
+  return "Added to Leads: " + rec.name + " (Invited to call). Follow up on " + follow + ". It also shows on the Today card then.";
+}
+function ptScreen() {
+  const o = PT.o, say = m => { PT.msg = m; render(); }, go = st => { PT.stage = st; PT.err = ""; PT.msg = ""; render(); window.scrollTo(0, 0); };
+  const lab = (label, ...kids) => el("label", { class: "muted", style: "display:block;margin:10px 0 2px" }, label, ...kids);
+  const inp = (label, key, attrs) => lab(label, el("input", Object.assign({ type: "text", value: o[key] || "", style: "display:block;width:100%;margin-top:2px", onchange: e => { o[key] = e.target.value; } }, attrs || {})));
+  const banner = PT.msg ? el("div", { class: "note", role: "status" }, PT.msg) : null, errBox = PT.err ? el("div", { class: "note warn", role: "alert" }, PT.err) : null;
+  const head = [el("h1", null, "Pitch builder"), el("p", { class: "muted" }, "Find clients: paste what a local business says about itself, get a one-page pitch in English and French with your branding, a plain-text email and a LinkedIn message. Free AI chat does the writing; nothing is sent from here.")];
+  if (PT.stage === "form") {
+    const logoBox = el("div", null, o.logo ? el("img", { src: o.logo, alt: "Their logo", style: "display:block;max-height:60px;max-width:200px;margin:6px 0;background:#fff;border:1px solid #d9dee5;border-radius:6px;padding:4px" }) : null,
+      lab("Their logo (optional, a picture saved from their website; used only in this one pitch)", el("input", { type: "file", accept: "image/*", style: "display:block;margin-top:4px", onchange: e => { const f = e.target.files && e.target.files[0]; ptLogoFile(f, (u, m) => { o.logo = u; PT.err = m; render(); }); } })),
+      o.logo ? el("button", { class: "btn sm", onclick: () => { o.logo = ""; render(); } }, "Remove logo") : null);
+    return shell(...head, banner, errBox, el("div", { class: "card" },
+      el("h2", { style: "margin-top:0" }, "1. The prospect"),
+      inp("Business name", "company", { maxlength: "80", placeholder: "For example: Clinique dentaire Exemple" }), inp("Website address (optional)", "url", { maxlength: "200", type: "url", inputmode: "url", placeholder: "https://" }),
+      lab("Type of business", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { o.industry = e.target.value; } }, PT_INDUSTRY.map(([v, n]) => el("option", Object.assign({ value: v }, o.industry === v ? { selected: "" } : {}), n)))),
+      inp("Contact first name (optional)", "first", { maxlength: "40" }), inp("Contact email (optional, only if it is published for business)", "email", { maxlength: "120", type: "email", inputmode: "email" }),
+      lab("What their website says: copy the home page and services text (about 100 to 600 words). Optional if you gave the address and your chatbot can browse, but pasting gives better results", el("textarea", { rows: "9", maxlength: "5000", style: "display:block;width:100%;margin-top:2px", oninput: e => { o.text = e.target.value; } }, o.text)),
+      lab("Language of the pitch", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { o.lang = e.target.value; } }, [["both", "English and French"], ["en", "English only"], ["fr", "French only"]].map(([v, n]) => el("option", Object.assign({ value: v }, o.lang === v ? { selected: "" } : {}), n)))),
+      logoBox,
+      el("button", { class: "btn primary", style: "margin-top:14px", onclick: () => {
+        if (!o.company.trim()) { PT.err = "Add the business name."; render(); return; }
+        if (o.text.trim().length < 60 && !/^https?:\/\/\S+\.\S+/i.test(o.url.trim())) { PT.err = "Add their website address, or paste a few lines from their website, so the pitch is about them."; render(); return; }
+        PT.prompt = ptPrompt(o); go("paste"); } }, "Make the chatbot prompt")));
+  }
+  if (PT.stage === "paste") {
+    return shell(...head, banner, errBox, el("div", { class: "card" },
+      el("h2", { style: "margin-top:0" }, "2. Ask a free AI chat"),
+      el("p", null, "Copy the prompt, paste it into a free chat (Gemini, ChatGPT or Claude), then copy the whole reply and paste it below."),
+      el("textarea", { rows: "5", readonly: "", "aria-label": "Prompt", style: "display:block;width:100%;font-size:13px" }, PT.prompt),
+      el("button", { class: "btn sm primary", onclick: async () => say((await copyText(PT.prompt)) ? "Prompt copied. Paste it into your AI chat." : "Could not copy. Press and hold the text to copy it.") }, "Copy the prompt"),
+      lab("The AI's reply", el("textarea", { rows: "7", placeholder: "Paste the whole reply here", style: "display:block;width:100%;margin-top:2px", oninput: e => { PT.reply = e.target.value; } }, PT.reply)),
+      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" },
+        el("button", { class: "btn primary", onclick: () => { try { PT.out = ptRead(PT.reply, o); } catch (e) { PT.err = e.message; render(); return; } PT.view = ptLangs(o)[0]; PT.pdf = {}; PT.leadId = null; PT.follow = ptLocalDay(4); go("result"); } }, "Read the reply"),
+        el("button", { class: "btn", onclick: () => go("form") }, "Back to the details"))));
+  }
+  const langs = ptLangs(o), L = langs.includes(PT.view) ? PT.view : langs[0], d = PT.out[L], T = PT_TXT[L];
+  const seg = langs.length > 1 ? el("div", { class: "seg", role: "group", "aria-label": "Language" }, langs.map(x => el("button", { "aria-pressed": String(L === x), onclick: () => { PT.view = x; render(); } }, PT_TXT[x].lang))) : null;
+  const mail = ptEmail(o, d, L), sc = Math.min(1, (window.innerWidth - 48) / 794);
+  const pageBox = el("div", { style: "width:" + Math.round(794 * sc) + "px;height:" + Math.round(1123 * sc) + "px;overflow:hidden;border:1px solid #d9dee5;margin:8px 0" }, el("div", { style: "transform:scale(" + sc + ");transform-origin:0 0;width:794px;height:1123px" }, ptPage(o, d, L)));
+  const cp = (label, txt, ok) => el("button", { class: "btn sm", onclick: async () => say((await copyText(txt)) ? ok : "Could not copy.") }, label);
+  return shell(...head, banner, errBox, seg,
+    el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "3. Email (plain text)"),
+      el("p", { style: "margin:0;font-weight:700" }, "Subject: " + d.subject), el("pre", { style: "white-space:pre-wrap;word-break:break-word;font:inherit;margin:8px 0" }, mail),
+      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, cp("Copy subject", d.subject, "Subject copied."), cp("Copy email", mail, "Email copied."), cp("Copy tracked link", ptLink(o, L), "Link copied.")),
+      el("p", { class: "muted", style: "margin:10px 0 0;font-size:13px" }, "Send it as plain text without attachments or images, so it is more likely to reach the inbox. Send the PDF after they reply or at the meeting. Only write to a business address that is published for business purposes, about something that matters to their work, and honour any \"no thanks\" (Canada's anti-spam law, CASL). Read it once before sending: nothing here is checked for facts.")),
+    el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "LinkedIn message"), el("p", { style: "margin:0" }, d.linkedin), el("div", { style: "margin-top:8px" }, cp("Copy LinkedIn message", d.linkedin, "LinkedIn message copied."))),
+    el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "One-page PDF (" + T.lang + ")"), pageBox,
+      el("button", { class: "btn primary", disabled: !!PT.busy, onclick: async () => { PT.busy = L; PT.msg = "Making the PDF..."; render(); try { const b = await ptPdf(o, d, L); if (PT.pdf[L]) URL.revokeObjectURL(PT.pdf[L]); PT.pdf[L] = URL.createObjectURL(b); PT.msg = "PDF ready. Tap Download PDF."; } catch (e) { PT.msg = "Could not make the PDF (it needs an internet connection the first time). " + (e.message || ""); } PT.busy = ""; render(); } }, PT.busy ? "Making the PDF..." : "Make the PDF"),
+      PT.pdf[L] ? el("a", { class: "btn", href: PT.pdf[L], download: "Pitch-" + ptSlug(o) + "-" + L + ".pdf", style: "text-decoration:none;display:inline-block;margin-left:8px" }, "Download PDF") : null),
+    el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "4. Track it in Leads"),
+      PT.leadId ? el("p", { style: "margin:0" }, "Added to your Leads.") : el("p", { class: "muted", style: "margin:0 0 6px" }, "When you have sent it, add it to your Leads. It starts at \"Invited to call\" and appears on the Today card on the follow-up date. If they use the tracked link, their feasibility check shows where it came from."),
+      PT.leadId ? null : lab("Follow up on", el("input", { type: "date", value: PT.follow, style: "display:block;margin-top:2px", onchange: e => { PT.follow = e.target.value; } })),
+      PT.leadId ? el("button", { class: "btn primary", onclick: () => openInbox("leads") }, "Open Leads") : el("button", { class: "btn primary", onclick: () => say(ptAddLead()) }, "I sent it: add to Leads")),
+    el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, el("button", { class: "btn", onclick: () => go("paste") }, "Paste a different reply"), el("button", { class: "btn", onclick: () => { Object.assign(PT, { stage: "form", prompt: "", reply: "", out: null, err: "", msg: "", pdf: {}, leadId: null, o: { company: "", url: "", industry: "", text: "", first: "", email: "", lang: o.lang, logo: "" } }); render(); window.scrollTo(0, 0); } }, "New prospect")));
+}
+
 function homeScreen() {
   const NC = newCounts(), nTot = NC.wait + NC.inq + NC.leads;
   const parts = [NC.inq ? NC.inq + " new inquir" + (NC.inq === 1 ? "y" : "ies") : "", NC.wait ? NC.wait + " new on the waitlist" : "", NC.leads ? NC.leads + " new lead" + (NC.leads === 1 ? "" : "s") : ""].filter(Boolean);
@@ -2913,6 +3104,7 @@ function homeScreen() {
         el("span", null, x.name.split(" ")[0] + ": " + { on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[k])); }) : el("span", { class: "muted", style: "display:block;margin-top:4px;font-weight:400" }, "Loading...")),
     el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => openInbox("leads") }, "Leads", newPill(NC.leads)),
     el("button", { class: "btn", onclick: () => { const T = talksState(); T.msg = ""; T.edit = null; if (T.status !== "loading") T.status = "idle"; S.screen = "talks"; render(); window.scrollTo(0, 0); talkLoad(); } }, "Speaking engagements"),
+    el("button", { class: "btn", onclick: () => { PT.msg = ""; PT.err = ""; S.screen = "pitch"; render(); window.scrollTo(0, 0); } }, "Pitch builder: find clients"),
     el("button", { class: "btn", onclick: tmOpen }, "Testimonials"),
     el("button", { class: "btn", onclick: () => { S.screen = "analytics"; render(); window.scrollTo(0, 0); if (S.met) S.met.status = "idle"; metLoad(); } }, "Website metrics and analytics"),
     el("button", { class: "btn", disabled: S.brand === "business", "aria-disabled": String(S.brand === "business"), onclick: () => { if (S.brand === "business") return; svState().msg = ""; S.screen = "surveys"; render(); window.scrollTo(0, 0); svLoad(); } }, "Surveys" + (S.sv && S.sv.rows ? " (" + S.sv.rows.length + ")" : "")),
@@ -3835,7 +4027,7 @@ function render() {
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
   if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); inqLoad(); svLoad(); }, 900); }
-  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, wspreview: wsScreen, talks: talksScreen, testimonials: tmScreen, leads: leadsScreen, cap: capScreen, analytics: analyticsScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, wspreview: wsScreen, talks: talksScreen, pitch: ptScreen, testimonials: tmScreen, leads: leadsScreen, cap: capScreen, analytics: analyticsScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
   const hd = document.querySelector("header.top"); if (hd) document.documentElement.style.setProperty("--hh", hd.offsetHeight + "px"); /* the Start/Save bar sticks just under the header */
 }
