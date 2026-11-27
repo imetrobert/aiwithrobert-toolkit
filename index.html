@@ -3088,7 +3088,7 @@ function ptScreen() {
    one at a time (queue). The list is kept on this device only (localStorage awr_pf_v1); no table. Nothing is sent from here.
    ========================================================================== */
 const FD_KEY = "awr_pf_v1";
-const FD = { stage: "form", f: { brand: "business", area: "", types: "", notes: "", count: "10" }, prompt: "", reply: "", items: [], err: "", msg: "", loaded: false };
+const FD = { stage: "form", f: { brand: "business", area: "", types: "", notes: "", count: "10", mlang: "any", warm: "any", room: true }, prompt: "", reply: "", items: [], err: "", msg: "", loaded: false };
 function fdLoad() {
   if (FD.loaded) return; FD.loaded = true;
   try { const j = JSON.parse(localStorage.getItem(FD_KEY) || "null"); if (j && Array.isArray(j.items)) { FD.items = j.items.slice(0, 60); if (j.f && typeof j.f === "object") Object.assign(FD.f, j.f); if (FD.items.length) FD.stage = "list"; } } catch (e) { /* storage unavailable */ }
@@ -3107,18 +3107,23 @@ function fdPrompt(f) {
     "Area: " + (f.area.trim() || "Montréal"),
     "Kinds to look for: " + (f.types.trim() || "any of: " + types.join(", ")),
     f.notes.trim() ? "Extra guidance: " + f.notes.trim() : "",
+    sen && f.mlang !== "any" ? "Members' language: prefer organizations whose members mainly speak " + ({ en: "English", fr: "French", both: "both English and French" })[f.mlang] + "." : "",
+    sen && f.warm === "yes" ? "Prefer organizations that already run talks, speaker series or computer or technology classes for older adults (they are used to hosting sessions)." : "",
+    sen && f.warm === "no" ? "Prefer organizations that run activities for older adults but do not yet offer technology or AI sessions." : "",
+    sen && f.room ? "Prefer organizations that have a room or space where an in-person group session could be held." : "",
     "How many: up to " + n + ", the best fits first.",
     "", "Use web search. For each one, open its own website to confirm it exists, is currently operating and is in the area.",
     "", "RULES (strict)",
     "- Real, currently operating " + (sen ? "organizations" : "businesses") + " only, each with a website you actually opened. If you cannot confirm a website, leave it out. Never invent a name, address, website, email or person.",
     "- Skip: large companies, chains and franchises, government bodies (except a municipal recreation department for seniors), companies with no website, and anyone who sells AI, IT or tutoring services (competitors).",
     "- Contact details: give a first name and an email ONLY if they are published on the organization's own website as a business contact for this purpose. Otherwise leave both empty. Never guess an email, never use a personal address.",
+    sen ? "- Also return: \"member_language\" (english, french, bilingual or unknown, from what you saw), \"runs_programs\" (yes, no or unknown: do they run activities, talks or classes for older adults), \"program_example\" (one real program or event you saw, up to 15 words, or empty), \"contact_role\" (the published job title of the person who runs programs, such as activities coordinator, or empty) and \"has_room\" (yes or unknown)." : "",
     "- \"logo_url\": a direct link to the image file of their logo (png, jpg, svg or webp) exactly as it appears in the page you opened (header or footer image). Only if you actually saw it; otherwise leave it empty. Never guess a file name.",
     "- \"type\" must be exactly one of: " + types.map(x => '"' + x + '"').join(", ") + ".",
     "- \"why\": one short sentence (up to 25 words) naming something you actually saw on their site that makes them a fit" + (sen ? " (a program or activity for older adults)." : " (a repeating task or service)."),
     "- \"size\" is one of solo, small, medium, unknown. Say unknown if the site does not show it. \"source\" is the page where you found the contact or the basic facts.",
     "", "Reply with this JSON object only:",
-    '{"prospects": [{"name": "", "website": "https://", "type": "", "area": "neighbourhood or city", "why": "", "size": "unknown", "contact_first_name": "", "contact_email": "", "logo_url": "", "source": "https://"}]}',
+    '{"prospects": [{"name": "", "website": "https://", "type": "", "area": "neighbourhood or city", "why": "", "size": "unknown", "contact_first_name": "", "contact_email": "", "logo_url": "", "source": "https://"' + (sen ? ', "member_language": "unknown", "runs_programs": "unknown", "program_example": "", "contact_role": "", "has_room": "unknown"' : "") + '}]}',
     "", JSON_RULES].filter(x => x !== "").join("\n");
 }
 function fdRead(text, brand) {
@@ -3132,7 +3137,7 @@ function fdRead(text, brand) {
     if (url && !/^https?:\/\/[^\s]+\.[^\s]+$/i.test(url)) url = "";
     const email = one(x.contact_email || x.email, 120).toLowerCase(), size = one(x.size, 10).toLowerCase();
     seen[fdKey({ name })] = 1;
-    out.push({ id: "f" + Date.now().toString(36) + i, brand, name, url, type: types.includes(x.type) ? x.type : "", area: one(x.area, 60), why: one(x.why, 200), size: ["solo", "small", "medium"].includes(size) ? size : "unknown",
+    out.push({ id: "f" + Date.now().toString(36) + i, brand, name, url, type: types.includes(x.type) ? x.type : "", area: one(x.area, 60), why: one(x.why, 200), size: ["solo", "small", "medium"].includes(size) ? size : "unknown", mlang: (m => ["english", "french", "bilingual"].includes(m) ? m : "")(one(x.member_language, 12).toLowerCase()), prog: (m => ["yes", "no"].includes(m) ? m : "")(one(x.runs_programs, 8).toLowerCase()), progEx: one(x.program_example, 120), role: one(x.contact_role, 60), room: one(x.has_room, 8).toLowerCase() === "yes",
       logo: (l => /^https:\/\/[^\s]+\.[^\s]+$/i.test(l) ? l : "")(one(x.logo_url || x.logo, 300)), first: one(x.contact_first_name || x.first_name, 40), email: /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(email) ? email : "", source: one(x.source, 200), sel: false, done: false });
   });
   if (!out.length) throw new Error("The list had no usable names. In the AI chat say: \"Send the list again with a name and a website for each\", then copy that.");
@@ -3158,7 +3163,7 @@ function ptTryLogo() {
 function ptNext() {
   PT.qi++; const id = PT.queue[PT.qi], it = id && FD.items.find(x => x.id === id);
   if (!it) { PT.queue = []; PT.qi = -1; PT.curId = null; FD.msg = "That was the last ticked prospect."; S.screen = "finder"; render(); window.scrollTo(0, 0); return; }
-  Object.assign(PT, { stage: "form", prompt: "", reply: "", out: null, err: "", msg: "", pdf: {}, leadId: null, curId: id, o: { brand: it.brand || "business", company: it.name, url: it.url, industry: it.type, text: "", first: it.first, email: it.email, lang: PT.o.lang, logo: "", logoUrl: it.logo || "" } });
+  Object.assign(PT, { stage: "form", prompt: "", reply: "", out: null, err: "", msg: "", pdf: {}, leadId: null, curId: id, o: { brand: it.brand || "business", company: it.name, url: it.url, industry: it.type, text: "", first: it.first, email: it.email, lang: it.brand === "seniors" && it.mlang ? (it.mlang === "english" ? "en" : it.mlang === "french" ? "fr" : "both") : PT.o.lang, logo: "", logoUrl: it.logo || "" } });
   S.screen = "pitch"; render(); window.scrollTo(0, 0); ptTryLogo();
 }
 function fdScreen() {
@@ -3175,6 +3180,10 @@ function fdScreen() {
       lab("Kinds to look for (optional, in your own words)", el("input", { type: "text", value: f.types, maxlength: "200", placeholder: sen ? "For example: public libraries, retirement residences" : "For example: dental clinics, notaries, accountants", style: "display:block;width:100%;margin-top:2px", onchange: e => { f.types = e.target.value; } })),
       lab("Anything else (optional)", el("textarea", { rows: "2", maxlength: "300", placeholder: "For example: bilingual, independent, 2 to 10 staff", style: "display:block;width:100%;margin-top:2px", onchange: e => { f.notes = e.target.value; } }, f.notes)),
       lab("How many", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { f.count = e.target.value; } }, ["5", "10", "15"].map(v => el("option", Object.assign({ value: v }, f.count === v ? { selected: "" } : {}), "Up to " + v)))),
+      sen ? el("div", null,
+        lab("Language of their members", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { f.mlang = e.target.value; } }, [["any", "No preference"], ["en", "Mainly English"], ["fr", "Mainly French"], ["both", "Bilingual"]].map(([v, n]) => el("option", Object.assign({ value: v }, f.mlang === v ? { selected: "" } : {}), n)))),
+        lab("Do they already run tech sessions?", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { f.warm = e.target.value; } }, [["any", "No preference"], ["yes", "Yes: they host talks or computer classes (easier to book)"], ["no", "No: new topic for them"]].map(([v, n]) => el("option", Object.assign({ value: v }, f.warm === v ? { selected: "" } : {}), n)))),
+        el("label", { style: "display:flex;gap:10px;align-items:center;margin:12px 0 2px" }, (() => { const c = el("input", { type: "checkbox", style: "width:22px;height:22px", onchange: e => { f.room = e.target.checked; } }); c.checked = !!f.room; return c; })(), el("span", null, "Prefer ones with a room for an in-person group session"))) : null,
       el("button", { class: "btn primary", style: "margin-top:14px", onclick: () => { if (!f.area.trim() && !f.types.trim()) { FD.err = "Add an area or a kind of " + (sen ? "organization" : "business") + "."; render(); return; } FD.prompt = fdPrompt(f); go("paste"); } }, "Make the chatbot prompt"),
       FD.items.length ? el("button", { class: "btn", style: "margin-top:8px", onclick: () => go("list") }, "Back to my list (" + FD.items.length + ")") : null));
   }
@@ -3198,7 +3207,8 @@ function fdScreen() {
         el("span", { style: "display:block;font-weight:700;color:var(--navy)" }, x.name, x.done ? el("span", { class: "pill", style: "margin-left:8px" }, "Pitched") : inL ? el("span", { class: "pill", style: "margin-left:8px" }, "Already in Leads") : null),
         el("span", { class: "muted", style: "display:block;margin:2px 0" }, [x.type, x.area, x.size !== "unknown" ? x.size : ""].filter(Boolean).join(" · ")),
         x.why ? el("span", { style: "display:block;margin:2px 0" }, x.why) : null,
-        el("span", { class: "muted", style: "display:block;font-size:13px;word-break:break-all" }, [x.first, x.email].filter(Boolean).join(" · ") || "No published contact: find it on their site"))),
+        x.brand === "seniors" && (x.mlang || x.prog || x.progEx || x.room) ? el("span", { class: "muted", style: "display:block;margin:2px 0;font-size:13px" }, [x.mlang ? "Members: " + x.mlang : "", x.prog === "yes" ? "Runs programs" + (x.progEx ? " (" + x.progEx + ")" : "") : x.prog === "no" ? "No programs seen" : "", x.room ? "Has a room" : ""].filter(Boolean).join(" \u00B7 ")) : null,
+        el("span", { class: "muted", style: "display:block;font-size:13px;word-break:break-all" }, [x.first, x.role, x.email].filter(Boolean).join(" \u00B7 ") || "No published contact: find it on their site"))),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:6px" },
         x.url ? el("a", { class: "btn sm", href: x.url, target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Open website") : null,
         x.logo ? el("a", { class: "btn sm", href: x.logo, target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Open logo") : null,
@@ -3258,7 +3268,8 @@ function homeScreen() {
         el("span", null, x.name.split(" ")[0] + ": " + { on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[k])); }) : el("span", { class: "muted", style: "display:block;margin-top:4px;font-weight:400" }, "Loading...")),
     el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => openInbox("leads") }, "Leads", newPill(NC.leads)),
     el("button", { class: "btn", onclick: () => { const T = talksState(); T.msg = ""; T.edit = null; if (T.status !== "loading") T.status = "idle"; S.screen = "talks"; render(); window.scrollTo(0, 0); talkLoad(); } }, "Speaking engagements"),
-    el("button", { class: "btn", onclick: () => { fdLoad(); FD.msg = ""; FD.err = ""; S.screen = "finder"; render(); window.scrollTo(0, 0); } }, "Prospect finder: who to pitch"),
+    el("button", { class: "btn", onclick: () => { fdLoad(); FD.msg = ""; FD.err = ""; FD.f.brand = "business"; if (FD.stage !== "list") FD.stage = "form"; S.screen = "finder"; render(); window.scrollTo(0, 0); } }, "Prospect finder: businesses"),
+    el("button", { class: "btn", onclick: () => { fdLoad(); FD.msg = ""; FD.err = ""; FD.f.brand = "seniors"; if (FD.stage !== "list") FD.stage = "form"; S.screen = "finder"; render(); window.scrollTo(0, 0); } }, "Prospect finder: seniors organizations"),
     el("button", { class: "btn", onclick: () => { PT.msg = ""; PT.err = ""; S.screen = "pitch"; render(); window.scrollTo(0, 0); } }, "Pitch builder: find clients"),
     el("button", { class: "btn", onclick: tmOpen }, "Testimonials"),
     el("button", { class: "btn", onclick: () => { S.screen = "analytics"; render(); window.scrollTo(0, 0); if (S.met) S.met.status = "idle"; metLoad(); } }, "Website metrics and analytics"),
