@@ -175,3 +175,7 @@ The home screen buttons are grouped in `homeScreen()` (index.html): "Win clients
 ## Lead back-links to the pitch (2026-11-27)
 
 A lead made by "I sent it" in the Pitch builder stores `lead.pitch = { o, out, fid }` (prospect details without the logo or notes, the generated pitch, and the finder card id), written in `ptAddLead()`. `leadNext()` shows "Where this lead came from" under the next step: Open the pitch I sent (restores `PT` and opens the result stage), Open their website, Open the prospect list (finder). Leads made before this change, or typed in by hand, have no `pitch` and show nothing.
+
+## Pitch wording check and fix prompt (2026-11-27)
+
+`ptFlags(out, o)` scans every pitch field for outcome claims (faster, saving time, fewer, calmer...), absolutes (never, always, instantly...) and, for Business, clinical-sounding words (session notes, intake, clinical...). Word lists are `PT_FLAGS` and `PT_FLAGS_REG` above `ptRead` in index.html: add or remove words there. It only warns. The yellow box on the Pitch builder result screen has "Copy a fix prompt" (`ptFixPrompt`: the current pitch JSON plus an instruction to rewrite only the flagged fields avoiding those words) and "Paste the fixed reply" (back to the paste step; `PT.fixing` keeps the lead link). Use the SAME chatbot chat for the fix.
