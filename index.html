@@ -2863,7 +2863,7 @@ function todayCard() {
   const goLeads = f => () => { S.lFilter = f; openInbox("leads"); };
   const goTalks = () => { const T = talksState(); T.msg = ""; T.edit = null; T.status = "idle"; S.screen = "talks"; render(); window.scrollTo(0, 0); talkLoad(); };
   const money2 = n => "$" + n.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Today"),
+  return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Today", el("span", { class: "muted", style: "font-size:13px;font-weight:600;margin-left:8px" }, "both brands")),
     due.length ? row(due.length + " follow-up" + (due.length === 1 ? "" : "s") + " due: " + due.slice(0, 3).map(r => r.name || "(no name)").join(", ") + (due.length > 3 ? "…" : ""), goLeads("due")) : el("p", { class: "muted", style: "margin:4px 0" }, "No follow-ups due."),
     aft.length ? row(aft.reduce((n, r) => n + afterDue(r).length, 0) + " after-session email" + (aft.reduce((n, r) => n + afterDue(r).length, 0) === 1 ? "" : "s") + " to send: " + aft.slice(0, 3).map(r => r.name || "(no name)").join(", ") + (aft.length > 3 ? "…" : ""), goLeads("after")) : null,
     nextTalk ? row("Next talk: " + (nextTalk.title || nextTalk.org) + ", " + fmtDay(Date.parse(nextTalk.date + "T12:00:00")) + (nextTalk.place ? " (" + nextTalk.place + ")" : ""), goTalks) : null,
@@ -3277,7 +3277,7 @@ function homeScreen() {
   const langSeg = el("div", { class: "seg dark", role: "group" },
     ["en", "fr"].map(code => el("button", { "aria-pressed": String(S.lang === code), onclick: () => { S.lang = code; render(); } }, code === "en" ? "English" : "Français")));
   return shell(
-    brandSwitch(), banner, capsStripe, todayCard(),
+    todayCard(), banner, capsStripe, brandSwitch(),
     el("h1", null, t("homeTitle")),
     el("p", { class: "muted" }, t("homeSub")),
     el("div", { class: "card" },
@@ -3293,7 +3293,7 @@ function homeScreen() {
       } }, t("start"))),
     el("button", { class: "btn", style: "text-align:left", onclick: () => { S.cap.status = "idle"; S.cap.msg = ""; S.screen = "cap"; render(); window.scrollTo(0, 0); capLoad(); } },
       el("span", { style: "display:block;font-weight:700" }, "Site availability"),
-      S.cap.rows ? CAP_SITES.map(x => { const k = capState(S.cap.rows[x.id], Date.now()).k; return el("span", { style: "display:flex;align-items:center;gap:10px;margin-top:6px;font-weight:600" },
+      S.cap.rows ? CAP_SITES.filter(x => x.id === S.brand).map(x => { const k = capState(S.cap.rows[x.id], Date.now()).k; return el("span", { style: "display:flex;align-items:center;gap:10px;margin-top:6px;font-weight:600" },
         el("span", { "aria-hidden": "true", style: "flex:none;width:16px;height:16px;border-radius:50%;background:" + { on: "#B42318", scheduled: "#B45309", off: "#14632F" }[k] }),
         el("span", null, x.name.split(" ")[0] + ": " + { on: "AT CAPACITY", scheduled: "scheduled", off: "open" }[k])); }) : el("span", { class: "muted", style: "display:block;margin-top:4px;font-weight:400" }, "Loading...")),
     el("button", { class: "btn", style: newStyle(NC.leads), onclick: () => openInbox("leads") }, "Leads", newPill(NC.leads)),
