@@ -1148,6 +1148,31 @@ Object.assign(LEAD_MAIL, {
 const AFTER_KINDS = [["thanks", "Thank-you email", 0], ["review", "Review or testimonial request", 3], ["rebook", "Rebooking nudge", 30]];
 /* Which after-session emails are due for a lead in the "After-session follow-up" stage: thank-you at once, review request 3 days later, rebooking nudge 30 days later (counted from entering the stage). */
 const afterDue = r => { const l = r.lead || {}; if (l.status !== "after" || l.archived) return []; const a = l.after || {}, t0 = l.at || 0; return AFTER_KINDS.filter(([k, , d]) => !a[k] && Date.now() >= t0 + d * 864e5).map(x => x[0]); };
+/* PITCH FOLLOW-UPS: a gentle nudge 4 days and a last note 10 days after "I sent it". Local templates, no AI. Shown on the lead card while the lead is at
+   "contacted" and it has a stored pitch (lead.pitch). Sent dates are kept in lead.fu. Each copy ends with the same sign-off and opt-out line as the pitch email. */
+const FU_KINDS = [["nudge", "Gentle follow-up", 4], ["last", "Last note", 10]];
+const FU_MAIL = {
+  business: {
+    nudge: {
+      en: { subj: "Following up", body: "I wanted to follow up on my earlier note about {company}. In case it got lost in a busy inbox, here is the short version: a free 2-minute check shows, in plain words, what a standard AI plan can and cannot do for one task in your business.\n\nYou can start it here: {link}" },
+      fr: { subj: "Suivi de mon message", body: "Je reviens sur mon message précédent au sujet de {company}. Au cas où il se serait perdu dans une boîte de réception bien remplie, voici l’essentiel : une vérification gratuite de 2 minutes vous indique, en mots simples, ce qu’un forfait IA standard peut et ne peut pas faire pour une tâche de votre entreprise.\n\nVous pouvez la commencer ici : {link}" } },
+    last: {
+      en: { subj: "Last note", body: "This is my last note about {company}, so I will not fill your inbox. If AI help with routine office writing is not a priority right now, that is completely fine. The free 2-minute check stays available whenever it is useful: {link}\n\nThank you for your time." },
+      fr: { subj: "Dernier message", body: "Voici mon dernier message au sujet de {company}, afin de ne pas encombrer votre boîte de réception. Si l’aide de l’IA pour la rédaction courante n’est pas une priorité en ce moment, c’est tout à fait correct. La vérification gratuite de 2 minutes reste disponible quand cela vous sera utile : {link}\n\nMerci de votre temps." } } },
+  seniors: {
+    nudge: {
+      en: { subj: "Following up", body: "I am following up on my earlier note about a workshop for {company}'s members. In case it got buried, the idea is simple: a friendly, hands-on session on using everyday AI tools safely.\n\nIf it would help to talk it through, reply to this email or call me at 514-250-8491. You can also see how I work here: {link}" },
+      fr: { subj: "Suivi de mon message", body: "Je reviens sur mon message précédent au sujet d’un atelier pour les membres de {company}. Au cas où il se serait perdu, l’idée est simple : une séance conviviale et pratique pour utiliser les outils d’IA du quotidien en toute sécurité.\n\nSi vous souhaitez en discuter, répondez à ce courriel ou appelez-moi au 514-250-8491. Vous pouvez aussi voir ma façon de travailler ici : {link}" } },
+    last: {
+      en: { subj: "Last note", body: "This is my last note about {company}, so I will not fill your inbox. If a workshop on everyday AI tools is not a fit right now, that is completely fine. If it becomes useful later, the details are here: {link}, or you can call me at 514-250-8491.\n\nThank you for your time." },
+      fr: { subj: "Dernier message", body: "Voici mon dernier message au sujet de {company}, afin de ne pas encombrer votre boîte de réception. Si un atelier sur les outils d’IA du quotidien ne convient pas en ce moment, c’est tout à fait correct. Si cela devient utile plus tard, les détails sont ici : {link}, ou vous pouvez m’appeler au 514-250-8491.\n\nMerci de votre temps." } } }
+};
+const fuDue = r => { const l = r.lead || {}, pi = l.pitch; if (!pi || l.status !== "contacted" || l.archived) return []; const f = l.fu || {}, t0 = pi.at || l.at || 0; return FU_KINDS.filter(([k, , d]) => !f[k] && (k !== "last" || f.nudge) && Date.now() >= t0 + d * 864e5).map(x => x[0]); };
+function fuText(r, kind, L) {
+  const pi = r.lead.pitch, o = pi.o, T = ptT(o, L), m = FU_MAIL[o.brand === "seniors" ? "seniors" : "business"][kind][L], first = (o.first || "").trim(), c = r.lead.contact || "";
+  const email = (c.match(/[^\s·,;]+@[^\s·,;]+\.[^\s·,;]+/) || [""])[0] || o.email || "", orig = pi.out && pi.out[L] && pi.out[L].subject;
+  return "From: " + mailFrom(r.brand) + "\nTo: " + email + "\nSubject: " + (orig ? "Re: " + orig : m.subj) + "\n\n" + (first ? T.hi.replace("{n}", first) : T.hi0) + "\n\n" + m.body.replace(/\{company\}/g, o.company).replace("{link}", ptLink(o, L)) + "\n\n" + ptSig(o) + "\n\n" + T.off;
+}
 const mailFrom = brand => brand === "seniors" ? "seniors@aiwithrobert.com" : BIZ_FROM;
 const mailKind = (kind, brand) => brand === "seniors" && LEAD_MAIL[kind + "Seniors"] ? kind + "Seniors" : kind;
 const firstName = n => String(n || "").trim().split(/\s+/)[0] || "";
@@ -1160,6 +1185,13 @@ function agentBatch(kind, people, brand) {
     "--- RECIPIENTS (" + people.length + ") ---\n" + people.map(x => (x.lang === "fr" ? "FR" : "EN") + " | " + (firstName(x.name) || "-") + " | " + x.email).join("\n")].join("\n\n");
 }
 const dayOk = v => isStr(v) && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
+/* Keeps the pitch a lead was made from (written by ptAddLead) and the dates its follow-up messages were sent. Without this the Leads screen drops them. */
+function cleanPitchRef(p) {
+  if (!p || typeof p !== "object" || Array.isArray(p) || !p.o || typeof p.o !== "object") return {};
+  const t = (v, n) => isStr(v) ? v.slice(0, n) : ""; let out = null;
+  try { if (p.out && typeof p.out === "object" && JSON.stringify(p.out).length <= 40000) out = p.out; } catch (e) { out = null; }
+  return { pitch: { o: { brand: p.o.brand === "seniors" ? "seniors" : "business", company: t(p.o.company, 120), url: t(p.o.url, 300), industry: t(p.o.industry, 80), first: t(p.o.first, 60), email: t(p.o.email, 120), lang: ["both", "en", "fr"].includes(p.o.lang) ? p.o.lang : "both", logoUrl: t(p.o.logoUrl, 300) }, out, fid: t(p.fid, 40), at: Number.isFinite(p.at) ? p.at : 0 } };
+}
 function cleanLead(l) {
   if (!l || typeof l !== "object" || Array.isArray(l)) return null;
   const hist = {};
@@ -1167,7 +1199,8 @@ function cleanLead(l) {
   return { status: LEAD_ST.includes(l.status) ? l.status : "new", contact: isStr(l.contact) ? l.contact.trim().slice(0, 120) : "",
     follow: isStr(l.follow) && /^\d{4}-\d{2}-\d{2}$/.test(l.follow) ? l.follow : "", note: isStr(l.note) ? l.note.slice(0, 1500) : "", archived: l.archived === true,
     hist, at: Number.isFinite(l.at) ? l.at : 0, ref: isStr(l.ref) ? l.ref.trim().slice(0, 80) : "", code: isStr(l.code) && /^[a-z0-9-]{1,30}$/.test(l.code) ? l.code : "",
-    after: (a => ({ thanks: dayOk(a.thanks), review: dayOk(a.review), rebook: dayOk(a.rebook) }))(l.after && typeof l.after === "object" ? l.after : {}) };
+    after: (a => ({ thanks: dayOk(a.thanks), review: dayOk(a.review), rebook: dayOk(a.rebook) }))(l.after && typeof l.after === "object" ? l.after : {}),
+    fu: (f => ({ nudge: dayOk(f.nudge), last: dayOk(f.last) }))(l.fu && typeof l.fu === "object" ? l.fu : {}), ...cleanPitchRef(l.pitch) };
 }
 /* A saved Feasibility check attached to a saved profile (optional). */
 function cleanFeas(f) {
@@ -1407,12 +1440,20 @@ function leadNext(r, cur) {
     after: ["After the session: thank them, ask for a review, then check in about a month later. Archive the lead when all three are sent.", [afterRows(), go("Save a testimonial reply", () => tmStart(r))]],
     lost: ["Closed as lost. Archive it when you no longer need it.", []]
   })[cur] || ["Tap a stage above to place this lead in the pipeline.", []];
+  /* Follow-up messages for a sent pitch (day 4 nudge, day 10 last note). */
+  const pi0 = r.lead && r.lead.pitch, fuBox = pi0 && cur === "contacted" ? (() => { const f = r.lead.fu || {}, t0 = pi0.at || r.lead.at || Date.now(), due = fuDue(r), Ls = pi0.o.lang === "fr" ? ["fr"] : pi0.o.lang === "en" ? ["en"] : ["en", "fr"];
+    return el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid var(--line)" }, el("div", { style: "font-weight:700;color:var(--navy);margin-bottom:6px" }, "Follow-up messages for the pitch"),
+      FU_KINDS.map(([k, label, d]) => el("div", { style: "margin:6px 0" }, el("div", { style: "font-weight:600;margin-bottom:4px" }, (f[k] ? "\u2713 " : "") + label + (f[k] ? ": sent " + f[k] : due.includes(k) ? ": due now" : ": suggested " + fmtDay(t0 + d * 864e5))),
+        el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, f[k] ? go("Undo", () => saveLead(r, { fu: Object.assign({}, f, { [k]: "" }) })) : [Ls.map(L => go("Copy email" + (Ls.length > 1 ? " (" + L.toUpperCase() + ")" : ""), async () => { msg.textContent = (await copyText(fuText(r, k, L))) ? "Email copied. Paste it into your email agent." : "Could not copy."; }, due.includes(k))),
+          go("Mark sent", () => saveLead(r, { fu: Object.assign({}, f, { [k]: todayStr() }), follow: k === "nudge" ? ptLocalDay(6) : "" }))]))));
+  })() : null;
+  const rbtn = ["new", "checked", "contacted", "booked", "proposal"].includes(cur) ? go("They replied: draft my answer", () => openReply(r)) : null;
   /* Back-links from a lead made by "I sent it": reopen the pitch, their website, or the finder card. */
   const pi = r.lead && r.lead.pitch, back = pi ? el("div", { style: "margin-top:12px;padding-top:10px;border-top:1px solid var(--line)" }, el("div", { style: "font-weight:700;color:var(--navy);margin-bottom:6px" }, "Where this lead came from"), el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" },
     pi.out ? go("Open the pitch I sent", () => { fdLoad(); Object.assign(PT.o, { logo: "", text: "" }, pi.o); PT.out = pi.out; PT.view = ptLangs(PT.o)[0]; PT.pdf = {}; PT.prompt = ""; PT.reply = ""; PT.err = ""; PT.msg = ""; PT.busy = ""; PT.leadId = r.id; PT.queue = []; PT.qi = -1; PT.curId = null; PT.stage = "result"; S.screen = "pitch"; render(); window.scrollTo(0, 0); }) : null,
     pi.o && /^https?:\/\/\S+\.\S+/i.test(pi.o.url || "") ? el("a", { class: "btn sm", href: pi.o.url, target: "_blank", rel: "noopener", style: "text-decoration:none" }, "Open their website") : null,
     pi.fid ? go("Open the prospect list", () => { fdLoad(); FD.msg = ""; FD.err = ""; FD.f.brand = r.brand; FD.stage = "list"; S.screen = "finder"; render(); window.scrollTo(0, 0); }) : null)) : null;
-  return el("div", { class: "pnext" }, el("div", { style: "font-weight:700;color:var(--navy)" }, "Next step"), el("div", { style: "margin:2px 0 8px" }, N[0]), el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, N[1]), msg, back);
+  return el("div", { class: "pnext" }, el("div", { style: "font-weight:700;color:var(--navy)" }, "Next step"), el("div", { style: "margin:2px 0 8px" }, N[0]), el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, N[1], rbtn), msg, fuBox, back);
 }
 /* Follow-up for everyone shown under the "On waitlist" filter: one paste per brand for the email agent, then mark them invited. */
 async function leadsFollowUp(rows) {
@@ -1576,6 +1617,8 @@ function headerBack() {
   else if (sc === "edit") fn = () => { if (currentType().local) { S.screen = "feas"; render(); window.scrollTo(0, 0); } else if (isDirty()) { S.modal = true; render(); } else goStart(); };
   else if (["hub", "cap", "leads", "analytics", "sessions", "feas", "inq", "surveys", "talks", "testimonials", "pitch", "finder"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
   if (sc === "wspreview") fn = go("feas");
+  if (sc === "reply") fn = go("leads");
+  if (sc === "flyer") fn = go("talks");
   if (sc === "svadd") fn = () => { const v = svState(); if (["review", "saving"].includes(v.stage) && !confirm("Discard this survey without saving?")) return; if (v.stage === "start") S.screen = "surveys"; else { v.stage = "start"; v.err = ""; } render(); window.scrollTo(0, 0); };
   if (!fn) return null;
   return el("button", { class: "hback", "aria-label": "Back", onclick: fn }, "\u2190 Back");
@@ -2695,7 +2738,7 @@ function talksScreen() {
       svg.innerHTML = talkQr(url).createSvgTag({ cellSize: 5, margin: 10, scalable: true });
       box.append(svg, el("p", { class: "muted", style: "word-break:break-all;font-size:13px;margin:8px 0" }, url),
         el("button", { class: "btn sm", onclick: async () => { say((await copyText(url)) ? "Link copied." : "Could not copy."); } }, "Copy link"),
-        el("button", { class: "btn sm primary", onclick: () => { T.png[r.id] = talkPng(d, url); render(); } }, "Make QR picture"));
+        el("button", { class: "btn sm primary", onclick: () => { T.png[r.id] = talkPng(d, url); render(); } }, "Make QR picture"), el("button", { class: "btn sm primary", onclick: () => openFlyer(r) }, "Make a flyer (PDF)"));
       if (T.png[r.id]) box.append(el("img", { src: T.png[r.id], alt: "QR code picture", style: "display:block;max-width:100%;margin:10px auto;border:1px solid #d9dee5" }), el("p", { class: "muted", style: "font-size:13px;margin:0" }, "Press and hold the picture to save it or share it, then print it on your slides or handout."));
       return box;
     };
@@ -2863,8 +2906,8 @@ function todayCard() {
   const T = S.today || { status: "idle", inv: [], msg: "" }, today = todayStr(), now = Date.now();
   const TK = S.talks && S.talks.status === "ok" ? S.talks.rows.map(r => r.d) : [], nextTalk = TK.filter(d => d.status === "confirmed" && d.date && d.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1))[0], talkFu = TK.filter(d => d.status === "delivered");
   const recs = Store.all().filter(r => r.lead && !r.lead.archived), st = r => r.lead.status || "new", open = r => st(r) !== "won" && st(r) !== "lost";
-  const due = recs.filter(r => open(r) && r.lead.follow && r.lead.follow <= today).sort((a, b) => (a.lead.follow < b.lead.follow ? -1 : 1));
-  const fresh = recs.filter(r => st(r) === "new"), aft = recs.filter(r => afterDue(r).length);
+  const due = recs.filter(r => open(r) && !fuDue(r).length && r.lead.follow && r.lead.follow <= today).sort((a, b) => (a.lead.follow < b.lead.follow ? -1 : 1));
+  const fresh = recs.filter(r => st(r) === "new"), aft = recs.filter(r => afterDue(r).length), fus = recs.filter(r => fuDue(r).length);
   const days = d => Math.max(0, Math.floor((now - Date.parse(d)) / 864e5));
   const inv = T.inv.map(i => Object.assign({}, i, { age: days(i.emailed_at || i.created_at) })), owed = inv.reduce((a, i) => a + (Number(i.total) || 0), 0), late = inv.filter(i => i.age > 30);
   const cut = new Date(now - 7 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Toronto" }), M = S.met && S.met.status === "ok" ? S.met.rows.filter(x => x.day >= cut && x.kind === "visit") : null;
@@ -2876,6 +2919,7 @@ function todayCard() {
   return el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Today", el("span", { class: "muted", style: "font-size:13px;font-weight:600;margin-left:8px" }, "both brands")),
     due.length ? row(due.length + " follow-up" + (due.length === 1 ? "" : "s") + " due: " + due.slice(0, 3).map(r => r.name || "(no name)").join(", ") + (due.length > 3 ? "…" : ""), goLeads("due")) : el("p", { class: "muted", style: "margin:4px 0" }, "No follow-ups due."),
     aft.length ? row(aft.reduce((n, r) => n + afterDue(r).length, 0) + " after-session email" + (aft.reduce((n, r) => n + afterDue(r).length, 0) === 1 ? "" : "s") + " to send: " + aft.slice(0, 3).map(r => r.name || "(no name)").join(", ") + (aft.length > 3 ? "…" : ""), goLeads("after")) : null,
+    fus.length ? row(fus.length + " pitch follow-up" + (fus.length === 1 ? "" : "s") + " to send: " + fus.slice(0, 3).map(r => r.name || "(no name)").join(", ") + (fus.length > 3 ? "…" : ""), goLeads("contacted")) : null,
     nextTalk ? row("Next talk: " + (nextTalk.title || nextTalk.org) + ", " + fmtDay(Date.parse(nextTalk.date + "T12:00:00")) + (nextTalk.place ? " (" + nextTalk.place + ")" : ""), goTalks) : null,
     talkFu.length ? row(talkFu.length + " talk" + (talkFu.length === 1 ? "" : "s") + " delivered, thank-you not sent yet: " + talkFu.slice(0, 2).map(d => d.org || d.title).join(", "), goTalks) : null,
     fresh.length ? row(fresh.length + " new lead" + (fresh.length === 1 ? "" : "s") + " not contacted yet", goLeads("new")) : null,
@@ -2889,6 +2933,120 @@ function todayCard() {
       : el("p", { class: "muted", style: "margin:4px 0" }, T.status === "error" ? T.msg : "Loading invoices…"),
     visits ? el("p", { class: "muted", style: "margin:4px 0" }, "Visits, last 7 days: " + visits + ".") : null,
     el("button", { class: "btn link", style: "margin:4px 0 0", onclick: () => { S.today = null; if (S.met) S.met.status = "idle"; S.met = null; render(); } }, "Refresh"));
+}
+/* ==========================================================================
+   REPLY HELPER  -  a prospect answered your pitch. Paste their reply, copy a prompt for a free AI chat, paste its JSON back: you get a short draft answer,
+   a one-line summary of what they want, a suggested stage and a follow-up date. "Apply" updates the lead. Nothing is sent. Opened from the lead card
+   ("They replied: draft my answer"). See docs/common-edits.md "Reply helper".
+   ========================================================================== */
+const RP = { id: "", text: "", prompt: "", reply: "", out: null, err: "", msg: "", stage: "keep", days: "" };
+const RP_STAGES = { business: [["keep", "Leave the stage as it is"], ["booked", "Call booked"], ["proposal", "Proposal sent"], ["lost", "Lost (not interested)"]], seniors: [["keep", "Leave the stage as it is"], ["booked", "Session booked"], ["lost", "Lost (not interested)"]] };
+function openReply(r) { Object.assign(RP, { id: r.id, text: "", prompt: "", reply: "", out: null, err: "", msg: "", stage: "keep", days: "" }); S.screen = "reply"; render(); window.scrollTo(0, 0); }
+function rpPrompt(r, text) {
+  const sen = r.brand === "seniors", pi = r.lead && r.lead.pitch, L0 = pi && pi.o.lang === "fr" ? "fr" : "en", head = pi && pi.out && pi.out[L0] ? pi.out[L0].headline : "", allowed = RP_STAGES[sen ? "seniors" : "business"].map(x => x[0]).join(" | ");
+  const who = sen ? "I am Robert Simon. I run AI with Robert for Seniors in Montréal (Côte Saint-Luc): friendly, hands-on workshops and tutoring that help older adults use everyday AI tools safely. Phone 514-250-8491, email seniors@aiwithrobert.com."
+    : "I am Robert Simon. I run AI with Robert for Business in Montréal: I help owner-run small businesses get more from the low-cost AI plans they already pay for. The first step is a free 2-minute feasibility check at https://biz.aiwithrobert.com/#feas-check and a free 15-minute call can be booked at " + BOOKING_URL + ". Phone 514-250-8491, email biz@aiwithrobert.com.";
+  return [who, "", "I sent this prospect a short pitch and they replied. Help me answer.", "", "PROSPECT: " + r.name + (pi && pi.o.industry ? " (" + pi.o.industry + ")" : ""), head ? "MY PITCH HEADLINE: " + head : "", "", "THEIR REPLY:", '"""', text.trim(), '"""', "", "RULES (strict)",
+    "- Answer in the same language as their reply (English or Canadian French; French with correct accents and apostrophes).",
+    "- Plain text, 40 to 120 words, warm and direct. No greeting line and no signature (I add them). No emoji, no bullet points.",
+    "- Answer only what they asked. Use only the facts above. Do NOT invent prices, discounts, results, clients or availability.",
+    "- Never promise results (no faster, fewer, saving time). Never give clinical, medical, legal or financial advice.",
+    "- If they ask about price: say it depends on the task and that " + (sen ? "a short phone call" : "the free check or a short call") + " shows what applies. Do not quote numbers.",
+    "- If they want to talk: " + (sen ? "offer a short phone call (514-250-8491) or ask when suits them." : "offer the booking link."),
+    "- If they say not now: thank them in two sentences, no pushing, stage keep and follow_up_days 45. If they clearly say no or ask me to stop: one polite line confirming I will not write again, stage lost. If they agree to a time or a call: stage booked.",
+    "", "Reply with this JSON object only:", '{"summary": "one sentence: what they want", "language": "en or fr", "draft": "my reply, plain text", "stage": "one of: ' + allowed + '", "follow_up_days": 0}', "(follow_up_days = days until I should follow up, 0 if none)", "", JSON_RULES].filter(x => x !== "" || true).join("\n");
+}
+function rpRead(text, r) {
+  const raw = readAiJson(text), sen = r.brand === "seniors", ok = RP_STAGES[sen ? "seniors" : "business"].map(x => x[0]);
+  const draft = raw && typeof raw.draft === "string" ? raw.draft.trim().slice(0, 1800) : "";
+  if (!draft) throw new Error("The reply has no \"draft\" field. In the AI chat say: \"Send the same answer again as the JSON object, inside one code block\", then copy that.");
+  const days = Math.round(Number(raw.follow_up_days));
+  return { summary: typeof raw.summary === "string" ? raw.summary.trim().slice(0, 300) : "", draft, stage: ok.includes(raw.stage) ? raw.stage : "keep", days: Number.isFinite(days) && days > 0 ? Math.min(days, 180) : 0 };
+}
+function rpScreen() {
+  const r = Store.all().find(x => x.id === RP.id), say = m => { RP.msg = m; render(); };
+  if (!r || !r.lead) return shell(el("h1", null, "Draft my answer"), el("p", { class: "muted" }, "Open a lead from the Leads screen first."));
+  const lab = (label, ...kids) => el("label", { class: "muted", style: "display:block;margin:10px 0 2px" }, label, ...kids);
+  const banner = RP.msg ? el("div", { class: "note", role: "status" }, RP.msg) : null, errBox = RP.err ? el("div", { class: "note warn", role: "alert" }, RP.err) : null;
+  const cards = [el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "1. Paste their reply"),
+    lab("What they wrote to you", el("textarea", { rows: "6", placeholder: "Paste their email or message here", style: "display:block;width:100%;margin-top:2px", oninput: e => { RP.text = e.target.value; } }, RP.text)),
+    el("button", { class: "btn primary", style: "margin-top:10px", onclick: async () => { if (!RP.text.trim()) { RP.err = "Paste their reply first."; render(); return; } RP.err = ""; RP.prompt = rpPrompt(r, RP.text); RP.msg = (await copyText(RP.prompt)) ? "Prompt copied. Paste it into a free AI chat (the same one you used for the pitch is fine)." : "Could not copy the prompt."; render(); } }, "Copy the chatbot prompt"))];
+  if (RP.prompt) cards.push(el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "2. Paste the chatbot's answer"),
+    lab("The AI's reply", el("textarea", { rows: "6", placeholder: "Paste the whole reply here", style: "display:block;width:100%;margin-top:2px", oninput: e => { RP.reply = e.target.value; } }, RP.reply)),
+    el("button", { class: "btn primary", style: "margin-top:10px", onclick: () => { try { RP.out = rpRead(RP.reply, r); RP.stage = RP.out.stage; RP.days = String(RP.out.days || ""); RP.err = ""; RP.msg = ""; } catch (e) { RP.err = e.message; } render(); } }, "Read the reply")));
+  if (RP.out) {
+    const o = RP.out, st = RP_STAGES[r.brand === "seniors" ? "seniors" : "business"];
+    cards.push(el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "3. Your answer"), o.summary ? el("p", { class: "muted", style: "margin:0 0 8px" }, "What they want: " + o.summary) : null,
+      el("pre", { style: "white-space:pre-wrap;word-break:break-word;font:inherit;margin:8px 0" }, o.draft),
+      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, el("button", { class: "btn sm primary", onclick: async () => say((await copyText(o.draft)) ? "Answer copied. Read it once, add a greeting and your name, then send it." : "Could not copy.") }, "Copy the answer")),
+      el("p", { class: "muted", style: "margin:12px 0 4px;font-size:13px" }, "Read it before you send it. Check every fact against what you know."),
+      lab("Move this lead to", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { RP.stage = e.target.value; } }, st.map(([v, n]) => el("option", Object.assign({ value: v }, RP.stage === v ? { selected: "" } : {}), n)))),
+      lab("Follow up in (days, blank for none)", el("input", { type: "number", min: "0", max: "180", value: RP.days, style: "display:block;width:100%;margin-top:2px", oninput: e => { RP.days = e.target.value; } })),
+      el("button", { class: "btn primary", style: "margin-top:10px", onclick: () => { const d = Math.round(Number(RP.days)), patch = Object.assign(RP.stage !== "keep" ? stagePatch(r, RP.stage, "done") : {}, d > 0 ? { follow: ptLocalDay(Math.min(d, 180)) } : {}); saveLead(r, patch); RP.msg = "Lead updated."; render(); } }, "Apply to this lead")));
+  }
+  return shell(el("h1", null, "Draft my answer"), el("p", { class: "muted" }, "Lead: " + r.name + ". Nothing is sent from here."), banner, errBox, ...cards);
+}
+/* ==========================================================================
+   WORKSHOP FLYER  -  one-page A4 PDF for a talk or workshop in the Speaking tracker, with the talk's own QR code (campaign talk-<slug>). No AI step: the
+   text is what you type. Opened from a talk card ("Make a flyer (PDF)"). See docs/common-edits.md "Workshop flyer".
+   ========================================================================== */
+const FL = { id: "", d: null, f: null, pdf: "", busy: false, msg: "" };
+const FL_TXT = {
+  en: { when: "When", where: "Where", cost: "Cost", learn: "What you will learn", scan: "Scan to learn more", kick: { seniors: "Workshop", business: "Talk" }, how: { seniors: "Questions? Call 514-250-8491.", business: "Scan the code for a free 2-minute feasibility check." } },
+  fr: { when: "Quand", where: "Où", cost: "Coût", learn: "Ce que vous apprendrez", scan: "Balayez pour en savoir plus", kick: { seniors: "Atelier", business: "Conférence" }, how: { seniors: "Des questions ? Appelez le 514-250-8491.", business: "Balayez le code pour une vérification de faisabilité gratuite de 2 minutes." } }
+};
+const flWhen = (d, L) => d.date ? new Date(d.date + "T12:00:00").toLocaleDateString(L === "fr" ? "fr-CA" : "en-CA", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "America/Toronto" }) : "";
+function openFlyer(r) {
+  const d = r.d, L = d.lang === "fr" ? "fr" : "en", T = FL_TXT[L];
+  Object.assign(FL, { id: r.id, d, pdf: "", busy: false, msg: "", f: { lang: L, kicker: T.kick[d.site], title: d.title || d.org, when: flWhen(d, L), place: d.place || "", cost: "", bullets: "", how: T.how[d.site] } });
+  S.screen = "flyer"; render(); window.scrollTo(0, 0);
+}
+function flyerPage(f, d) {
+  const B = brandFor(d.site), c = B.colors, T = FL_TXT[f.lang], acc = c.accentText || c.blue, sen = d.site === "seniors", url = talkUrl(Object.assign({}, d, { lang: f.lang }));
+  const qr = el("div", { style: "width:210px;height:210px;flex:none;background:#fff;padding:10px;border-radius:12px;box-sizing:border-box" }); qr.innerHTML = talkQr(url).createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  const svg = qr.querySelector("svg"); if (svg) { svg.setAttribute("width", "190"); svg.setAttribute("height", "190"); }
+  const rows = [[T.when, f.when], [T.where, f.place], [T.cost, f.cost]].filter(x => String(x[1] || "").trim());
+  const bl = String(f.bullets || "").split(/\n+/).map(x => x.trim()).filter(Boolean).slice(0, 4), big = String(f.title || "").length > 55;
+  return el("div", { style: "width:794px;height:1123px;box-sizing:border-box;overflow:hidden;background:#fff;position:relative;font-family:Arial,Helvetica,sans-serif" },
+    el("div", { style: "background:" + c.navy + ";padding:20px 44px;color:#fff;display:flex;align-items:center;gap:16px" }, el("img", { src: B.logo, alt: B.name, style: "height:62px;width:62px;border-radius:10px;background:#fff" }), el("div", { style: "font:700 22px/1.2 Arial,sans-serif" }, B.name)),
+    el("div", { style: "height:6px;background:" + c.blue }),
+    el("div", { style: "padding:34px 44px 0" },
+      f.kicker ? el("div", { style: "font:700 16px/1 Arial,sans-serif;color:" + acc + ";text-transform:uppercase;letter-spacing:1px" }, f.kicker) : null,
+      el("div", { style: "font:700 " + (big ? 34 : 42) + "px/1.15 Arial,sans-serif;color:" + c.navy + ";margin-top:10px" }, f.title),
+      rows.length ? el("div", { style: "margin-top:26px;background:" + c.light + ";border-left:6px solid " + c.blue + ";border-radius:0 12px 12px 0;padding:14px 22px" }, rows.map(([k, v]) => el("div", { style: "display:flex;gap:16px;margin:8px 0" }, el("div", { style: "flex:none;width:96px;font:700 17px/1.35 Arial,sans-serif;color:" + acc }, k), el("div", { style: "font:19px/1.35 Arial,sans-serif;color:" + c.navy }, v)))) : null,
+      bl.length ? el("div", { style: "margin-top:26px" }, el("div", { style: "font:700 18px/1 Arial,sans-serif;color:" + c.navy + ";text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px" }, T.learn),
+        bl.map((b, i) => el("div", { style: "display:flex;gap:14px;align-items:flex-start;margin:10px 0" }, el("div", { style: "flex:none;width:30px;height:30px;border-radius:50%;background:" + c.navy + ";color:#fff;font:700 16px/30px Arial,sans-serif;text-align:center" }, String(i + 1)), el("div", { style: "font:19px/1.35 Arial,sans-serif;color:#1f2933" }, b)))) : null,
+      el("div", { style: "display:flex;align-items:center;gap:24px;margin-top:30px;background:" + c.navy + ";border-radius:14px;padding:22px 26px;color:#fff" }, qr,
+        el("div", { style: "min-width:0" }, el("div", { style: "font:700 28px/1.2 Arial,sans-serif;color:" + (sen ? c.sky : c.blue) }, T.scan), f.how ? el("div", { style: "font:18px/1.4 Arial,sans-serif;color:#fff;margin-top:8px" }, f.how) : null, el("div", { style: "font:12px/1.35 Arial,sans-serif;color:#fff;margin-top:8px;word-break:break-all" }, url.split("?")[0])))),
+    el("div", { style: "position:absolute;left:0;right:0;bottom:0;padding:9px 44px;border-top:1px solid #d9dee5;font:10.5px/1.4 Arial,sans-serif;color:#52606d;text-align:center" }, B.line1, el("br"), B.line2));
+}
+async function flPdf(f, d) {
+  for (const u of PDF_LIBS) await loadScriptOnce(u);
+  const node = flyerPage(f, d), stage = el("div", { style: "position:fixed;left:-10000px;top:0;width:794px;background:#fff" }, node); document.body.append(stage);
+  try {
+    await new Promise(r => setTimeout(r, 30));
+    const cv = await window.html2canvas(node, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
+    const pdf = new window.jspdf.jsPDF({ unit: "pt", format: "a4", compress: true });
+    pdf.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 595.28, 841.89);
+    return pdf.output("blob");
+  } finally { stage.remove(); }
+}
+function flyerScreen() {
+  const f = FL.f, d = FL.d;
+  if (!f || !d) return shell(el("h1", null, "Workshop flyer"), el("p", { class: "muted" }, "Open a talk in Speaking engagements first."));
+  const chg = (k, v) => { FL.f[k] = v; if (FL.pdf) { URL.revokeObjectURL(FL.pdf); FL.pdf = ""; } FL.msg = ""; };
+  const field = (label, k, ph, rows) => el("label", { class: "muted", style: "display:block;margin:10px 0 2px" }, label, rows ? el("textarea", { rows: String(rows), placeholder: ph || "", style: "display:block;width:100%;margin-top:2px", onchange: e => { chg(k, e.target.value); render(); } }, f[k])
+    : el("input", { type: "text", value: f[k], placeholder: ph || "", style: "display:block;width:100%;margin-top:2px", onchange: e => { chg(k, e.target.value); render(); } }));
+  const sc = Math.min(1, (window.innerWidth - 48) / 794), banner = FL.msg ? el("div", { class: "note", role: "status" }, FL.msg) : null;
+  const pageBox = el("div", { style: "width:" + Math.round(794 * sc) + "px;height:" + Math.round(1123 * sc) + "px;overflow:hidden;border:1px solid #d9dee5;margin:8px 0" }, el("div", { style: "transform:scale(" + sc + ");transform-origin:0 0;width:794px;height:1123px" }, flyerPage(f, d)));
+  return shell(el("h1", null, "Workshop flyer"), el("p", { class: "muted" }, "A one-page PDF for " + (d.title || d.org) + ", with this talk's QR code. Type what you want it to say. Nothing is generated by AI, so check every line."), banner,
+    el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "What it says"),
+      el("label", { class: "muted", style: "display:block;margin:10px 0 2px" }, "Flyer language (headings and the date)", el("select", { style: "display:block;width:100%;margin-top:2px", onchange: e => { const old = f.lang, L = e.target.value, O = FL_TXT[old], N = FL_TXT[L]; if (f.kicker === O.kick[d.site]) f.kicker = N.kick[d.site]; if (f.how === O.how[d.site]) f.how = N.how[d.site]; if (f.when === flWhen(d, old)) f.when = flWhen(d, L); chg("lang", L); render(); } }, [["en", "English"], ["fr", "Français"]].map(([v, n]) => el("option", Object.assign({ value: v }, f.lang === v ? { selected: "" } : {}), n)))),
+      field("Small heading above the title", "kicker", "Workshop"), field("Title", "title", ""), field("When (add the time)", "when", "Thursday, March 5, 2:00 pm"), field("Where", "place", "Room and address"), field("Cost (leave blank to hide)", "cost", "Free, or the price"),
+      field("What people will learn (one per line, up to 4)", "bullets", "Spot a scam message\nAsk an AI tool a good question", 4), field("Line next to the QR code", "how", "")),
+    el("div", { class: "card" }, el("h2", { style: "margin-top:0" }, "Preview"), pageBox,
+      el("button", { class: "btn primary", disabled: FL.busy, onclick: async () => { FL.busy = true; FL.msg = "Making the PDF..."; render(); try { const b = await flPdf(f, d); if (FL.pdf) URL.revokeObjectURL(FL.pdf); FL.pdf = URL.createObjectURL(b); FL.msg = "PDF ready. Tap Download PDF."; } catch (e) { FL.msg = "Could not make the PDF (it needs an internet connection the first time). " + (e.message || ""); } FL.busy = false; render(); } }, "Make the PDF"),
+      FL.pdf ? el("a", { class: "btn", href: FL.pdf, download: "Flyer-" + (d.slug || "talk") + "-" + f.lang + ".pdf", style: "text-decoration:none;display:inline-block;margin-left:8px" }, "Download PDF") : null));
 }
 /* ==========================================================================
    PITCH BUILDER  -  find clients. Paste what a local business says on its website, get a prompt for a free AI chat, paste the
@@ -3064,7 +3222,7 @@ function ptAddLead() {
   const note = ("Outbound pitch sent " + ptLocalDay(0) + (o.url ? ". Website: " + o.url : "") + (o.industry ? ". Type: " + o.industry : "") + ". Subject: " + d.subject + ". Tracking tag: pitch/pitch-" + ptSlug(o) + ".").slice(0, 1500);
   const br = o.brand === "seniors" ? "seniors" : "business", rec = { id: newId(), brand: br, sel: [BASE[br]], typeId: BASE[br], lang: L, name: o.company.trim().slice(0, 80), created: now, updated: now, step: 0, answers: {}, pastes: {}, results: {}, feas: null,
     lead: { status: "new", contact: [o.first, o.email].map(x => (x || "").trim()).filter(Boolean).join(" · ").slice(0, 120), follow, note, hist: {}, at: now,
-      pitch: { o: { brand: br, company: o.company, url: o.url || "", industry: o.industry || "", first: o.first || "", email: o.email || "", lang: o.lang || "both", logoUrl: o.logoUrl || "" }, out: PT.out, fid: PT.curId || "" } } };
+      pitch: { o: { brand: br, company: o.company, url: o.url || "", industry: o.industry || "", first: o.first || "", email: o.email || "", lang: o.lang || "both", logoUrl: o.logoUrl || "" }, out: PT.out, fid: PT.curId || "", at: now } } };
   Object.assign(rec.lead, stagePatch(rec, "contacted", "auto"), { follow });
   if (!Store.upsert(rec)) return "Could not save the lead on this device.";
   Cloud.push(rec); PT.leadId = rec.id; if (PT.curId) { const it = FD.items.find(x => x.id === PT.curId); if (it) { it.done = true; it.sel = false; fdSave(); } }
@@ -4277,7 +4435,7 @@ function render() {
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
   if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); inqLoad(); svLoad(); }, 900); }
-  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, wspreview: wsScreen, talks: talksScreen, pitch: ptScreen, finder: fdScreen, testimonials: tmScreen, leads: leadsScreen, cap: capScreen, analytics: analyticsScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, wspreview: wsScreen, talks: talksScreen, pitch: ptScreen, finder: fdScreen, reply: rpScreen, flyer: flyerScreen, testimonials: tmScreen, leads: leadsScreen, cap: capScreen, analytics: analyticsScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
   const hd = document.querySelector("header.top"); if (hd) document.documentElement.style.setProperty("--hh", hd.offsetHeight + "px"); /* the Start/Save bar sticks just under the header */
 }

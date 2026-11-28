@@ -23,6 +23,8 @@ Style helpers: `el()` builds DOM, `S` is the state object, `render()` redraws, `
 - Wording for seniors says "bookings", not "students". Every output has an EN and FR version where the output language is chosen; the interface is English only.
 - A phone that opened the app from the Home Screen icon may show a stale version; a Safari reload shows the new one.
 
+- A new field on a lead (`lead.xxx`) must also be added to `cleanLead` in index.html: the Leads screen copies only the fields that function lists, so anything else vanishes (recipe "RULE: a new field on a lead" in `docs/common-edits.md`).
+
 ## Checks and automation (GitHub Actions: Maintain)
 
 `python3 scripts/check_toolkit.py` (JavaScript syntax of the app, migration grants, FX_PRICE and booking link equal the Business site) and
