@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Checks (JavaScript syntax, migration grants, prices and booking link vs the Business site)
         run: python3 scripts/check_toolkit.py
       - name: Refresh docs/code-map.md
