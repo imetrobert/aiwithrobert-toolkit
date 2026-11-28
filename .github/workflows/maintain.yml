@@ -9,6 +9,12 @@ on:
       - 'index.html'
       - 'migration/**'
       - 'scripts/**'
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'migration/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
   schedule:
     - cron: '23 12 * * 1'
   workflow_dispatch:
@@ -27,8 +33,10 @@ jobs:
       - name: Checks (JavaScript syntax, migration grants, prices and booking link vs the Business site)
         run: python3 scripts/check_toolkit.py
       - name: Refresh docs/code-map.md
+        if: github.event_name != 'pull_request'
         run: python3 scripts/code_map.py
       - name: Commit the map if it changed
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
