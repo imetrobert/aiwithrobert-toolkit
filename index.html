@@ -1542,6 +1542,7 @@ function leadsScreen() {
       el("input", { type: "text", maxlength: "80", value: l.ref, placeholder: (rf => rf && rf.auto ? "Referred by " + rf.name + " (from their link)" : "Referred by (client's name)")(leadReferrer(r)), "aria-label": "Referred by", style: "margin-top:6px", onchange: e => saveLead(r, { ref: e.target.value }) }),
       ["won", "after"].includes(st(r)) || l.code ? referralBox(r) : null,
       r.feas ? el("button", { class: "btn sm primary", onclick: () => openFeas(r) }, "Open feasibility check") : null,
+      el("button", { class: "btn sm", style: "margin-top:6px", onclick: () => openIntakePrefill(r, "leads") }, "Pre-fill a session intake (AI)"),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" },
         el("button", { class: "btn sm", onclick: () => saveLead(r, { archived: !arch(r) }) }, arch(r) ? "Restore" : "Archive"),
         el("button", { class: "btn sm danger", onclick: () => { if (confirm("Delete this lead from this device and your cloud account? Any saved profile or feasibility check on it is deleted too. This cannot be undone. Use Archive to keep it.")) { Store.remove(r.id); wlArchiveByEmail(l.contact); if (S.sid === r.id) { S.sid = null; S.lead = null; S.feasSaved = null; lastSaved = ""; } render(); } } }, "Delete (tests only)")));
@@ -1618,6 +1619,7 @@ function headerBack() {
   else if (["hub", "cap", "leads", "analytics", "sessions", "feas", "inq", "surveys", "talks", "testimonials", "pitch", "finder"].includes(sc)) fn = go("home", () => { S.sMsg = ""; S.sErrs = []; });
   if (sc === "wspreview") fn = go("feas");
   if (sc === "reply") fn = go("leads");
+  if (sc === "ipre") fn = go(IP.from || "home");
   if (sc === "flyer") fn = go("talks");
   if (sc === "svadd") fn = () => { const v = svState(); if (["review", "saving"].includes(v.stage) && !confirm("Discard this survey without saving?")) return; if (v.stage === "start") S.screen = "surveys"; else { v.stage = "start"; v.err = ""; } render(); window.scrollTo(0, 0); };
   if (!fn) return null;
@@ -2987,6 +2989,131 @@ function rpScreen() {
   return shell(el("h1", null, "Draft my answer"), el("p", { class: "muted" }, "Lead: " + r.name + ". Nothing is sent from here."), banner, errBox, ...cards);
 }
 /* ==========================================================================
+   INTAKE PRE-FILL  -  pick a lead and the assets to build, copy ONE detailed prompt for a free AI chatbot, paste its JSON reply, and the session
+   intake opens with the answers filled in (you review each question). Opened from a lead card or from the Start-a-session card.
+   Questions come from visibleQs(), so a new question or asset is picked up automatically. See docs/common-edits.md "Intake pre-fill".
+   ========================================================================== */
+const IP = { id: "", from: "home", brand: "business", sel: [], lang: "en", extra: "", prompt: "", reply: "", out: null, err: "", msg: "" };
+const IP_DEFAULTS = { lesson: "60", hlen: "medium" };   /* choices only you can make: filled with these and flagged "default" when the AI leaves them blank */
+const ipScrub = s => String(s || "").replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[email removed]").replace(/\+?\d[\d\s().-]{7,}\d/g, "[number removed]");
+function ipLeads() { return Store.all().map(x => cleanSession(x)).filter(c => c.rec).map(c => c.rec).filter(r => (r.lead || r.feas) && !(r.lead && r.lead.archived)).sort((a, b) => (b.updated || 0) - (a.updated || 0)); }
+function openIntakePrefill(r, from) {
+  const brand = r ? r.brand : S.brand;
+  Object.assign(IP, { id: r ? r.id : "", from: from || "home", brand, sel: [BASE[brand]], lang: r && r.lang === "fr" ? "fr" : (S.lang === "fr" ? "fr" : "en"), extra: "", prompt: "", reply: "", out: null, err: "", msg: "" });
+  S.screen = "ipre"; render(); window.scrollTo(0, 0);
+}
+/* What the AI is told about the lead. Contact details are never included; emails and phone numbers inside your notes are removed. */
+function ipFacts(r) {
+  const l = r.lead || {}, pi = l.pitch, f = r.feas, caps = (typeof loadCaps === "function" && loadCaps()) || CAPS_BUILTIN, reqs = (caps.reqs || CAPS_BUILTIN.reqs), out = [];
+  out.push("Name of the business, practice or group: " + (r.name || "not given"));
+  if (pi && pi.o) { if (pi.o.url) out.push("Website: " + pi.o.url); if (pi.o.industry) out.push("Kind of business (from my prospect list): " + pi.o.industry); }
+  if (pi && pi.out) { const o = pi.out[pi.o && pi.o.lang === "fr" ? "fr" : "en"] || pi.out.en || pi.out.fr; if (o && o.headline) out.push("The pitch I sent them was about: " + o.headline); }
+  if (l.status) out.push("Where they are with me: " + (LEAD_LABEL[l.status] || l.status));
+  if (l.note) out.push("My notes about them: " + ipScrub(l.note).replace(/\s+/g, " ").trim());
+  if (f) {
+    const need = (f.reqs || []).map(id => { const q = reqs.find(x => x.id === id); return q ? q.label : id; });
+    out.push("From their free feasibility check: " + [f.users ? "team of " + f.users : "", f.tool && f.tool !== "all" ? "AI tool they use or prefer: " + f.tool : "", need.length ? "what they want AI to do: " + need.join("; ") : "", f.request ? "in their own words: " + ipScrub(f.request).replace(/\s+/g, " ").trim() : ""].filter(Boolean).join(" | "));
+  }
+  const had = Object.keys(r.answers || {}).filter(k => k !== "transcript" && isStr(r.answers[k]) && r.answers[k].trim());
+  if (had.length) out.push("Intake answers I already wrote (keep them unless the facts say otherwise): " + had.map(k => k + " = " + ipScrub(r.answers[k]).slice(0, 200)).join(" | "));
+  if (IP.extra.trim()) out.push("More I know about them: " + ipScrub(IP.extra).replace(/\s+/g, " ").trim());
+  return out;
+}
+function ipQs() { return visibleQs(IP.brand, IP.sel).filter(q => q.type !== "transcript"); }
+function ipPrompt(r) {
+  const sen = IP.brand === "seniors", qs = ipQs(), fr = IP.lang === "fr", labels = IP.sel.map(id => OUTPUT_TYPES[id].label.en);
+  const who = sen ? "I am Robert Simon. I run AI with Robert for Seniors in Montréal: friendly, hands-on workshops and tutoring that help older adults use everyday AI tools safely."
+    : "I am Robert Simon. I run AI with Robert for Business in Montréal: I help owner-run small businesses and professional practices get more from the low-cost AI plans they already pay for.";
+  const qText = qs.map((q, i) => {
+    const lines = [(i + 1) + ". id: \"" + q.id + "\"  (" + q.type + (q.required ? ", required" : ", optional") + ")", "   Question: " + q.label.en];
+    if (q.hint) lines.push("   Hint: " + q.hint.en);
+    if (q.max) lines.push("   Maximum " + q.max + " characters.");
+    if (q.options) lines.push("   Allowed " + (q.type === "multi" ? "values (return an array of one or more ids)" : "value (return exactly one id)") + ": " + q.options.map(o => "\"" + o.id + "\" = " + o.en).join("; "));
+    if (IP_DEFAULTS[q.id]) lines.push("   Only I can decide this one. If nothing in the facts tells you, return \"" + IP_DEFAULTS[q.id] + "\".");
+    return lines.join("\n");
+  }).join("\n\n");
+  return [who, "", "Before each client session I fill in an intake questionnaire. Please fill it in for the client below so I only have to review it.",
+    "The assets I plan to build for them: " + labels.join(", ") + ".", "",
+    "CLIENT (everything I know)", ...ipFacts(r).map(x => "- " + x), "",
+    "WHAT TO DO",
+    "1. If you can browse the web, read their website (if one is given) and any public page about them: what they do, who they serve, how big they are and which tools they seem to use. If you cannot browse, use only the facts above and what is typical for this kind of " + (sen ? "group or audience" : "business") + ".",
+    "2. Answer every question below for this client." + (sen ? " If the client is a group or organization (a library, club or residence), answer for the typical participant in that group." : ""), "",
+    "RULES (strict)",
+    "- Use only facts from the information above or from their public website. Do NOT invent clients, results, prices, names or tools.",
+    "- If you cannot tell: for a choice question pick the most likely option; for a text question give a short best guess; if there is no basis at all return \"\" for text or null for a choice. In every one of these cases add the question id and a short reason to \"check\".",
+    "- No personal names, email addresses, phone numbers or private details in any answer.",
+    "- Write text answers in " + (fr ? "Canadian French, with correct accents and apostrophes" : "English") + ". For choice and multi questions return the option id exactly as shown, never the label.",
+    "- Keep text answers short and plain: one or two sentences. For \"examples\" give 2 or 3 realistic situations for THIS client in one line separated by semicolons, grounded in what you read, and list it in \"check\" as a suggestion.",
+    "", "QUESTIONS", qText, "",
+    "Reply with this JSON object only, with every id above as a key under \"answers\":",
+    "{\"answers\": {" + qs.map(q => "\"" + q.id + "\": " + (q.type === "multi" ? "[\"id\"]" : q.options ? "\"id\"" : "\"text\"")).join(", ") + "}, \"check\": [\"id: why I should double-check it\"]}", "", JSON_RULES].join("\n");
+}
+function ipRead(text) {
+  const raw = readAiJson(text), qs = ipQs(), src = raw && typeof raw.answers === "object" && raw.answers && !Array.isArray(raw.answers) ? raw.answers : raw;
+  if (!src || typeof src !== "object" || Array.isArray(src) || !qs.some(q => q.id in src)) throw new Error("The reply has no \"answers\" object with the question ids. In the AI chat say: \"Send the same answers again as the JSON object, inside one code block\", then copy that.");
+  const answers = {}, notes = {}, flags = {};
+  const check = Array.isArray(raw.check) ? raw.check.filter(isStr).map(x => x.trim().slice(0, 240)) : [];
+  qs.forEach(q => {
+    let v = src[q.id];
+    if (q.type === "text") {
+      v = isStr(v) ? ipScrub(v).replace(/\s+/g, " ").trim().slice(0, q.max || 1500) : "";
+      if (v) answers[q.id] = v;
+    } else {
+      const find = x => { const s = String(x).trim().toLowerCase(), o = q.options.find(o => o.id.toLowerCase() === s || o.en.toLowerCase() === s || (o.fr || "").toLowerCase() === s); return o ? o.id : null; };
+      if (q.type === "multi") { const a = (Array.isArray(v) ? v : (isStr(v) && v ? v.split(/[,;]/) : [])).map(find).filter((x, i, ar) => x && ar.indexOf(x) === i); if (a.length) answers[q.id] = a; }
+      else { const o = v == null ? null : find(v); if (o) answers[q.id] = o; }
+    }
+    if (!(q.id in answers) && IP_DEFAULTS[q.id]) { answers[q.id] = IP_DEFAULTS[q.id]; flags[q.id] = "default"; }
+    else if (!(q.id in answers)) flags[q.id] = "missing";
+    const why = check.find(c => c.toLowerCase().startsWith(q.id.toLowerCase())); if (why && !flags[q.id]) { flags[q.id] = "check"; notes[q.id] = why.replace(/^[^:]*:\s*/, ""); }
+  });
+  return { answers, flags, notes };
+}
+function ipShow(q, v) { if (v == null || v === "" || (Array.isArray(v) && !v.length)) return ""; if (!q.options) return String(v); return (Array.isArray(v) ? v : [v]).map(id => { const o = q.options.find(x => x.id === id); return o ? o.en : id; }).join(", "); }
+function ipApply(r) {
+  const rec = Store.all().find(x => x.id === r.id) || r;
+  const c = cleanSession(rec); if (c.error) { IP.err = c.error; render(); return; }
+  const rr = c.rec, a = Object.assign({}, rr.answers, IP.out.answers);
+  S.brand = IP.brand; S.sel = IP.sel.slice().sort((x, y) => ARTIFACT_ORDER.indexOf(OUTPUT_TYPES[x].art) - ARTIFACT_ORDER.indexOf(OUTPUT_TYPES[y].art)); S.results = rr.results || {}; S.pastes = rr.pastes || {}; S.typeId = S.sel[0]; S.result = null; S.paste = "";
+  S.saveMsg = ""; S.lang = IP.lang; S.answers = a; S.step = 0; S.errors = []; S.sid = rr.id; S.name = rr.name; S.feasSaved = rr.feas; S.lead = rr.lead; S.created = rr.created; S.tab = "edit";
+  lastSaved = ""; S.libSig = ""; S.screen = "intake"; render(); window.scrollTo(0, 0);
+}
+function ipScreen() {
+  const leads = ipLeads(), r = leads.find(x => x.id === IP.id) || Store.all().find(x => x.id === IP.id) || null, say = m => { IP.msg = m; render(); };
+  const card = (...k) => el("div", { class: "card" }, ...k), h2 = t0 => el("h2", { style: "margin-top:0" }, t0);
+  const lab = (label, ...kids) => el("label", { class: "muted", style: "display:block;margin:10px 0 2px" }, label, ...kids);
+  const pick = el("select", { "aria-label": "Lead", style: "display:block;width:100%", onchange: e => { const x = leads.find(y => y.id === e.target.value); IP.id = x ? x.id : ""; if (x) { IP.brand = x.brand; IP.sel = [BASE[x.brand]]; IP.lang = x.lang === "fr" ? "fr" : IP.lang; } IP.prompt = ""; IP.out = null; IP.err = ""; IP.msg = ""; render(); } },
+    el("option", { value: "" }, "Choose a lead..."), leads.map(x => el("option", Object.assign({ value: x.id }, x.id === IP.id ? { selected: "" } : {}), (x.name || sessionTitle(x)) + " (" + brandFor(x.brand).name.replace("AI with Robert for ", "") + (x.lead ? ", " + (LEAD_LABEL[x.lead.status] || "") : "") + ")")));
+  const cards = [card(h2("1. Pick the lead"), pick, leads.length ? null : el("p", { class: "muted" }, "No leads yet. Add one on the Leads screen first."))];
+  if (r) {
+    const brandSeg = el("div", { class: "seg dark", role: "group", "aria-label": "Brand" }, ["business", "seniors"].map(b => el("button", { "aria-pressed": String(IP.brand === b), onclick: () => { IP.brand = b; IP.sel = [BASE[b]]; IP.prompt = ""; IP.out = null; render(); } }, b === "business" ? "Business" : "Seniors")));
+    const arts = ARTIFACT_ORDER.map(a => { const o = OUTPUT_TYPES[artId(IP.brand, a)]; return el("button", { class: "opt multi", "aria-pressed": String(IP.sel.includes(o.id)), onclick: () => { IP.sel = IP.sel.includes(o.id) ? IP.sel.filter(x => x !== o.id) : IP.sel.concat(o.id); IP.prompt = ""; IP.out = null; render(); } }, el("span", { class: "dot" }), el("span", null, L(o.label), el("small", null, L(o.desc)))); });
+    const langSeg = el("div", { class: "seg dark", role: "group", "aria-label": "Session language" }, ["en", "fr"].map(code => el("button", { "aria-pressed": String(IP.lang === code), onclick: () => { IP.lang = code; IP.prompt = ""; render(); } }, code === "en" ? "English" : "Français")));
+    cards.push(card(h2("What the AI will be told"), el("pre", { style: "white-space:pre-wrap;word-break:break-word;font:inherit;margin:0 0 8px" }, ipFacts(r).join("\n")), el("p", { class: "muted", style: "margin:0" }, "Contact details are never included. Emails and phone numbers in your notes are removed."),
+      lab("Anything else you know about them (optional)", el("textarea", { rows: "3", maxlength: "1000", placeholder: "Call notes, what they said they need. No names.", style: "display:block;width:100%", oninput: e => { IP.extra = e.target.value; } }, IP.extra))));
+    cards.push(card(h2("2. Choose what to build"), brandSeg, el("p", { class: "muted" }, "What do you want to build for them? Pick one or more."), arts, IP.sel.length ? null : el("p", { class: "muted", role: "alert" }, "Pick at least one."),
+      el("p", { class: "muted" }, "Session language (the deliverable's language)"), langSeg,
+      el("button", { class: "btn primary", style: "margin-top:12px", disabled: !IP.sel.length, onclick: async () => { IP.prompt = ipPrompt(r); IP.err = ""; IP.msg = (await copyText(IP.prompt)) ? "Prompt copied (" + ipQs().length + " questions). Paste it into a free AI chat that can browse the web, then come back with its reply." : "Could not copy automatically. Select the text below and copy it."; render(); } }, "Build and copy the prompt")));
+  }
+  if (r && IP.prompt) {
+    cards.push(card(h2("The prompt"), el("textarea", { readonly: "", rows: "8", "aria-label": "Prompt", style: "display:block;width:100%;font-size:13px", onfocus: e => e.target.select() }, IP.prompt),
+      el("button", { class: "btn sm", style: "margin-top:8px", onclick: async () => say((await copyText(IP.prompt)) ? "Prompt copied." : "Could not copy.") }, "Copy it again"),
+      el("p", { class: "muted", style: "margin:8px 0 0;font-size:13px" }, "Use Gemini or ChatGPT so it can read their website. If the chat cannot browse, it will use only the facts above.")));
+    cards.push(card(h2("3. Paste the AI's reply"), el("textarea", { rows: "6", placeholder: "Paste the whole reply here", style: "display:block;width:100%", oninput: e => { IP.reply = e.target.value; } }, IP.reply),
+      el("button", { class: "btn primary", style: "margin-top:10px", onclick: () => { try { IP.out = ipRead(IP.reply); IP.err = ""; IP.msg = ""; } catch (e) { IP.err = e.message; IP.out = null; } render(); } }, "Read the reply")));
+  }
+  if (r && IP.out) {
+    const qs = ipQs(), o = IP.out, miss = qs.filter(q => o.flags[q.id] === "missing" && q.required).length;
+    const chip = (k, txt) => el("span", { class: "pill", style: "margin-left:6px;background:" + (k === "missing" ? "#FEF3F2;color:#7A271A" : "#FEF0C7;color:#7A4B00") }, txt);
+    cards.push(card(h2("4. Check the answers"), el("p", { class: "muted" }, "Review each answer before you start. You can still change any of them in the intake." + (miss ? " " + miss + " required question(s) are empty: you will fill those in." : "")),
+      qs.map(q => el("div", { style: "border-top:1px solid #e3e8ef;padding:8px 0" }, el("div", { style: "font-weight:700" }, q.label.en, o.flags[q.id] === "missing" && q.required ? chip("missing", "Empty") : o.flags[q.id] === "default" ? chip("default", "Default: confirm") : o.flags[q.id] === "check" ? chip("check", "Check") : null),
+        el("div", { style: "margin-top:2px;white-space:pre-wrap;word-break:break-word" }, ipShow(q, o.answers[q.id]) || "—"), o.notes[q.id] ? el("div", { class: "muted", style: "font-size:13px" }, o.notes[q.id]) : null)),
+      el("button", { class: "btn primary", style: "margin-top:12px", onclick: () => ipApply(r) }, "Start the session with these answers")));
+  }
+  return shell(el("h1", null, "Pre-fill the intake from a lead"), el("p", { class: "muted" }, "Pick a lead and the assets. You get one prompt for a free AI chat; its reply fills in the intake questions. Nothing is sent from here."),
+    IP.msg ? el("div", { class: "note", role: "status" }, IP.msg) : null, IP.err ? el("div", { class: "note warn", role: "alert" }, IP.err) : null, ...cards);
+}
+/* ==========================================================================
    WORKSHOP FLYER  -  one-page A4 PDF for a talk or workshop in the Speaking tracker, with the talk's own QR code (campaign talk-<slug>). No AI step: the
    text is what you type. Opened from a talk card ("Make a flyer (PDF)"). See docs/common-edits.md "Workshop flyer".
    ========================================================================== */
@@ -3508,7 +3635,8 @@ function homeScreen() {
         if (!S.sel.length) return;
         S.step = 0; S.answers = {}; S.paste = ""; S.errors = []; S.result = null; S.results = {}; S.pastes = {}; S.typeId = S.sel[0];
         S.sid = newId(); S.name = ""; S.feasSaved = null; S.lead = null; S.created = Date.now(); lastSaved = ""; S.libSig = ""; S.screen = "intake"; render();
-      } }, t("start"))),
+      } }, t("start")),
+      el("button", { class: "btn", style: "margin-top:8px", onclick: () => openIntakePrefill(null, "home") }, "Or pre-fill the intake from a lead (AI)")),
     el("button", { class: "btn", onclick: () => { S.sMsg = ""; S.sErrs = []; S.screen = "sessions"; render(); window.scrollTo(0, 0); } }, "Saved materials (" + Store.all().length + ")"),
     el("button", { class: "btn", onclick: () => { const T = talksState(); T.msg = ""; T.edit = null; if (T.status !== "loading") T.status = "idle"; S.screen = "talks"; render(); window.scrollTo(0, 0); talkLoad(); } }, "Speaking engagements"),
     secHead("After the event", "Capture what you learned and what clients say."),
@@ -4435,7 +4563,7 @@ function render() {
   if (S.auth.status === "checking") { root.replaceChildren(shell(el("p", { class: "muted", style: "margin-top:40px;text-align:center" }, t("checking")))); return; }
   if (S.auth.status !== "in") { root.replaceChildren(loginScreen()); return; }
   if (!Cloud.started) { Cloud.started = true; setTimeout(() => Cloud.sync(), 300); setTimeout(() => { capLoad(); wlLoad(); inqLoad(); svLoad(); }, 900); }
-  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, wspreview: wsScreen, talks: talksScreen, pitch: ptScreen, finder: fdScreen, reply: rpScreen, flyer: flyerScreen, testimonials: tmScreen, leads: leadsScreen, cap: capScreen, analytics: analyticsScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
+  const screens = { intake: intakeScreen, hub: hubScreen, composer: composerScreen, import: importScreen, edit: editScreen, sessions: sessionsScreen, feas: feasScreen, wspreview: wsScreen, talks: talksScreen, pitch: ptScreen, finder: fdScreen, reply: rpScreen, ipre: ipScreen, flyer: flyerScreen, testimonials: tmScreen, leads: leadsScreen, cap: capScreen, analytics: analyticsScreen, surveys: surveysScreen, svadd: svAddScreen, wait: waitScreen, inq: inqScreen };
   root.replaceChildren(...[(screens[S.screen] || homeScreen)(), S.modal && S.screen === "edit" ? leaveModal() : null].filter(Boolean));
   const hd = document.querySelector("header.top"); if (hd) document.documentElement.style.setProperty("--hh", hd.offsetHeight + "px"); /* the Start/Save bar sticks just under the header */
 }

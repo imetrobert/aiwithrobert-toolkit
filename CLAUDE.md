@@ -25,6 +25,8 @@ Style helpers: `el()` builds DOM, `S` is the state object, `render()` redraws, `
 
 - A new field on a lead (`lead.xxx`) must also be added to `cleanLead` in index.html: the Leads screen copies only the fields that function lists, so anything else vanishes (recipe "RULE: a new field on a lead" in `docs/common-edits.md`).
 
+- Intake pre-fill (lead + assets -> one AI prompt -> JSON reply fills the session intake): block `INTAKE PRE-FILL` in `index.html`, recipe "Intake pre-fill" in `docs/common-edits.md`; test `python3 scripts/test_intake_prefill.py` (by hand).
+
 ## Checks and automation (GitHub Actions: Maintain)
 
 `python3 scripts/check_toolkit.py` (JavaScript syntax of the app, migration grants, FX_PRICE and booking link equal the Business site) and
